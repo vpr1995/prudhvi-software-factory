@@ -127,6 +127,9 @@ cdk.out/
 .next/
 dist/
 lib/
+# These lib folders hold source code, not build output.
+!scripts/gates/lib/
+!projects/*/web/src/lib/
 *.tsbuildinfo
 playwright-report/
 test-results/
