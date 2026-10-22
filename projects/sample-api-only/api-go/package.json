@@ -1,0 +1,25 @@
+{
+  "name": "@vprprudhvi/sample-api-only-api-go",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Go API of sample-api-only. Thin Rush wrapper: each _phase script calls the Go tools (pinned in go.mod).",
+  "scripts": {
+    "_phase:build": "go build -o bin/sample-api-only-api ./cmd/sample-api-only-api",
+    "_phase:e2e": "node scripts/e2e.mjs",
+    "_phase:lint": "bash scripts/lint.sh",
+    "_phase:test": "bash scripts/test.sh",
+    "_phase:typecheck": "go vet ./... && go build ./...",
+    "build": "npm run _phase:build",
+    "e2e": "npm run _phase:e2e",
+    "gen": "bash scripts/generate-types.sh",
+    "license-check": "bash scripts/license-check.sh",
+    "lint": "npm run _phase:lint",
+    "security": "bash scripts/security.sh",
+    "test": "npm run _phase:test",
+    "typecheck": "npm run _phase:typecheck"
+  },
+  "devDependencies": {
+    "@usebruno/cli": "4.2.1",
+    "@vprprudhvi/sample-api-only-contracts": "workspace:*"
+  }
+}

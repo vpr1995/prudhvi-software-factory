@@ -1,0 +1,52 @@
+# Lint rules of api-go. Gate file: only a human changes it.
+version: '2'
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gocyclo
+    - gosec
+    - govet
+    - ineffassign
+    - nolintlint
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    gocyclo:
+      min-complexity: 15
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    revive:
+      rules:
+        - name: var-naming
+        - name: receiver-naming
+        - name: context-as-argument
+        - name: error-return
+        - name: error-naming
+        - name: error-strings
+        - name: exported
+        - name: package-comments
+        - name: unused-parameter
+        - name: indent-error-flow
+  exclusions:
+    generated: strict
+    presets: []
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  exclusions:
+    generated: strict
