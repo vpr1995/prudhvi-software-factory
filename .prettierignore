@@ -1,0 +1,16 @@
+# Generated, vendored and tool-owned files
+common/temp/
+common/deploy/
+common/config/rush/
+common/autoinstallers/*/pnpm-lock.yaml
+rush.json
+pnpm-lock.yaml
+node_modules/
+dist/
+coverage/
+.next/
+cdk.out/
+*.tsbuildinfo
+# Bruno request files are not formatted by Prettier
+**/bruno/
+**/.rush/

@@ -1,0 +1,9 @@
+{
+  "name": "rush-lint-staged",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "lint-staged": "^17.0.0",
+    "prettier": "^3.9.0"
+  }
+}
