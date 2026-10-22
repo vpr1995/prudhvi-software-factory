@@ -20,6 +20,7 @@ from sample_api.telemetry import (
 )
 
 _SERVER_ERROR_FLOOR = 500
+FLUSH_TIMEOUT_MILLIS = 2000
 _UNMATCHED = "unmatched"
 
 type LambdaEvent = dict[str, object]
@@ -66,6 +67,25 @@ def _span_name(method: str, path: str) -> str:
     return f"{method} {path if (method, path) in ROUTE_TEMPLATES else _UNMATCHED}"
 
 
+def _flush_spans(provider: TracerProvider, log: Logger) -> None:
+    """Flush the pending spans without raising and without waiting longer than the bound.
+
+    A collector that fails or hangs must not replace or delay the response. The problem is only
+    logged as a warning.
+
+    Args:
+        provider: The tracer provider.
+        log: The logger for the warning.
+    """
+    try:
+        flushed = provider.force_flush(timeout_millis=FLUSH_TIMEOUT_MILLIS)
+    except Exception as error:  # noqa: BLE001 - nothing the flush raises may replace the response.
+        log.warning("flush spans failed", error=str(error))
+        return
+    if not flushed:
+        log.warning("flush spans timed out", timeout_millis=FLUSH_TIMEOUT_MILLIS)
+
+
 def build_runtime(
     environ: Mapping[str, str],
     logger: Logger | None = None,
@@ -107,7 +127,7 @@ def build_runtime(
             headers[TRACEPARENT_HEADER] = format_traceparent(span.get_span_context())
             response["headers"] = headers
             log.info("request completed", http_method=method, status_code=status)
-        provider.force_flush()
+        _flush_spans(provider, log)
         return dict(response)
 
     return Runtime(settings=settings, logger=log, provider=provider, handle=handle)

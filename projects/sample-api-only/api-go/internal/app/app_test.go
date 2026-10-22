@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -53,6 +54,47 @@ func TestLambdaHandlerAnswersAnAPIGatewayEvent(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), traceID) {
 		t.Errorf("log lines do not carry the incoming trace id: %s", logs.String())
+	}
+}
+
+func TestLambdaHandlerReturnsWithinTheFlushBoundWhenTheCollectorHangs(t *testing.T) {
+	release := make(chan struct{})
+	collector := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	defer collector.Close()
+	defer close(release)
+	cfg, err := config.Load(func(key string) string {
+		if key == "OTEL_EXPORTER_OTLP_ENDPOINT" {
+			return collector.URL
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logs := &bytes.Buffer{}
+	runtime, err := app.Build(context.Background(), cfg, logs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := events.APIGatewayV2HTTPRequest{
+		RawPath: "/v1/health",
+		RequestContext: events.APIGatewayV2HTTPRequestContext{
+			HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{Method: http.MethodGet, Path: "/v1/health"},
+		},
+	}
+
+	started := time.Now()
+	response, err := runtime.LambdaHandler()(context.Background(), request)
+	elapsed := time.Since(started)
+
+	if err != nil || response.StatusCode != http.StatusOK {
+		t.Fatalf("response = %d, error = %v", response.StatusCode, err)
+	}
+	if elapsed > app.FlushTimeout+time.Second {
+		t.Errorf("handler took %v, want at most about %v", elapsed, app.FlushTimeout)
+	}
+	if !strings.Contains(logs.String(), "flush spans failed") {
+		t.Errorf("no flush warning in the logs: %s", logs.String())
 	}
 }
 

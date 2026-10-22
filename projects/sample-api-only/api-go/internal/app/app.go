@@ -25,6 +25,8 @@ import (
 const (
 	readHeaderTimeout = 5 * time.Second
 	shutdownTimeout   = 5 * time.Second
+	// FlushTimeout is the longest the Lambda handler waits for the span flush.
+	FlushTimeout = 2 * time.Second
 )
 
 // Runtime is the wired service. Build it once per cold start.
@@ -65,8 +67,12 @@ func (r *Runtime) LambdaHandler() func(context.Context, events.APIGatewayV2HTTPR
 	adapter := httpadapter.NewV2(r.Handler)
 	return func(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 		response, err := adapter.ProxyWithContext(ctx, request)
-		if flushErr := r.provider.ForceFlush(ctx); flushErr != nil {
-			r.Logger.ErrorContext(ctx, "flush spans failed", "error", flushErr.Error())
+		// The flush is bounded and its failure is only logged, so a bad collector never delays
+		// or replaces the response.
+		flushCtx, cancel := context.WithTimeout(ctx, FlushTimeout)
+		defer cancel()
+		if flushErr := r.provider.ForceFlush(flushCtx); flushErr != nil {
+			r.Logger.WarnContext(ctx, "flush spans failed", "error", flushErr.Error())
 		}
 		if err != nil {
 			return response, fmt.Errorf("proxy request: %w", err)

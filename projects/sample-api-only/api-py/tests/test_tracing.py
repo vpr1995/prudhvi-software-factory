@@ -1,5 +1,8 @@
 import re
 
+import pytest
+
+from sample_api.runtime import FLUSH_TIMEOUT_MILLIS
 from sample_api.server import RawRequest
 
 from .conftest import INCOMING_TRACE_ID, INCOMING_TRACEPARENT, TRACEPARENT, Harness
@@ -49,3 +52,37 @@ def test_log_lines_use_the_shared_field_names(harness: Harness) -> None:
     assert record["level"] == "info"
     assert {"msg", "time"} <= record.keys()
     assert not {"message", "timestamp", "service", "xray_trace_id"} & record.keys()
+
+
+def test_a_failing_span_flush_does_not_replace_the_response(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def failing_flush(timeout_millis: int = 30_000) -> bool:
+        message = "connect ECONNREFUSED 127.0.0.1:4318"
+        raise ConnectionError(message)
+
+    monkeypatch.setattr(harness.runtime.provider, "force_flush", failing_flush)
+    reply = harness.get("/v1/health")
+    assert reply.status == 200
+    warnings = [r for r in harness.log_records() if r["level"] == "warn"]
+    assert [w["msg"] for w in warnings] == ["flush spans failed"]
+    assert warnings[0]["error"] == "connect ECONNREFUSED 127.0.0.1:4318"
+
+
+def test_the_span_flush_is_bounded_and_a_timeout_is_only_logged(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    timeouts: list[int] = []
+
+    def slow_flush(timeout_millis: int = 30_000) -> bool:
+        timeouts.append(timeout_millis)
+        return False
+
+    monkeypatch.setattr(harness.runtime.provider, "force_flush", slow_flush)
+    reply = harness.get("/v1/health")
+    assert reply.status == 200
+    assert timeouts == [FLUSH_TIMEOUT_MILLIS]
+    assert FLUSH_TIMEOUT_MILLIS <= 2000
+    assert [r["msg"] for r in harness.log_records() if r["level"] == "warn"] == [
+        "flush spans timed out"
+    ]
