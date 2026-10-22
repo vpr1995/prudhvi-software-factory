@@ -23,5 +23,20 @@
     "(BSD-2-Clause OR MIT OR Apache-2.0)",
     "MIT-0"
   ],
+  "_reasons": {
+    "$comment": "Why each tooling-only license is allowed. Tooling licenses never apply to production dependencies of shipping projects (packages/, projects/, platform/). Human decision, approved by the repo owner.",
+    "LGPL-3.0-only": {
+      "decided": "2026-10-22",
+      "reason": "eslint-plugin-sonarjs and @sonarsource/analyzer-commons-configurations (lint tooling, via tooling/eslint-config). Never bundled into shipped code."
+    },
+    "PSF-2.0": {
+      "decided": "2026-10-22",
+      "reason": "argparse@3 (lint tooling transitive dependency via tooling/eslint-config)."
+    },
+    "CC-BY-3.0": {
+      "decided": "2026-10-22",
+      "reason": "spdx-exceptions (license-parsing data package, transitive dependency of lint tooling via tooling/eslint-config)."
+    }
+  },
   "excludePackages": []
 }

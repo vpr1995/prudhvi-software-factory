@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Checks dependency licenses against tooling/license-allowlist.json.
-#   runtime deps (production) of every Rush project -> "runtime" list
-#   all deps incl. dev tooling                      -> "runtime" + "tooling" lists
+# Policy (human decision 2026-10-22, see _reasons in the allowlist):
+#   production deps of shipping projects (packages/, projects/, platform/) -> strict "runtime" list only
+#   dev-only deps of shipping projects                                     -> "runtime" + "tooling" lists
+#   tooling/* projects never ship, so all their deps                       -> "runtime" + "tooling" lists
 # Run through `rush license-check` (license-checker-rseidelsohn comes from the rush-security autoinstaller).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -19,16 +21,19 @@ while IFS= read -r package_json; do
   echo "license-check: $project_dir"
   exclude_args=()
   [ -n "$exclude_list" ] && exclude_args=(--excludePackages "$exclude_list")
-  # tooling/* never ships, so only the all-deps check (runtime + tooling licenses) applies there.
   case "$project_dir" in
-    tooling/*) ;;
+    tooling/*)
+      # Non-shipping: every dependency (even one listed under "dependencies") may use a tooling license.
+      license-checker-rseidelsohn --start "$project_dir" --onlyAllow "$all_list" \
+        ${exclude_args[@]+"${exclude_args[@]}"} --excludePrivatePackages --summary >/dev/null || { echo "FAIL (tooling, runtime+tooling list): $project_dir" >&2; status=1; }
+      ;;
     *)
       license-checker-rseidelsohn --start "$project_dir" --production --onlyAllow "$runtime_list" \
-        ${exclude_args[@]+"${exclude_args[@]}"} --excludePrivatePackages --summary >/dev/null || { echo "FAIL (runtime): $project_dir" >&2; status=1; }
+        ${exclude_args[@]+"${exclude_args[@]}"} --excludePrivatePackages --summary >/dev/null || { echo "FAIL (production deps, strict runtime list): $project_dir" >&2; status=1; }
+      license-checker-rseidelsohn --start "$project_dir" --development --onlyAllow "$all_list" \
+        ${exclude_args[@]+"${exclude_args[@]}"} --excludePrivatePackages --summary >/dev/null || { echo "FAIL (dev deps, runtime+tooling list): $project_dir" >&2; status=1; }
       ;;
   esac
-  license-checker-rseidelsohn --start "$project_dir" --onlyAllow "$all_list" \
-    ${exclude_args[@]+"${exclude_args[@]}"} --excludePrivatePackages --summary >/dev/null || { echo "FAIL (all deps): $project_dir" >&2; status=1; }
 done < <(find tooling packages projects platform -maxdepth 3 -name package.json -not -path '*/node_modules/*' 2>/dev/null | sort)
 
 [ "$status" -eq 0 ] && echo "license-check: all licenses allowed"
