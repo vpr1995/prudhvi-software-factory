@@ -1,0 +1,9 @@
+{
+  "name": "rush-security",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "audit-ci": "^7.1.0",
+    "license-checker-rseidelsohn": "^5.0.1"
+  }
+}

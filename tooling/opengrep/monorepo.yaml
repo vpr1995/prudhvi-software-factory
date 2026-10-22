@@ -1,0 +1,80 @@
+# Gate file. Custom Opengrep rules. Run by scripts/security/opengrep-changed.sh and CI.
+# Only a human changes or silences a rule. `nosemgrep` comments are blocked by the Stop hook.
+rules:
+  - id: monorepo.no-eval-or-function-constructor
+    message: >-
+      eval() and new Function() run a string as code. Do not pass input to them.
+      Parse data with JSON.parse or a Zod schema.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: 'CWE-95: Eval Injection'
+    pattern-either:
+      - pattern: eval($X)
+      - pattern: new Function(...)
+
+  - id: monorepo.no-sql-string-concatenation
+    message: >-
+      SQL text is built from a string concatenation or a template literal. Use query
+      parameters, for example query("select * from users where id = $1", [id]).
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: 'CWE-89: SQL Injection'
+    patterns:
+      - pattern-either:
+          - pattern: $DB.query($A + $B, ...)
+          - pattern: $DB.query(`...${$X}...`, ...)
+      - pattern-not: $DB.query("..." + "...", ...)
+
+  - id: monorepo.no-dangerously-set-inner-html
+    message: >-
+      dangerouslySetInnerHTML puts raw HTML in the page and allows XSS. Render text,
+      or sanitize the HTML in one reviewed helper.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: 'CWE-79: Cross-site Scripting'
+    pattern: '<$EL ... dangerouslySetInnerHTML={...} ... />'
+
+  - id: monorepo.no-child-process-exec-with-interpolation
+    message: >-
+      exec() or execSync() runs a shell command built from a template string or a
+      concatenation. Use execFile() with an argument array.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: 'CWE-78: OS Command Injection'
+    patterns:
+      - pattern-either:
+          - pattern: $CP.exec(`...${$X}...`, ...)
+          - pattern: $CP.execSync(`...${$X}...`, ...)
+          - pattern: $CP.exec($A + $B, ...)
+          - pattern: $CP.execSync($A + $B, ...)
+          - pattern: exec(`...${$X}...`, ...)
+          - pattern: execSync(`...${$X}...`, ...)
+      - pattern-not: $CP.exec("..." + "...", ...)
+
+  - id: monorepo.no-logging-secret-fields
+    message: >-
+      A log call includes a field named password, token or secret. Never log secrets.
+      The logger redact list is the second layer, not the first.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      category: security
+      cwe: 'CWE-532: Insertion of Sensitive Information into Log File'
+    patterns:
+      - pattern-either:
+          - pattern: '$L.$M(..., {..., $KEY: $VALUE, ...}, ...)'
+          - pattern: '$L.$M(..., {..., $KEY, ...}, ...)'
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(trace|debug|info|warn|error|fatal|log)$
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: (?i)(password|passwd|token|secret|apikey|api_key)

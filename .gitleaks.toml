@@ -1,0 +1,28 @@
+# Gate file. A human adds allowlist entries, each with a reason. Agents must not edit it.
+title = "projects-monorepo gitleaks config"
+
+[extend]
+# Keep every default rule (AWS keys, private keys, JWT, generic API keys, and more).
+useDefault = true
+
+[[rules]]
+id = "aws-secret-access-key-assignment"
+description = "AWS secret access key assigned to a variable or env entry"
+regex = '''(?i)aws_?secret_?access_?key["'\s]*[:=]\s*["']?[A-Za-z0-9/+=]{40}["']?'''
+keywords = ["aws_secret_access_key", "awssecretaccesskey", "aws-secret-access-key"]
+
+[[rules]]
+id = "env-file-secret-value"
+description = "Secret-looking value assigned in a dotenv style line"
+regex = '''(?im)^\s*[A-Z0-9_]*(?:SECRET|PASSWORD|TOKEN|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*["']?[A-Za-z0-9/+_\-=.]{16,}["']?\s*$'''
+keywords = ["secret", "password", "token", "private_key"]
+[rules.allowlist]
+regexTarget = "match"
+regexes = ['''=\s*["']?(?:changeme|example|placeholder|<[^>]+>|\$\{[^}]+\})["']?\s*$''']
+
+# Global allowlist: intentionally absent. There is NO path or commit exemption.
+# gitleaks 8.28 rejects an empty [allowlist] block, so add the block only with a real entry.
+# To add one, a human writes:
+#   [[allowlists]]
+#   description = "<reason>"
+#   paths = ['''path/to/fixture''']

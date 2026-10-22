@@ -1,0 +1,13 @@
+{
+  // Gate file. Run by `rush audit` (scripts/security/audit.sh) against common/temp/pnpm-lock.yaml.
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "package-manager": "pnpm",
+  "high": true,
+  "report-type": "important",
+  "retry-count": 3,
+
+  // Every allowlist entry needs a written reason AND an expiry date, in a comment on the same line.
+  // Format: "<GHSA-id or package path>", // reason: ...; expires: YYYY-MM-DD; approved by: <human>
+  // Only a human may add entries. Remove an entry when it expires.
+  "allowlist": [],
+}

@@ -1,0 +1,16 @@
+# Gate file. Checkov scans the CloudFormation templates that `cdk synth` writes to cdk.out.
+framework:
+  - cloudformation
+# Placeholder: the infra phase writes templates to projects/<name>/infra/cdk.out and platform/infra/cdk.out.
+directory:
+  - projects
+  - platform
+skip-path:
+  - node_modules
+compact: true
+quiet: true
+soft-fail: false
+# Skips need a human, a reason and an expiry date. Format:
+#   skip-check:
+#     - CKV_AWS_XXX  # reason: ...; expires: YYYY-MM-DD
+skip-check: []
