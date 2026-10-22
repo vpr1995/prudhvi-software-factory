@@ -980,6 +980,26 @@ console.log('order ' + orderId + ' exported for ' + email);
 
 **Enforcer:** `no-console`. The Opengrep custom rule for secret and PII fields is planned. The redact list in `@vprprudhvi/shared-logger` masks known fields at run time.
 
+### C.5 Tracing and trace ids
+
+**Rule:** Follow `docs/standards/observability.md` for spans, log fields, and trace ids. Create spans only with `@vprprudhvi/shared-telemetry`.
+
+**Good:**
+
+```ts
+import { withSpan } from '@vprprudhvi/shared-telemetry';
+
+await withSpan('orders.export', () => exportOrder(orderId));
+```
+
+**Bad:**
+
+```ts
+import { NodeSDK } from '@opentelemetry/sdk-node'; // only packages/telemetry imports the SDK
+```
+
+**Enforcer:** `no-restricted-imports` in `tooling/eslint-config` (planned). The test gates are in `docs/standards/observability.md`, section 11.
+
 ---
 
 ## D. Folder layout per kind
