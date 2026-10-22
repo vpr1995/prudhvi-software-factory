@@ -1,0 +1,41 @@
+/**
+ * PNPM settings used by Rush. Gate file.
+ * Docs: https://rushjs.io/pages/configs/pnpm-config_json/
+ */
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/pnpm-config.schema.json",
+
+  "useWorkspaces": true,
+  "strictPeerDependencies": true,
+  "autoInstallPeers": false,
+  "preventManualShrinkwrapChanges": true,
+
+  "globalOverrides": {
+    "handlebars": "^4.7.10"
+  },
+  /**
+   * eslint-plugin-react and eslint-plugin-jsx-a11y do not declare ESLint 10 in their peer ranges yet.
+   * Scoped here (not global). The fixture tests in @vprprudhvi/tooling-eslint-config prove both plugins still run.
+   * Remove each entry when the plugin declares support.
+   */
+  "globalPeerDependencyRules": {
+    "allowedVersions": {
+      "eslint-plugin-react>eslint": "10",
+      "eslint-plugin-jsx-a11y>eslint": "10"
+    }
+  },
+  "globalPackageExtensions": {},
+  "globalAllowedDeprecatedVersions": {},
+
+  /**
+   * Rush 5.181 has no typed field for the PNPM 10 build-script allowlist. This property bag is copied
+   * into common/temp/package.json. Only packages in "onlyBuiltDependencies" may run install scripts.
+   * Add a package here only after a human reviews its install script.
+   * "minimum-release-age" (3 days) lives in .npmrc because Rush has no typed field for it.
+   */
+  "unsupportedPackageJsonSettings": {
+    "pnpm": {
+      "onlyBuiltDependencies": []
+    }
+  }
+}

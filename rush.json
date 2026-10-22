@@ -1,0 +1,54 @@
+/**
+ * Rush monorepo configuration. Gate file: agents must not edit it (see CLAUDE.md).
+ * Docs: https://rushjs.io/pages/configs/rush_json/
+ */
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/rush.schema.json",
+
+  "rushVersion": "5.181.0",
+  "pnpmVersion": "10.34.7",
+  "nodeSupportedVersionRange": ">=24.11.1 <25.0.0",
+
+  /** Projects live at tooling/<name>, packages/<name>, projects/<name>/<kind>. */
+  "projectFolderMinDepth": 1,
+  "projectFolderMaxDepth": 3,
+
+  "gitPolicy": {
+    // Optional: restrict commit emails, for example with "allowedEmailRegExps".
+  },
+
+  "repository": {
+    // Placeholder. Replace with the real remote URL before the first push.
+    "url": "https://github.com/OWNER/projects-monorepo.git",
+    "defaultBranch": "main",
+    "defaultRemote": "origin"
+  },
+
+  "eventHooks": {
+    "preRushInstall": [],
+    "postRushInstall": [],
+    "preRushBuild": [],
+    "postRushBuild": []
+  },
+
+  "projects": [
+    {
+      "packageName": "@vprprudhvi/tooling-tsconfig",
+      "projectFolder": "tooling/tsconfig",
+      "shouldPublish": false,
+      "tags": ["tooling"]
+    },
+    {
+      "packageName": "@vprprudhvi/tooling-vitest-config",
+      "projectFolder": "tooling/vitest-config",
+      "shouldPublish": false,
+      "tags": ["tooling"]
+    },
+    {
+      "packageName": "@vprprudhvi/tooling-eslint-config",
+      "projectFolder": "tooling/eslint-config",
+      "shouldPublish": false,
+      "tags": ["tooling"]
+    }
+  ]
+}

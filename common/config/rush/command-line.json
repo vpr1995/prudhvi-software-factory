@@ -1,0 +1,145 @@
+/**
+ * Custom Rush commands. Gate file: other tools (git hooks, Claude hooks, CI) call these names.
+ * Docs: https://rushjs.io/pages/configs/command-line_json/
+ *
+ * Each phase runs the package.json script with the SAME name as the phase:
+ *   "_phase:build", "_phase:lint", "_phase:typecheck", "_phase:test", "_phase:e2e"
+ * Put the real command in the "_phase:*" script. Add plain aliases for humans, for example
+ *   "build": "npm run _phase:build"   (so `rushx build` works).
+ * A project with no matching script is skipped (ignoreMissingScript: true).
+ *
+ * Build cache: lint, typecheck and test are cached through each project's config/rush-project.json.
+ * The e2e phase must NOT be cached. In every project that has an "e2e" script, set this in
+ * config/rush-project.json:
+ *   "operationSettings": [{ "operationName": "_phase:e2e", "disableBuildCacheForOperation": true }]
+ */
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/command-line.schema.json",
+
+  "commands": [
+    {
+      "commandKind": "phased",
+      "name": "build",
+      "summary": "Build projects (incremental).",
+      "phases": ["_phase:build"],
+      "enableParallelism": true,
+      "incremental": true
+    },
+    {
+      "commandKind": "phased",
+      "name": "rebuild",
+      "summary": "Build projects without using incremental state.",
+      "phases": ["_phase:build"],
+      "enableParallelism": true,
+      "incremental": false
+    },
+    {
+      "commandKind": "phased",
+      "name": "lint",
+      "summary": "Run ESLint (--max-warnings 0) in each project. Builds upstream projects first.",
+      "phases": ["_phase:lint"],
+      "enableParallelism": true,
+      "incremental": true
+    },
+    {
+      "commandKind": "phased",
+      "name": "typecheck",
+      "summary": "Run tsc in each project. Builds upstream projects first.",
+      "phases": ["_phase:typecheck"],
+      "enableParallelism": true,
+      "incremental": true
+    },
+    {
+      "commandKind": "phased",
+      "name": "test",
+      "summary": "Build, then run Vitest with coverage in each project.",
+      "phases": ["_phase:build", "_phase:test"],
+      "enableParallelism": true,
+      "incremental": true
+    },
+    {
+      "commandKind": "phased",
+      "name": "e2e",
+      "summary": "Build, then run Playwright and Bruno end-to-end tests. Never cached.",
+      "phases": ["_phase:build", "_phase:e2e"],
+      "enableParallelism": true,
+      "incremental": true
+    },
+    {
+      "commandKind": "phased",
+      "name": "verify",
+      "summary": "Run every gate: build, lint, typecheck, test and e2e.",
+      "phases": ["_phase:build", "_phase:lint", "_phase:typecheck", "_phase:test", "_phase:e2e"],
+      "enableParallelism": true,
+      "incremental": true
+    },
+
+    {
+      "commandKind": "global",
+      "name": "prettier",
+      "summary": "Run lint-staged (Prettier and ESLint) on staged files.",
+      "autoinstallerName": "rush-lint-staged",
+      "shellCommand": "bash scripts/git/lint-staged.sh"
+    },
+    {
+      "commandKind": "global",
+      "name": "commitlint",
+      "summary": "Check a commit message file against Conventional Commits.",
+      "autoinstallerName": "rush-commitlint",
+      "shellCommand": "bash scripts/git/commitlint.sh"
+    },
+    {
+      "commandKind": "global",
+      "name": "license-check",
+      "summary": "Fail on dependency licenses that are not in tooling/license-allowlist.json.",
+      "autoinstallerName": "rush-security",
+      "shellCommand": "bash scripts/security/license-check.sh"
+    },
+    {
+      "commandKind": "global",
+      "name": "audit",
+      "summary": "Fail on high or critical advisories in the pnpm lockfile (audit-ci).",
+      "autoinstallerName": "rush-security",
+      "shellCommand": "bash scripts/security/audit.sh"
+    }
+  ],
+
+  "phases": [
+    {
+      "name": "_phase:build",
+      "dependencies": { "upstream": ["_phase:build"] },
+      "ignoreMissingScript": true
+    },
+    {
+      "name": "_phase:lint",
+      "dependencies": { "upstream": ["_phase:build"] },
+      "ignoreMissingScript": true
+    },
+    {
+      "name": "_phase:typecheck",
+      "dependencies": { "upstream": ["_phase:build"] },
+      "ignoreMissingScript": true
+    },
+    {
+      "name": "_phase:test",
+      "dependencies": { "self": ["_phase:build"], "upstream": ["_phase:build"] },
+      "ignoreMissingScript": true
+    },
+    {
+      "name": "_phase:e2e",
+      "dependencies": { "self": ["_phase:build"], "upstream": ["_phase:build"] },
+      "ignoreMissingScript": true
+    }
+  ],
+
+  "parameters": [
+    {
+      "parameterKind": "string",
+      "longName": "--message-file",
+      "description": "Path to the commit message file (git passes it as $1 to the commit-msg hook).",
+      "argumentName": "FILE",
+      "required": true,
+      "associatedCommands": ["commitlint"]
+    }
+  ]
+}
