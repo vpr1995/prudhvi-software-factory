@@ -36,7 +36,12 @@
     "CC-BY-3.0": {
       "decided": "2026-10-22",
       "reason": "spdx-exceptions (license-parsing data package, transitive dependency of lint tooling via tooling/eslint-config)."
+    },
+    "caniuse-lite@1": {
+      "decided": "2026-10-22",
+      "expires": "2027-10-22",
+      "reason": "Named runtime exception, approved by the repo owner. CC-BY-4.0 browser-support data (no code). Transitive production dependency of next (via browserslist) in every Next.js web part. Attribution only. Only major version 1 is excluded; a new major needs a new review."
     }
   },
-  "excludePackages": []
+  "excludePackages": ["caniuse-lite@1"]
 }
