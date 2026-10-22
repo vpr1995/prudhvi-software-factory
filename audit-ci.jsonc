@@ -1,6 +1,19 @@
 {
   // Gate file. Run by `rush audit` (scripts/security/audit.sh) against common/temp/pnpm-lock.yaml.
   "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+
+  // SPLIT POLICY. Human decision, 2026-10-22. Agents must not change it.
+  //   Pass A: runtime (production) dependencies only  -> fail on HIGH or CRITICAL.
+  //   Pass B: all dependencies incl. dev and tooling   -> fail on CRITICAL only.
+  // Both passes must pass. scripts/security/audit.sh runs them and prints which pass failed.
+  //   - "high": true below is the base setting. It is the pass A threshold (audit.sh adds --skip-dev).
+  //   - Pass B overrides it on the command line with --high=false --critical.
+  //   - "tooling/*" projects never ship. Pass A drops them from a temp copy of the lockfile, because
+  //     they list their lint plugins under "dependencies" and --skip-dev alone would count them as runtime.
+  // Reason: high advisory GHSA-vfj7-8cjw-p6xm (braces) has no patch. It is reachable only through dev lint
+  // tooling: @next/eslint-plugin-next > fast-glob > micromatch > braces. It must not block dev work,
+  // and a new high advisory in a runtime dependency still fails the build.
+  // Do NOT add GHSA-vfj7-8cjw-p6xm to the allowlist. The split policy covers it.
   "package-manager": "pnpm",
   "high": true,
   "report-type": "important",
