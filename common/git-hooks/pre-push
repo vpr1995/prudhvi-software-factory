@@ -31,3 +31,10 @@ else
   echo "pre-push: origin/main not found, running the full verify"
   rush verify
 fi
+
+echo "pre-push: coverage gates and anti-skip"
+node scripts/gates/bruno-coverage.mjs
+node scripts/gates/playwright-coverage.mjs
+if git rev-parse --verify --quiet origin/main >/dev/null; then
+  node scripts/gates/anti-skip.mjs --range origin/main...HEAD
+fi
