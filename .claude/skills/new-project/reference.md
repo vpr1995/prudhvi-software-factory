@@ -10,20 +10,22 @@ Starting points. Match the real names in `tooling/`. Each file below is a non-ga
 ## api (TypeScript)
 - `src/config.ts`: the only file that reads `process.env`. Parse with Zod.
 - `src/server.ts`: `buildServer()` with `fastify-type-provider-zod`, the error handler, and the health route. Does not call `listen`.
-- `src/lambda.ts`: wraps `buildServer()` with `@fastify/aws-lambda`. Exports `handler`.
+- Telemetry lines in this section apply only when `packages/telemetry` exists (`docs/standards/observability.md`, section 2). If it does not, skip them and list them as open items. Do not create a stub.
+- `src/lambda.ts`: the Lambda entry. Calls `initTelemetry({ serviceName: '<name>-api' })` from `@vprprudhvi/shared-telemetry` first, before the app is created. Then loads the app with `await import('./server.js')`. Wraps `buildServer()` with `@fastify/aws-lambda` (`awsLambdaFastify`). Exports `handler`. Wrap `handler` with `wrapLambdaHandler` when it exists (planned).
+- `src/lambda.test.ts`: calls `handler` with a fake HTTP API v2 event that has a `traceparent` header. Asserts the response has a `traceparent` header with the same trace id.
 - `src/routes/health/get-health.ts`: `GET /v1/health`, response `HealthSchema`.
 - `src/routes/health/get-health.test.ts`: `app.inject({ method: 'GET', url: '/v1/health' })`, asserts 200 and body.
 
 ## api-py
-- `pyproject.toml` (gate): ruff rules `E,F,W,I,N,UP,B,S,BLE,C4,SIM,PT,RET,ARG,PL,RUF,ANN,D`; `[tool.mypy] strict = true`; pytest `--cov-fail-under=80`; ruff `extend-exclude = ["src/*/_generated"]`.
-- `src/<pkg>/_generated/`: generated Pydantic v2 models. Never edit by hand.
+- `pyproject.toml` (gate): ruff rules `E,F,W,I,N,UP,B,S,BLE,C4,SIM,PT,RET,ARG,PL,RUF,ANN,D`; `[tool.mypy] strict = true`; pytest `--cov-fail-under=80`; ruff `extend-exclude = ["src/*/generated"]`.
+- `src/<pkg>/generated/`: generated Pydantic v2 models. Never edit by hand.
 - `src/<pkg>/handler.py`: Lambda entry. Uses `aws_lambda_powertools.event_handler.APIGatewayHttpResolver`, exports `handler(event, context)`.
 - `src/<pkg>/domain/health.py`: pure function that returns the health dict. No powertools import.
 - `tests/test_health.py`: calls `handler` with a fake API Gateway HTTP API v2 event. Asserts status 200.
 - `scripts/generate-models.sh`:
   ```bash
   set -euo pipefail
-  out=src/<pkg>/_generated
+  out=src/<pkg>/generated
   mkdir -p "$out"
   for f in ../contracts/dist/schemas/*.json; do
     base=$(basename "$f" .json)
@@ -73,7 +75,39 @@ Start with `# <name> review rules`. Add one `## <part>` section per part, with t
 ## bruno (any api part)
 - `bruno/bruno.json`: `{ "version": "1", "name": "<name>-api", "type": "collection", "ignore": ["node_modules", ".git"] }`
 - `bruno/environments/local.bru`: `vars { baseUrl: http://localhost:3001 }`. `dev.bru` and `staging.bru` hold the non-secret base URLs only. The e2e phase overrides `baseUrl` with `--env-var`.
-- `bruno/health/get-health.bru`: the format in the `api-docs` skill. Method `get`, URL `{{baseUrl}}/v1/health`, docs block, `assert { res.status: eq 200 }`, a tests block.
+- `bruno/health/get-health.bru`: the format in the `api-docs` skill, with this content:
+  ```
+  meta {
+    name: Get health
+    type: http
+    seq: 1
+  }
+
+  get {
+    url: {{baseUrl}}/v1/health
+    body: none
+    auth: none
+  }
+
+  docs {
+    Purpose: returns the service health.
+    Auth: none.
+    Errors: none expected.
+    Trace: the response has a traceparent header.
+  }
+
+  assert {
+    res.status: eq 200
+    res.body.status: eq ok
+    res.headers.traceparent: isDefined
+  }
+
+  tests {
+    test("status is 200", function () {
+      expect(res.status).to.equal(200);
+    });
+  }
+  ```
 
 ## e2e wiring (api parts)
 - `_phase:e2e` in the api `package.json` runs `bash scripts/run-e2e.sh`.
