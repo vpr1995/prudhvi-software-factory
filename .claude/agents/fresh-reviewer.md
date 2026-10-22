@@ -31,7 +31,7 @@ Not allowed: any other write, any `git` command that changes state, `npm`/`pnpm`
 
 Language specifics:
 - TypeScript: `Result` not handled, floating promises, `process.env` outside `config.ts`.
-- Python: mutable default arguments, bare `except` or broad `except` that hides errors, `async` function called without `await`, `pydantic` model built with `construct` or `model_construct` to skip validation, `dict` access without a check, a Lambda handler that raises instead of returning an error response, a generated `_generated/` file that was edited by hand.
+- Python: mutable default arguments, bare `except` or broad `except` that hides errors, `async` function called without `await`, `pydantic` model built with `construct` or `model_construct` to skip validation, `dict` access without a check, a Lambda handler that raises instead of returning an error response, a generated `generated/` file that was edited by hand.
 - Go: an error return that is ignored or replaced with `_`, `%v` where `%w` is needed to wrap, a goroutine started without a stop path, `defer` inside a loop, a nil map write, a `context` that is not the first parameter or not passed on, a `panic` in a handler, an HTTP response body that is not closed, a `DO NOT EDIT` file edited by hand.
 
 Do not report style issues that a linter covers. Do not report guesses. Each finding needs evidence in the code.

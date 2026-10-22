@@ -138,7 +138,7 @@ Fix: attach the CreateOrderSchema to the route and remove the cast.
 
 ### Runtime (Lambda)
 
-- The API runs on Lambda through `aws-lambda-fastify` behind API Gateway HTTP API.
+- The API runs on Lambda through `@fastify/aws-lambda` behind API Gateway HTTP API.
 - The Fastify app is built once per cold start. Do not build it per request.
 - A request that takes longer than the API Gateway limit (30 seconds) fails. Move long work to a background job.
 - Do not keep state between requests in module scope, except a cached client or config.
