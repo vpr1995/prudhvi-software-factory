@@ -1,0 +1,250 @@
+{
+  "$comment": "Single source of truth for gate files. Read by protect-gates and guard-bash (Claude hooks), by scripts/gates/build-settings.mjs (permissions.deny) and later by CI check-gates. A pattern with no slash, or '**/' plus a name, matches that name at any depth. Other patterns are anchored at the repo root. Matching is case-insensitive. Only a human changes this file.",
+  "version": 1,
+  "unlock": "A human must change this file outside the agent session: change it on a branch (or ask the code owner), open a PR, check that the label is risk:high, and get CODEOWNERS approval (docs/standards/gates.md, section 6.1). If you think the change is needed, stop and tell the human the exact diff you propose and why.",
+  "gates": [
+    {
+      "glob": ".github/**",
+      "why": "CI workflows, PR template, rulesets and CODEOWNERS."
+    },
+    {
+      "glob": "CODEOWNERS",
+      "why": "Owner rules for review."
+    },
+    {
+      "glob": ".claude/settings*.json",
+      "why": "Agent permissions and hook wiring."
+    },
+    {
+      "glob": ".claude/hooks/**",
+      "why": "Hook scripts that block agent actions."
+    },
+    {
+      "glob": "tooling/**",
+      "why": "ESLint, TypeScript, Vitest (coverage thresholds), Opengrep rules and the license allowlist."
+    },
+    {
+      "glob": ".gitleaks.toml",
+      "why": "Secret scan rules and allowlist."
+    },
+    {
+      "glob": "audit-ci.jsonc",
+      "why": "Dependency audit allowlist."
+    },
+    {
+      "glob": ".checkov.yaml",
+      "why": "IaC scan settings and skips."
+    },
+    {
+      "glob": "docs/standards/coding-conventions.md",
+      "why": "Coding rules that reviewers and linters use."
+    },
+    {
+      "glob": "common/config/rush/**",
+      "why": "Rush config, command list and pnpm-lock.yaml."
+    },
+    {
+      "glob": "common/git-hooks/**",
+      "why": "Git hook scripts."
+    },
+    {
+      "glob": "common/autoinstallers/**",
+      "why": "Tool versions for hooks and CI."
+    },
+    {
+      "glob": "rush.json",
+      "why": "Rush project list and tool versions."
+    },
+    {
+      "glob": "scripts/check-gates.ts",
+      "why": "Gate integrity check."
+    },
+    {
+      "glob": "scripts/classify-risk.ts",
+      "why": "Risk tier classifier."
+    },
+    {
+      "glob": "**/REVIEW.md",
+      "why": "Review rules for the AI reviewer (plan section 6). docs/standards/gates.md lists it as human-reviewed, not hook-blocked: see the open gaps."
+    },
+    {
+      "glob": "platform/infra/**",
+      "why": "Shared AWS resources for every project (the skills list it as a gate path)."
+    },
+    {
+      "glob": "**/rush-project.json",
+      "why": "Per-project Rush build settings and cache rules."
+    },
+    {
+      "glob": "eslint.config.*",
+      "why": "ESLint entry point."
+    },
+    {
+      "glob": "tsconfig*.json",
+      "why": "TypeScript strictness settings."
+    },
+    {
+      "glob": "vitest.config.*",
+      "why": "Test runner settings and coverage thresholds."
+    },
+    {
+      "glob": ".dependency-cruiser.*",
+      "why": "Import boundary rules."
+    },
+    {
+      "glob": "**/cdk.json",
+      "why": "CDK app settings."
+    },
+    {
+      "glob": "**/playwright.config.*",
+      "why": "Playwright settings: browsers, retries and test match rules."
+    },
+    {
+      "glob": "**/pyproject.toml",
+      "why": "Python project and tool settings (ruff, mypy, pytest, coverage)."
+    },
+    {
+      "glob": "**/.golangci.yml",
+      "why": "Go lint rules."
+    },
+    {
+      "glob": "**/uv.lock",
+      "why": "Python dependency lock."
+    },
+    {
+      "glob": "**/go.sum",
+      "why": "Go dependency checksums."
+    },
+    {
+      "glob": "**/pnpm-lock.yaml",
+      "why": "Dependency lockfile. Use `rush add -p <pkg>`."
+    },
+    {
+      "glob": "**/package-lock.json",
+      "why": "Dependency lockfile. Use `rush add -p <pkg>`."
+    },
+    {
+      "glob": "**/yarn.lock",
+      "why": "Dependency lockfile. Use `rush add -p <pkg>`."
+    },
+    {
+      "glob": "scripts/gates/**",
+      "why": "Gate scripts: the shared gate list, anti-skip scanner, coverage gates and hook logic. Editing them weakens every gate."
+    },
+    {
+      "glob": "scripts/security/**",
+      "why": "Security scan scripts that git hooks and CI call."
+    },
+    {
+      "glob": "scripts/git/**",
+      "why": "Git hook helper scripts (lint-staged, commitlint)."
+    },
+    {
+      "glob": ".lintstagedrc.cjs",
+      "why": "Pre-commit check list."
+    },
+    {
+      "glob": "commitlint.config.cjs",
+      "why": "Commit message rules."
+    },
+    {
+      "glob": ".git/hooks/**",
+      "why": "Installed git hooks. Rush installs them from common/git-hooks."
+    },
+    {
+      "glob": ".gitattributes",
+      "why": "Git attributes can hide changed test files from the anti-skip diff (the -diff attribute)."
+    },
+    {
+      "glob": "common/scripts/**",
+      "why": "Rush launcher scripts. Every verify and every approved command runs install-run-rush.js."
+    },
+    {
+      "glob": "**/scripts/*.sh",
+      "why": "Project scripts that the _phase:* commands run (test, lint, coverage check, e2e)."
+    },
+    {
+      "glob": "**/scripts/*.mjs",
+      "why": "Project scripts that the _phase:* commands run (test, lint, coverage check, e2e)."
+    },
+    {
+      "glob": "**/scripts/*.py",
+      "why": "Project scripts that the _phase:* commands run (test, lint, coverage check, e2e)."
+    },
+    {
+      "glob": "**/.gitignore",
+      "why": "A .gitignore can hide a new gate file from git (a pytest.toml, for example), so the integrity check could not see it."
+    },
+    {
+      "glob": "**/pytest.toml",
+      "why": "pytest reads this file before pyproject.toml, so a new one can drop the coverage floor."
+    },
+    {
+      "glob": "**/go.mod",
+      "why": "Go module settings, including the Go version and toolchain."
+    },
+    {
+      "glob": "**/bruno.json",
+      "why": "Bruno collection settings."
+    },
+    {
+      "glob": "**/pytest.ini",
+      "why": "pytest reads this file before pyproject.toml, so a new one can drop the coverage floor."
+    },
+    {
+      "glob": "**/ruff.toml",
+      "why": "ruff reads this file before pyproject.toml, so a new one can turn rules off."
+    },
+    {
+      "glob": "**/.ruff.toml",
+      "why": "ruff reads this file before pyproject.toml, so a new one can turn rules off."
+    },
+    {
+      "glob": "**/mypy.ini",
+      "why": "mypy reads this file before pyproject.toml, so a new one can loosen type checks."
+    },
+    {
+      "glob": "**/.coveragerc",
+      "why": "coverage.py reads this file before pyproject.toml, so a new one can lower the floor."
+    },
+    {
+      "glob": "**/setup.cfg",
+      "why": "Legacy tool settings (pytest, mypy, coverage) that shadow pyproject.toml."
+    },
+    {
+      "glob": "**/tox.ini",
+      "why": "Legacy tool settings (pytest, coverage) that shadow pyproject.toml."
+    },
+    {
+      "glob": ".claude/state/last-verify.json",
+      "why": "The verify result that git push and gh pr create trust. Only stop-gate writes it."
+    },
+    {
+      "glob": ".claude/state/session-base",
+      "why": "The commit that the anti-skip scan compares with. Only the SessionStart hook writes it."
+    },
+    {
+      "glob": ".claude/state/stop-attempts",
+      "why": "The loop guard counter of the Stop hook. Only stop-gate writes it."
+    },
+    {
+      "glob": ".claude/state/subagent-stop-attempts",
+      "why": "The loop guard counter of the SubagentStop hook. Only stop-gate writes it."
+    }
+  ],
+  "writeProtectedForBash": [".claude/hooks", "common/git-hooks", ".git/hooks"],
+  "antiSkip": {
+    "ignorePaths": [
+      "docs/**",
+      "**/*.md",
+      "**/*.mdx",
+      ".claude/skills/**",
+      ".claude/agents/**",
+      ".claude/hooks/**",
+      "scripts/gates/**",
+      "evals/**",
+      "common/scripts/install-run*.js"
+    ],
+    "coverageOnlyPaths": ["tooling/**"]
+  }
+}
