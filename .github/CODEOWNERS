@@ -10,6 +10,9 @@
 # - When a second maintainer exists, replace the owner on each line with a team.
 #   Keep the grouping comments.
 
+# Default owner for any path not listed below.
+* @vprprudhvi
+
 # ---------------------------------------------------------------------------
 # Projects (general)
 # ---------------------------------------------------------------------------
@@ -46,6 +49,9 @@
 **/REVIEW.md @vprprudhvi
 /docs/templates/ @vprprudhvi
 /docs/standards/ @vprprudhvi
+/docs/guides/ @vprprudhvi
+**/CLAUDE.md @vprprudhvi
+**/AGENTS.md @vprprudhvi
 
 # ---------------------------------------------------------------------------
 # Gate files (hook-blocked for agents; always last)
@@ -78,6 +84,7 @@
 # Gate scripts
 /scripts/check-gates.ts @vprprudhvi
 /scripts/classify-risk.ts @vprprudhvi
+/scripts/gates/ @vprprudhvi
 
 # Python and Go locks and settings (gate files)
 **/pyproject.toml @vprprudhvi
@@ -93,3 +100,5 @@
 **/vitest.config.* @vprprudhvi
 /.dependency-cruiser.* @vprprudhvi
 **/cdk.json @vprprudhvi
+/docker-compose.yml @vprprudhvi
+**/bruno/environments/ @vprprudhvi
