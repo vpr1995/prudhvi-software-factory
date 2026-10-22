@@ -32,9 +32,9 @@ A gate file controls quality, security, or release. Agents must not edit gate fi
 | `CODEOWNERS` | Owner rules for review. |
 | `.claude/settings.json` | Agent permissions and hooks. |
 | `.claude/hooks/**` | Hook scripts that block agent actions. |
-| `tooling/**` | ESLint, TypeScript, Vitest, Opengrep rules, license allowlist. |
+| `tooling/**` | ESLint, TypeScript, Vitest, Opengrep rules, license allowlist (strict runtime list, wider tooling list). |
 | `.gitleaks.toml` | Secret scan rules and allowlist. |
-| `audit-ci.jsonc` | Dependency audit allowlist. |
+| `audit-ci.jsonc` | Dependency audit policy (runtime fails on high or critical, dev fails on critical only) and allowlist. |
 | `.checkov.yaml` | IaC scan settings and skips. |
 | `docs/standards/coding-conventions.md` | Coding rules that reviewers and linters use. |
 | `common/config/rush/**` | Rush config, command list, and `pnpm-lock.yaml`. |

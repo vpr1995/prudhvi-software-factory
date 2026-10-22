@@ -29,9 +29,9 @@ Each control runs in up to four places. The places are:
 | SAST, Node | njsscan (LGPL-3.0) | No | No | `sast.yml` | No |
 | AI security review | `anthropics/claude-code-security-review` (MIT). `/security-review` command. | `pre-pr` skill | No | `claude-review.yml`. Open findings block merge. | No |
 | IaC scan | cdk-nag (Apache-2.0) at synth, AwsSolutions pack. Checkov (Apache-2.0) on `cdk.out` templates. cfn-lint (MIT-0). | No | pre-push (infra changed) | `infra.yml` | No |
-| Dependency audit | audit-ci (Apache-2.0) with `--pnpm`, `high: true`, allowlist `audit-ci.jsonc` | `guard-bash.sh` blocks raw `npm` and `pnpm install` | pre-push | `deps.yml` | Report and issue |
+| Dependency audit | audit-ci (Apache-2.0) with `--pnpm`, allowlist `audit-ci.jsonc`. Two passes, both must pass (see section 3.1): pass A runtime deps only, fails on high or critical. Pass B all deps, fails on critical only. | `guard-bash.sh` blocks raw `npm` and `pnpm install` | pre-push | `deps.yml` | Report and issue |
 | Dependency audit, second source | OSV-Scanner (Apache-2.0) on `common/config/rush/pnpm-lock.yaml` | No | No | `deps.yml` | Yes |
-| License check | license-checker-rseidelsohn (BSD-3). Allowlist: MIT, Apache-2.0, BSD-2, BSD-3, ISC, 0BSD, MPL-2.0 (tools only). | No | pre-push | `deps.yml` | No |
+| License check | license-checker-rseidelsohn (BSD-3). Strict runtime list: MIT, Apache-2.0, BSD-2, BSD-3, ISC, 0BSD (plus BlueOak-1.0.0, CC0-1.0, Unlicense). Wider tooling list for dev-only deps and `tooling/*`: MPL-2.0, LGPL-3.0-only, PSF-2.0, CC-BY-3.0, CC-BY-4.0, Python-2.0, MIT-0 and some SPDX expressions. Reasons are in `_reasons` in the file. | No | pre-push | `deps.yml` | No |
 | New dependency control | `rush add` only. `strictPeerDependencies`. `ensureConsistentVersions`. Lockfile is a gate file. `scripts/security/new-deps.ts` posts a PR comment with name, license, downloads, age, and maintainers. | Hook | No | `rush check`. CODEOWNERS on the lockfile. | No |
 | Malicious and typo-squat packages | pnpm `minimumReleaseAge` (blocks versions under 3 days old). `onlyBuiltDependencies` allowlist. | No | No | `rush install` fails | No |
 | Supply chain, CI | Actions pinned by SHA, checked by pinact (MIT). zizmor (MIT) audits workflows. OpenSSF Scorecard (Apache-2.0). | No | No | `sast.yml` (zizmor, pinact) | Scorecard weekly |
@@ -54,13 +54,24 @@ These files set the security rules. Agents must not edit them. See `docs/standar
 |---|---|
 | `.gitleaks.toml` | Secret rules and allowlist |
 | `tooling/opengrep/**` | SAST rules |
-| `audit-ci.jsonc` | Dependency audit allowlist, with reason and expiry per entry |
-| `tooling/license-allowlist.json` | Allowed licenses |
+| `audit-ci.jsonc` | Dependency audit policy and allowlist, with reason and expiry per entry |
+| `tooling/license-allowlist.json` | Allowed licenses: `runtime` (strict), `tooling` (dev only), `_reasons` |
 | `uv.lock`, `go.sum` | Python and Go dependency locks. Changes need a human (see `docs/standards/gates.md`). |
 | `**/.golangci.yml` | Go lint rules |
 | `tooling/python/**`, `tooling/go/**` | Shared Python and Go tool settings |
 | `**/pyproject.toml` | Python project and tool settings (`[tool.*]` sections). The whole file is a gate file. |
 | `.checkov.yaml` | IaC scan settings |
+
+### 3.1 Dependency audit and license policy
+
+Human decision, 2026-10-22. Agents must not change it.
+
+- `rush audit` runs two audit-ci passes. Both must pass. The script prints which pass failed.
+  - Pass A audits runtime (production) dependencies only. It fails on high or critical. `tooling/*` projects never ship, so pass A drops them from a temp copy of the lockfile before it applies `--skip-dev`.
+  - Pass B audits all dependencies, including dev and tooling. It fails on critical only.
+- The `allowlist` in `audit-ci.jsonc` stays empty. High advisory GHSA-vfj7-8cjw-p6xm (braces) has no patch. It is reachable only through dev lint tooling (`@next/eslint-plugin-next`, `fast-glob`, `micromatch`, `braces`). The split policy covers it.
+- `rush license-check` uses the strict `runtime` list for production dependencies of shipping projects (`packages/`, `projects/`, `platform/`). It uses `runtime` plus `tooling` for dev-only dependencies and for `tooling/*`.
+- `LGPL-3.0-only`, `PSF-2.0`, and `CC-BY-3.0` are tooling-only licenses. Each has a reason and a date in `_reasons` in `tooling/license-allowlist.json`.
 
 ## 4. Dependency process
 
