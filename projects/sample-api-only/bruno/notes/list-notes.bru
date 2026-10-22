@@ -1,0 +1,34 @@
+meta {
+  name: List notes
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/v1/notes
+  body: none
+  auth: none
+}
+
+docs {
+  Purpose: lists all notes, oldest first.
+  Auth: none.
+  Errors: none expected.
+  Trace: the response header traceparent holds the trace id of the request.
+}
+
+assert {
+  res.status: eq 200
+  res.body.notes: isArray
+  res.headers.traceparent: matches ^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$
+}
+
+tests {
+  test("the note from create-note is listed", function () {
+    const titles = res.body.notes.map((note) => note.title);
+    expect(titles).to.include(bru.getVar("noteTitle"));
+  });
+  test("response has a traceparent header", function () {
+    expect(res.getHeader("traceparent")).to.match(/^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/);
+  });
+}

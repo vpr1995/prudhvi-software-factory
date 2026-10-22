@@ -1,0 +1,45 @@
+meta {
+  name: Create note
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/notes
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "title": "{{noteTitle}}",
+    "body": "Created by the Bruno collection."
+  }
+}
+
+docs {
+  Purpose: creates a note. The title is unique, ignoring case.
+  Auth: none.
+  Errors: 400 VALIDATION_ERROR when the body is not valid. 409 NOTE_TITLE_TAKEN when a note has the title. 409 NOTE_LIMIT_REACHED when the service stores 100 notes.
+  Trace: the response header traceparent holds the trace id of the request.
+}
+
+script:pre-request {
+  bru.setVar("noteTitle", "Bruno note " + Date.now());
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: isString
+  res.body.body: eq Created by the Bruno collection.
+  res.headers.traceparent: matches ^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$
+}
+
+tests {
+  test("the new note has the requested title", function () {
+    expect(res.body.title).to.equal(bru.getVar("noteTitle"));
+  });
+  test("response has a traceparent header", function () {
+    expect(res.getHeader("traceparent")).to.match(/^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/);
+  });
+}

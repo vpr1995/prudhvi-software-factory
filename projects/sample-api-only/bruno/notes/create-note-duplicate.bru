@@ -1,0 +1,37 @@
+meta {
+  name: Create note with a taken title
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/v1/notes
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "title": "{{noteTitle}}"
+  }
+}
+
+docs {
+  Purpose: shows the conflict error. It repeats the title of create-note, so run it after create-note.
+  Auth: none.
+  Errors: 409 NOTE_TITLE_TAKEN. The body is the error envelope, and requestId is the trace id.
+}
+
+assert {
+  res.status: eq 409
+  res.body.error.code: eq NOTE_TITLE_TAKEN
+  res.body.error.requestId: matches ^[0-9a-f]{32}$
+  res.headers.traceparent: matches ^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$
+}
+
+tests {
+  test("requestId equals the trace id of the traceparent header", function () {
+    const traceId = res.getHeader("traceparent").split("-")[1];
+    expect(res.body.error.requestId).to.equal(traceId);
+  });
+}
