@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-telemetry",
+      "comment": "Add OpenTelemetry setup for Node and the browser, with trace helpers.",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-telemetry"
+}
