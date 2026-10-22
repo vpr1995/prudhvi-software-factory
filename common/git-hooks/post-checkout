@@ -1,0 +1,12 @@
+#!/bin/sh
+# Prints a reminder when the lockfile or Rush config differs on the new commit. Never blocks.
+previous="${1:-}"
+current="${2:-}"
+branch_checkout="${3:-0}"
+[ "$branch_checkout" = "1" ] || exit 0
+[ -n "$previous" ] && [ -n "$current" ] || exit 0
+
+if git diff --name-only "$previous" "$current" 2>/dev/null | grep -E '^(common/config/rush/pnpm-lock\.yaml|rush\.json)$' >/dev/null; then
+  echo "post-checkout: dependencies or rush.json changed. Run: node common/scripts/install-run-rush.js install" >&2
+fi
+exit 0

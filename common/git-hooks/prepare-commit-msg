@@ -1,0 +1,16 @@
+#!/bin/sh
+# Adds a "Refs: ABC-123" trailer when the branch name has a ticket id. Never blocks a commit.
+message_file="${1:-}"
+source="${2:-}"
+
+# Skip merges, squashes and amends (they already have a message).
+case "$source" in merge|squash|commit) exit 0 ;; esac
+[ -n "$message_file" ] || exit 0
+
+branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+ticket="$(printf '%s' "$branch" | grep -Eo '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1 || true)"
+[ -n "$ticket" ] || exit 0
+
+grep -q "$ticket" "$message_file" 2>/dev/null && exit 0
+git interpret-trailers --in-place --if-exists doNothing --trailer "Refs: $ticket" "$message_file" 2>/dev/null || true
+exit 0

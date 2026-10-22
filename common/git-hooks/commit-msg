@@ -1,0 +1,5 @@
+#!/bin/sh
+# Checks the commit message with commitlint (Conventional Commits).
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+exec node common/scripts/install-run-rush.js commitlint --message-file "$1"

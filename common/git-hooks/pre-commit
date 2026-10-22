@@ -1,0 +1,40 @@
+#!/bin/sh
+# Installed by `rush install` (copied from common/git-hooks). Blocks the commit when any check fails.
+# Skipping with --no-verify is blocked for agents by the Claude hooks and is re-checked in CI.
+set -eu
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+[ -n "$staged" ] || exit 0
+
+fail() {
+  echo "pre-commit: $1" >&2
+  exit 1
+}
+
+# 1. Block .env files (allow .env.example).
+env_files="$(printf '%s\n' "$staged" | grep -E '(^|/)\.env($|\.)' | grep -Ev '(^|/)\.env\.example$' || true)"
+[ -z "$env_files" ] || fail "do not commit env files (only .env.example is allowed):
+$env_files"
+
+# 2. Block merge conflict markers in added lines.
+if git diff --cached -U0 | grep -E '^\+(<{7}|>{7})( |$)' >/dev/null 2>&1; then
+  fail "merge conflict markers found in staged changes. Resolve them first."
+fi
+
+# 3. Block files larger than 1 MB.
+max_bytes=1048576
+printf '%s\n' "$staged" | while IFS= read -r file; do
+  size="$(git cat-file -s ":$file" 2>/dev/null || echo 0)"
+  if [ "$size" -gt "$max_bytes" ]; then
+    echo "pre-commit: $file is $size bytes (limit $max_bytes). Do not commit large files." >&2
+    exit 1
+  fi
+done
+
+# 4. Secret scan on staged changes (gitleaks).
+bash scripts/security/secrets-staged.sh
+
+# 5. Prettier and ESLint on staged files (lint-staged through Rush).
+node common/scripts/install-run-rush.js prettier
