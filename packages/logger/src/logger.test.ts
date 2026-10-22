@@ -4,7 +4,7 @@ import { initTelemetry, withSpan } from '@vprprudhvi/shared-telemetry';
 import type { TelemetryHandle } from '@vprprudhvi/shared-telemetry';
 
 import { createLogger, getTraceLogFields } from './logger.js';
-import { buildRedactPaths, keyVariants, REDACTED_TEXT } from './redact.js';
+import { buildRedactPaths, isRedactedKey, keyVariants, REDACTED_TEXT } from './redact.js';
 
 const TRACE_ID_LENGTH = 32;
 const SPAN_ID_LENGTH = 16;
@@ -180,5 +180,59 @@ describe('keyVariants', () => {
       'access-token',
       'Access-Token',
     ]);
+  });
+});
+
+describe('redaction ignores case and separator style', () => {
+  const spellings = [
+    'API_KEY',
+    'ApiKey',
+    'apiKey',
+    'api-key',
+    'Api-Key',
+    'API-KEY',
+    'ACCESS_TOKEN',
+    'AccessToken',
+    'Authorization',
+    'AUTHORIZATION',
+    'X-API-KEY',
+    'Set-Cookie',
+    'CLIENT_SECRET',
+    'PASSWORD',
+    'Email',
+  ];
+
+  it('redacts every spelling at the root and at nested levels', () => {
+    const { lines, destination } = createCollector();
+    const logger = createLogger({ serviceName: 'svc', destination });
+    const flat = Object.fromEntries(spellings.map((key) => [key, 'secret-value']));
+
+    logger.info(
+      { ...flat, req: { headers: { ...flat, accept: 'json' } }, a: { b: { c: flat } } },
+      'x',
+    );
+
+    const redacted = Object.fromEntries(spellings.map((key) => [key, REDACTED_TEXT]));
+    expect(lines[0]).toMatchObject({
+      ...redacted,
+      req: { headers: { ...redacted, accept: 'json' } },
+      a: { b: { c: redacted } },
+    });
+    expect(JSON.stringify(lines[0])).not.toContain('secret-value');
+  });
+
+  it('keeps keys that only look similar', () => {
+    const { lines, destination } = createCollector();
+    const logger = createLogger({ serviceName: 'svc', destination });
+
+    logger.info({ tokenCount: 3, KEYBOARD: 'k', user: { keyId: 'id' } }, 'x');
+
+    expect(lines[0]).toMatchObject({ tokenCount: 3, KEYBOARD: 'k', user: { keyId: 'id' } });
+  });
+
+  it('tells a secret key apart from other keys', () => {
+    expect(isRedactedKey('API_KEY')).toBe(true);
+    expect(isRedactedKey('x-amz-security-token')).toBe(true);
+    expect(isRedactedKey('accept')).toBe(false);
   });
 });

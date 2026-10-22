@@ -3,7 +3,7 @@ import type { DestinationStream, Logger } from 'pino';
 
 import { getTraceContext } from '@vprprudhvi/shared-telemetry';
 
-import { REDACT_PATHS, REDACTED_TEXT } from './redact.js';
+import { REDACT_PATHS, REDACTED_TEXT, redactRecord } from './redact.js';
 
 const FIELD_TRACE_ID = 'trace_id';
 const FIELD_SPAN_ID = 'span_id';
@@ -55,7 +55,11 @@ export function createLogger(options: CreateLoggerOptions): Logger {
     level,
     base: { 'service.name': serviceName },
     timestamp: pino.stdTimeFunctions.isoTime,
-    formatters: { level: (label: string) => ({ level: label }) },
+    formatters: {
+      level: (label: string) => ({ level: label }),
+      // Pino paths match one spelling of a key. This step matches any case and separator style.
+      log: redactRecord,
+    },
     redact: { paths: [...REDACT_PATHS], censor: REDACTED_TEXT },
     mixin: getTraceLogFields,
   };

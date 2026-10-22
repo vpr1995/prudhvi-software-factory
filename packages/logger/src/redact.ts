@@ -38,6 +38,89 @@ const REDACTION_DEPTH = 3;
 const SIMPLE_KEY = /^[A-Za-z_$][\w$]*$/;
 
 /**
+ * Reduces a key to lower case without `_` and `-`, so `API_KEY`, `ApiKey`, `apiKey` and `api-key`
+ * give the same text.
+ *
+ * @param key - A key of a log object.
+ * @returns The normalized key.
+ */
+function normalizeKey(key: string): string {
+  return key.toLowerCase().replaceAll(/[_-]/g, '');
+}
+
+const NORMALIZED_KEYS: ReadonlySet<string> = new Set(REDACTED_KEYS.map((key) => normalizeKey(key)));
+
+/**
+ * Tells whether a log key holds a secret or personal data, whatever its case and separator style.
+ *
+ * @param key - A key of a log object.
+ * @returns True when the value must be redacted.
+ */
+export function isRedactedKey(key: string): boolean {
+  return NORMALIZED_KEYS.has(normalizeKey(key));
+}
+
+/**
+ * Tells whether a value is a plain object, which the redaction can copy safely.
+ *
+ * @param value - Any value.
+ * @returns True for `{}` and `Object.create(null)` objects.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Copies a log value and replaces the value of each secret key, whatever its case and separator
+ * style. Pino redact paths match one exact spelling, so this covers the other spellings
+ * (`API_KEY`, `ApiKey`, `Authorization`). It walks plain objects and arrays down to
+ * `REDACTION_DEPTH` levels below the root. Other values (errors, dates, class instances) stay.
+ *
+ * @param value - A log value.
+ * @param depth - How many object levels below this value are still searched.
+ * @returns The copy, or the same value when it has nothing to walk.
+ */
+export function redactValue(value: unknown, depth: number = REDACTION_DEPTH): unknown {
+  if (depth < 0) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item: unknown) => redactValue(item, depth - 1));
+  }
+  return isPlainObject(value) ? redactEntries(value, depth) : value;
+}
+
+/**
+ * Copies a plain object and replaces the value of each secret key. See `redactValue`.
+ *
+ * @param record - A log object.
+ * @param depth - How many object levels below this object are still searched.
+ * @returns The copy.
+ */
+function redactEntries(record: Record<string, unknown>, depth: number): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, item]) => [
+      key,
+      isRedactedKey(key) ? REDACTED_TEXT : redactValue(item, depth - 1),
+    ]),
+  );
+}
+
+/**
+ * Redacts the object of a log call. See `redactValue`.
+ *
+ * @param record - The merged object of a log call.
+ * @returns The redacted copy.
+ */
+export function redactRecord(record: Record<string, unknown>): Record<string, unknown> {
+  return redactEntries(record, REDACTION_DEPTH);
+}
+
+/**
  * Lists the spellings of one key: as written, lower case, snake_case, kebab-case and Title-Kebab. HTTP headers use the kebab and lower forms, JSON bodies use the others.
  *
  * @param key - A key in camelCase.

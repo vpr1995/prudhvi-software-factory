@@ -5,5 +5,8 @@ export {
   REDACTED_KEYS,
   REDACTED_TEXT,
   buildRedactPaths,
+  isRedactedKey,
   keyVariants,
+  redactRecord,
+  redactValue,
 } from './redact.js';

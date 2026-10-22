@@ -52,6 +52,29 @@ def test_secret_keys_are_redacted_in_any_spelling() -> None:
     assert line["accept"] == "json"
 
 
+@pytest.mark.parametrize(
+    "key",
+    [
+        "API_KEY",
+        "ApiKey",
+        "apiKey",
+        "api-key",
+        "Api-Key",
+        "ACCESS_TOKEN",
+        "Authorization",
+        "AUTHORIZATION",
+        "X-API-KEY",
+        "Set-Cookie",
+        "CLIENT_SECRET",
+        "PASSWORD",
+    ],
+)
+def test_secret_keys_are_redacted_whatever_the_case_and_separator(key: str) -> None:
+    line = _redacted_log_line({key: "s", "req": {"headers": {key: "s", "accept": "json"}}})
+    assert line[key] == REDACTED_TEXT
+    assert line["req"] == {"headers": {key: REDACTED_TEXT, "accept": "json"}}
+
+
 def test_secret_headers_are_redacted_in_nested_mappings() -> None:
     line = _redacted_log_line(
         {
