@@ -136,6 +136,13 @@ No tool checks these rules. The reviewer checks them by reading the code. Report
 | Python: code sits in `src/<package>/` as in G.1. | `coding-conventions.md`, G.1 | Nit |
 | Go: each package sits under `cmd/` or `internal/` as in H.1. | `coding-conventions.md`, H.1 | Nit |
 | Go: a handler returns an error. It does not call `panic`. | `coding-conventions.md`, H.6 | Important |
+| Server span names use `<METHOD> <route template>`. A span name never contains an id value. | `observability.md`, section 4 | Important |
+| Internal span names use `<domain>.<action>` in lower case. Do not rename auto-instrumented client spans. | `observability.md`, section 4 | Nit |
+| Span attribute keys use `snake_case` with a dot namespace. Example: `app.order_id`. | `observability.md`, section 5 | Nit |
+| A span attribute holds no personal data, secret, request or response body, or unbounded value. The Opengrep PII rule is planned, so check this by reading the code. | `observability.md`, section 5 | Important |
+| Record an exception once, at the boundary that handles it, with `recordException` and an error status. | `observability.md`, section 6 | Important |
+| A log `msg` is fixed text. Put variable data and the error object in structured fields. | `observability.md`, sections 3 and 6 | Important |
+| Call the tracer provider flush (`forceFlush`, `force_flush()`, `ForceFlush(ctx)`) before a Lambda handler returns. | `observability.md`, section 2 | Important |
 
 If a rule in `coding-conventions.md` names `REVIEW.md` as its enforcer, check it here. If a rule is missing from this table, check the rule in the doc.
 
