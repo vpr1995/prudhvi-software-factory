@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-flags",
+      "comment": "Add the shared feature flag client with env and JSON providers.",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-flags"
+}
