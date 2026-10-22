@@ -41,7 +41,7 @@ Rules:
      expect(results.violations).toEqual([]);
    });
    ```
-   If `@playwright/test` or `@axe-core/playwright` is not in `web/package.json`, stop. A new dependency needs approval. After approval, run `rush add -p <pkg> --dev` from the web folder.
+   If `@playwright/test` or `@axe-core/playwright` is not in `web/package.json`, stop. A new dependency needs approval. After approval, write `rush add -p <pkg> --dev` (run from the web folder) to `.claude/state/handoff/<name>/NN-commands.txt`. A human runs it. It changes the lockfile, which is a gate file.
 10. Run `rush test --to @vprprudhvi/<name>-web` and paste the output.
 11. Run `rush e2e --only @vprprudhvi/<name>-web` and paste the output. It builds the app, starts `next start`, and runs Playwright.
 12. Run the `verify` skill. Then run the `e2e-verify` skill and look at the screenshot of the new page.
@@ -63,6 +63,7 @@ Rules:
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
 - Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`.
+- Write a gate file in place, such as `**/playwright.config.*` or a lockfile. Write it to `.claude/state/handoff/<name>/` (`docs/standards/gates.md`, section 2.4).
 - Run `npm install` or `pnpm install`.
 - Run `cdk deploy`.
 - Use `--no-verify`.

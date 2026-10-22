@@ -44,7 +44,8 @@ Rules:
 - Ignore an error return, or assign it to `_`.
 - Use `panic` in a handler, or `%v` where `%w` is needed.
 - Use `html/template` bypasses, `exec.Command` with input through a shell, or `InsecureSkipVerify`.
-- Add a dependency by hand. Use `go get <module>` and `go mod tidy` only after the human approves. `go.sum` is a gate file.
+- Run `go get` or `go mod tidy` yourself. Write the command to `.claude/state/handoff/<name>/NN-commands.txt` after the human approves. A human runs it. `go.mod` and `go.sum` are gate files.
+- Write a gate file in place. Write it to `.claude/state/handoff/<name>/` (`docs/standards/gates.md`, section 2.4).
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `//nolint` or `// #nosec` without a human. Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Lower the 80% coverage threshold or the golangci-lint rule list in `.golangci.yml`.

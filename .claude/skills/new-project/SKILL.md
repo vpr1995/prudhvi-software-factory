@@ -7,7 +7,7 @@ description: Scaffold a new product under projects/<name> with a contracts packa
 
 Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-toplevel)/common/scripts/install-run-rush.js" "$@"; }`
 
-Phase A writes files. Phase B runs after the human applies the gate files. File contents are in `reference.md` in this folder.
+Phase A writes files. Phase B runs after the human applies the gate files. File contents are in `reference.md` in this folder. Gate files never go to their real paths. The "Handoff files" section lists them.
 
 ## Phase A
 
@@ -24,9 +24,10 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - api-py: `mkdir -p projects/<name>/api-py/{src,tests,scripts}`
    - api-go: `mkdir -p projects/<name>/api-go/{cmd,internal,scripts}`
    - any api part: `mkdir -p projects/<name>/bruno/{environments,health}`
-4. Write the non-gate files. Use `reference.md` for the content. Every `package.json` is private and has the `_phase:*` scripts, plus `_phase:e2e` for each api and web part. No dependencies yet.
-   - Bruno (any api part): `bruno/bruno.json`, `bruno/environments/local.bru`, `dev.bru`, `staging.bru` (non-secret values only), and `bruno/health/get-health.bru` with docs and assertions.
-   - web: `web/e2e/home.spec.ts` (calls `page.goto('/')`, runs axe) and `web/playwright.config.ts`. Playwright is mandatory for web.
+4. Write the non-gate files. Use `reference.md` for the content. Some `reference.md` sections label a file as non-gate. Follow the "Handoff files" list, not those labels. Every `package.json` is private and has the `_phase:*` scripts, plus `_phase:e2e` for each api and web part. Write each `package.json` to the handoff folder (step 7). No dependencies yet.
+   - Bruno (any api part): `bruno/environments/local.bru`, `dev.bru`, `staging.bru` (non-secret values only), and `bruno/health/get-health.bru` with docs and assertions. `bruno/bruno.json` goes to the handoff folder.
+   - web: `web/e2e/home.spec.ts` (calls `page.goto('/')`, runs axe). `web/playwright.config.ts` goes to the handoff folder. Playwright is mandatory for web.
+   - Scripts in `scripts/` folders (`.sh`, `.mjs`, `.py`) go to the handoff folder.
 5. Infra wiring (`projects/<name>/infra`):
    - `src/config/dev.ts`: env name, region, and the project subdomain label. No account IDs, no pool or zone IDs.
    - `src/stacks/<name>-stack.ts`: reads platform values through the SSM helper of `@vprprudhvi/shared-cdk-constructs`. Read that package's exports first. Use `use-platform-resource`.
@@ -39,25 +40,43 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - infra: each Lambda uses the shared Lambda construct (ADOT layer and `OTEL_*` variables). Add a `Template.fromStack` assertion.
    - The Bruno health request asserts the `traceparent` header.
    - When the package exists, new dependencies (`@vprprudhvi/shared-telemetry` and the language packages) go in the Phase B approval list.
-7. Write the gate files to `.claude/state/handoff/<name>/`. Use the `.txt` suffix on every file. Name each file `NN-<target path with / replaced by __>.txt`. The first line is `TARGET: <path>`.
-   - `rush.json` entries, one snippet for the `projects` array. Tags: `project:<name>` and `kind:contracts|web|api|api-py|api-go|infra`. Do not set `shouldPublish`.
-   - `<part>/config/rush-project.json` for each part. Outputs: contracts, api, api-py `["dist"]`; web `[".next"]`; api-go `["bin"]`; infra `["cdk.out","dist"]`.
-   - TypeScript parts (contracts, web, api, infra): `tsconfig.json`, `eslint.config.mjs`, `vitest.config.ts`. Each extends the base in `tooling/`. Read the exact file names in `tooling/` first.
-   - `api-py/pyproject.toml` (ruff, mypy, pytest, bandit settings). `api-go/.golangci.yml`.
-   - `infra/cdk.json`.
-   - `projects/<name>/REVIEW.md`: one heading per part. Use `docs/templates/REVIEW.web.md` for web, `REVIEW.api.md` for any API part, and `REVIEW.infra.md` for infra. If a template is missing, stop.
+7. Write each gate file to the handoff folder `.claude/state/handoff/<name>/`. Use the Write tool. Use the `.txt` suffix on every file. Name each file `NN-<target path with / replaced by __>.txt`. The first line is `TARGET: <path>`. The list is in "Handoff files" below.
 8. Stop. Tell the human: "Copy each handoff file to its TARGET path. Add the rush.json entries. Reply 'gates applied', and approve the dependency list for phase B."
 
 ## Phase B (only after the human says "gates applied")
 
 9. Check the files exist, and `grep '"@vprprudhvi/<name>-' rush.json` finds the entries.
-10. Dependencies. Show each list and wait for approval first. Lockfiles are gate files.
+10. Dependencies. Show each list and wait for approval first. Do not run these commands yourself. They change lockfiles, `go.mod`, and `go.sum`, which are gate files. Write the commands to `.claude/state/handoff/<name>/NN-commands.txt`, one per line, with the folder for each. A human runs them, then replies "deps applied".
    - TypeScript parts: `rush add -p <pkg> [--dev]` from the part folder.
-   - web: `@playwright/test` and `@axe-core/playwright` (dev). Then run `npx playwright install chromium` from the web folder.
+   - web: `@playwright/test` and `@axe-core/playwright` (dev). Then `npx playwright install chromium` from the web folder.
    - any api part: `@usebruno/cli` (dev, pinned) in one TypeScript part, so `bru` is available.
-   - api-py and api-go: `rush add -p @vprprudhvi/<name>-contracts --dev` first, so Rush builds contracts first. Then `uv add --dev <pkg>` (api-py, writes `uv.lock`) or `go get <module>` followed by `go mod tidy` (api-go, writes `go.sum`).
+   - api-py and api-go: `rush add -p @vprprudhvi/<name>-contracts --dev` first, so Rush builds contracts first. Then `uv add --dev <pkg>` (api-py) or `go get <module>` followed by `go mod tidy` (api-go).
 11. Check the platform values exist (read-only): `aws ssm get-parameters-by-path --path /platform/dev --recursive --query 'Parameters[].Name' --output text`. If credentials are missing, say so.
 12. Run `rush build --only tag:project:<name>` and paste the output. Then run `rush verify --only tag:project:<name>` and paste the output. Then run the `verify` skill.
+
+## Handoff files
+
+Write each file below to `.claude/state/handoff/<name>/`. Each file starts with a `TARGET:` line. A human copies each file to its target path (`docs/standards/gates.md`, section 2.4). Each path below matches a glob in the gate list, which is the file scripts/gates/gate-files.json.
+
+Gate-glob files (target paths):
+- `rush.json`: entries for the `projects` array.
+- `projects/<name>/<part>/config/rush-project.json`: one per part.
+- `projects/<name>/<part>/tsconfig.json`, `projects/<name>/<part>/eslint.config.mjs`, `projects/<name>/<part>/vitest.config.ts`: each TypeScript part (contracts, web, api, infra).
+- `projects/<name>/api-py/pyproject.toml`: api-py.
+- `projects/<name>/api-go/.golangci.yml`: api-go.
+- `projects/<name>/infra/cdk.json`: infra.
+- `projects/<name>/REVIEW.md`: one heading per part.
+- `projects/<name>/bruno/bruno.json`: any api part.
+- `projects/<name>/web/playwright.config.ts`: web.
+- `projects/<name>/api/scripts/run-e2e.sh`, `projects/<name>/api-py/scripts/run-e2e.sh`, `projects/<name>/api-go/scripts/run-e2e.sh`: each api part.
+- `projects/<name>/api-py/scripts/generate-models.sh`: api-py.
+- `projects/<name>/api-go/scripts/generate-types.sh`: api-go.
+
+Package files with `_phase:*` scripts (counted as gate changes by content, not by glob):
+- `projects/<name>/<part>/package.json`: one per part.
+
+Lockfiles and Go module files (not copied from handoff. A human runs the commands in `NN-commands.txt`, and the package manager writes these files):
+- `common/config/rush/pnpm-lock.yaml`, `projects/<name>/api-py/uv.lock`, `projects/<name>/api-go/go.mod`, `projects/<name>/api-go/go.sum`.
 
 ## Done when
 
@@ -73,12 +92,13 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 - Write a gate file to its real path. Write it to the handoff folder only.
 - Edit `rush.json` yourself.
 - Add a dependency or a lockfile change without human approval.
+- Run `rush add`, `uv add`, `go get`, or `go mod tidy` yourself. Write the command to `NN-commands.txt`.
 - Hard-code account IDs, pool IDs, zone IDs, or certificate ARNs.
 - Put a secret value in a Bruno environment file. Use `{{process.env.X}}`.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`.
-- Run `npm install` or `pnpm install`. Use `rush add` after approval.
+- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings*.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `**/go.mod`, `**/bruno.json`, `**/playwright.config.*`, `**/scripts/*.sh`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`.
+- Run `npm install` or `pnpm install`. Use `rush add` only when a human runs it.
 - Run `cdk deploy`.
 - Use `--no-verify`.

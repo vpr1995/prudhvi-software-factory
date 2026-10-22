@@ -43,7 +43,8 @@ Rules:
 - Use `model_construct` or skip validation to pass a test.
 - Catch broad `Exception` and return 200.
 - Use `eval`, `pickle`, `yaml.load` without `SafeLoader`, or `subprocess` with `shell=True`.
-- Add a dependency by hand. Use `uv add --dev <pkg>` only after the human approves. `uv.lock` is a gate file.
+- Run `uv add` yourself. Write the command to `.claude/state/handoff/<name>/NN-commands.txt` after the human approves. A human runs it. `uv.lock` is a gate file.
+- Write a gate file in place. Write it to `.claude/state/handoff/<name>/` (`docs/standards/gates.md`, section 2.4).
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `# noqa`, `# type: ignore`, `# nosec`, or `# pragma: no cover`. Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Lower `--cov-fail-under` or the ruff rule list in `pyproject.toml`.

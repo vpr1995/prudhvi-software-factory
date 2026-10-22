@@ -25,7 +25,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    - `## Feature flag`: the flag name from `packages/flags`, or `None (no user-visible change)`.
    - Last line: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
 7. Write the title in Conventional Commits style, under 70 characters. Example: `feat(order-export): add csv export`.
-8. Push: `git push -u origin HEAD`. If `require-verify` blocks the push, run the `verify` skill again, then retry.
+8. Push: `git push -u origin HEAD`. If `require-verify` blocks the push, run the `verify` skill again, then retry. If the gate integrity check blocks the push because the range has gate changes, a human pushes the branch. Report that and stop.
 9. Open the PR: `gh pr create --base main --title "<title>" --body-file .claude/state/pr-body.md`.
 10. Report the PR URL.
 
