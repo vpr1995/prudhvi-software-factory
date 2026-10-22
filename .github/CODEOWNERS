@@ -1,0 +1,95 @@
+# CODEOWNERS
+#
+# Single maintainer: every path is owned by @vprprudhvi.
+# GitHub does not let an author approve their own PR. Agents open PRs from a
+# separate bot account or GitHub App. See docs/standards/risk-tiers.md.
+#
+# Rules:
+# - The last matching line wins for each file. Order: general first, specific last.
+# - Gate files come last.
+# - When a second maintainer exists, replace the owner on each line with a team.
+#   Keep the grouping comments.
+
+# ---------------------------------------------------------------------------
+# Projects (general)
+# ---------------------------------------------------------------------------
+/projects/sample-fullstack/ @vprprudhvi
+/projects/sample-api-only/ @vprprudhvi
+
+# ---------------------------------------------------------------------------
+# Infrastructure (AWS CDK)
+# ---------------------------------------------------------------------------
+/projects/*/infra/ @vprprudhvi
+/packages/cdk-constructs/ @vprprudhvi
+
+# ---------------------------------------------------------------------------
+# Platform infrastructure (shared AWS resources, always high risk)
+# ---------------------------------------------------------------------------
+/platform/ @vprprudhvi
+
+# ---------------------------------------------------------------------------
+# Shared packages (high risk: shared blast radius)
+# ---------------------------------------------------------------------------
+/packages/ @vprprudhvi
+
+# ---------------------------------------------------------------------------
+# Shared tooling
+# ---------------------------------------------------------------------------
+/tooling/ @vprprudhvi
+
+# ---------------------------------------------------------------------------
+# Human-reviewed documents (agents propose edits, a human approves)
+# ---------------------------------------------------------------------------
+/CLAUDE.md @vprprudhvi
+/AGENTS.md @vprprudhvi
+/REVIEW.md @vprprudhvi
+**/REVIEW.md @vprprudhvi
+/docs/templates/ @vprprudhvi
+/docs/standards/ @vprprudhvi
+
+# ---------------------------------------------------------------------------
+# Gate files (hook-blocked for agents; always last)
+# ---------------------------------------------------------------------------
+
+# GitHub workflows, templates, rulesets, and this file
+/.github/ @vprprudhvi
+/.github/CODEOWNERS @vprprudhvi
+
+# Agent permissions, hooks, and skills
+/.claude/settings.json @vprprudhvi
+/.claude/hooks/ @vprprudhvi
+
+# Security configuration
+/.gitleaks.toml @vprprudhvi
+/audit-ci.jsonc @vprprudhvi
+/.checkov.yaml @vprprudhvi
+/tooling/opengrep/ @vprprudhvi
+/tooling/license-allowlist.json @vprprudhvi
+
+# Coding conventions (hook-blocked)
+/docs/standards/coding-conventions.md @vprprudhvi
+
+# Rush, lockfile, git hooks, autoinstallers
+/rush.json @vprprudhvi
+/common/config/rush/ @vprprudhvi
+/common/git-hooks/ @vprprudhvi
+/common/autoinstallers/ @vprprudhvi
+
+# Gate scripts
+/scripts/check-gates.ts @vprprudhvi
+/scripts/classify-risk.ts @vprprudhvi
+
+# Python and Go locks and settings (gate files)
+**/pyproject.toml @vprprudhvi
+**/uv.lock @vprprudhvi
+**/go.sum @vprprudhvi
+**/.golangci.yml @vprprudhvi
+**/playwright.config.* @vprprudhvi
+
+# Build, lint, test, and boundary settings
+**/rush-project.json @vprprudhvi
+**/eslint.config.* @vprprudhvi
+**/tsconfig*.json @vprprudhvi
+**/vitest.config.* @vprprudhvi
+/.dependency-cruiser.* @vprprudhvi
+**/cdk.json @vprprudhvi
