@@ -1,0 +1,9 @@
+# The root .gitignore ignores *.lock. The uv lock file is a gate file and must be committed.
+!uv.lock
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
