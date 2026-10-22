@@ -49,6 +49,72 @@
       "projectFolder": "tooling/eslint-config",
       "shouldPublish": false,
       "tags": ["tooling"]
+    },
+    {
+      "packageName": "@vprprudhvi/shared-result",
+      "projectFolder": "packages/result",
+      "shouldPublish": true,
+      "tags": ["shared"]
+    },
+    {
+      "packageName": "@vprprudhvi/shared-telemetry",
+      "projectFolder": "packages/telemetry",
+      "shouldPublish": true,
+      "tags": ["shared"]
+    },
+    {
+      "packageName": "@vprprudhvi/shared-logger",
+      "projectFolder": "packages/logger",
+      "shouldPublish": true,
+      "tags": ["shared"]
+    },
+    {
+      "packageName": "@vprprudhvi/shared-flags",
+      "projectFolder": "packages/flags",
+      "shouldPublish": true,
+      "tags": ["shared"]
+    },
+    {
+      "packageName": "@vprprudhvi/sample-fullstack-contracts",
+      "projectFolder": "projects/sample-fullstack/contracts",
+      "shouldPublish": false,
+      "tags": ["project/sample-fullstack", "kind/contracts"]
+    },
+    {
+      "packageName": "@vprprudhvi/sample-fullstack-api",
+      "projectFolder": "projects/sample-fullstack/api",
+      "shouldPublish": false,
+      "tags": ["project/sample-fullstack", "kind/api"]
+    },
+    {
+      "packageName": "@vprprudhvi/sample-api-only-contracts",
+      "projectFolder": "projects/sample-api-only/contracts",
+      "shouldPublish": false,
+      "tags": ["project/sample-api-only", "kind/contracts"]
+    },
+    {
+      "packageName": "@vprprudhvi/sample-api-only-api",
+      "projectFolder": "projects/sample-api-only/api",
+      "shouldPublish": false,
+      "tags": ["project/sample-api-only", "kind/api"]
+    },
+    {
+      "packageName": "@vprprudhvi/sample-api-only-api-py",
+      "projectFolder": "projects/sample-api-only/api-py",
+      "shouldPublish": false,
+      "tags": ["project/sample-api-only", "kind/api-py"]
+    },
+    {
+      "packageName": "@vprprudhvi/sample-api-only-api-go",
+      "projectFolder": "projects/sample-api-only/api-go",
+      "shouldPublish": false,
+      "tags": ["project/sample-api-only", "kind/api-go"]
+    },
+    {
+      "packageName": "@vprprudhvi/sample-fullstack-web",
+      "projectFolder": "projects/sample-fullstack/web",
+      "shouldPublish": false,
+      "tags": ["project/sample-fullstack", "kind/web"]
     }
   ]
 }
