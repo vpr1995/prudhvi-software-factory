@@ -1,5 +1,12 @@
 #!/bin/sh
 # Checks the commit message with commitlint (Conventional Commits).
+# Calls the autoinstaller binary directly, so the hook does not wait on the Rush lock
+# while another Rush command runs. Falls back to `rush commitlint` (installs the autoinstaller).
 set -eu
-cd "$(git rev-parse --show-toplevel)"
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+bin="$root/common/autoinstallers/rush-commitlint/node_modules/.bin"
+if [ -x "$bin/commitlint" ]; then
+  PATH="$bin:$PATH" exec bash scripts/git/commitlint.sh --message-file "$1"
+fi
 exec node common/scripts/install-run-rush.js commitlint --message-file "$1"

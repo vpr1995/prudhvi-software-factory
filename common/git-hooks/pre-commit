@@ -36,5 +36,12 @@ done
 # 4. Secret scan on staged changes (gitleaks).
 bash scripts/security/secrets-staged.sh
 
-# 5. Prettier and ESLint on staged files (lint-staged through Rush).
-node common/scripts/install-run-rush.js prettier
+# 5. Prettier and ESLint on staged files (lint-staged).
+# Calls the autoinstaller binary directly, so the hook does not wait on the Rush lock.
+# Falls back to `rush prettier` (installs the autoinstaller).
+bin="$root/common/autoinstallers/rush-lint-staged/node_modules/.bin"
+if [ -x "$bin/lint-staged" ]; then
+  PATH="$bin:$PATH" bash scripts/git/lint-staged.sh
+else
+  node common/scripts/install-run-rush.js prettier
+fi
