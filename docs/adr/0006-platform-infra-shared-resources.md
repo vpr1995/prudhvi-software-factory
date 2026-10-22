@@ -35,7 +35,7 @@ Compute choice: the team wants the lowest operating cost and the least server ma
 
 ### Lambda-first compute
 
-- API: Fastify runs on Lambda through `aws-lambda-fastify`. API Gateway HTTP API sits in front of it.
+- API: Fastify runs on Lambda through `@fastify/aws-lambda`. API Gateway HTTP API sits in front of it.
 - Web: Next.js runs through OpenNext. The stack uses CloudFront, S3, and Lambda.
 - Do not add ECS Fargate or another container runtime without a new ADR.
 

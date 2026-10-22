@@ -59,21 +59,27 @@ A gate file controls quality, security, or release. Agents must not edit gate fi
 
 Security rule files are also gate files. They include `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `tooling/opengrep/**`, and `tooling/license-allowlist.json`.
 
-Hook-blocked gate files do not include the files in sections 2.2 and 2.3. The reason: an agent may propose a fix to a review rule or to project documentation, and a human approves that fix.
+Hook-blocked gate files do not include the files in sections 2.2 and 2.3 (one exception follows the table in 2.2). The reason: an agent can propose a fix to a review rule or to project documentation, and a human approves that fix.
 
 ### 2.2 Human-reviewed documents (not hook-blocked)
 
-Agents may propose edits to these files. The article practice is to fix a recurring review finding at its source. A human must approve each edit through CODEOWNERS.
+Agents can propose edits to these files. The article practice is to fix a recurring review finding at its source. A human must approve each edit through CODEOWNERS.
 
 | Path pattern | Why it is reviewed |
 |---|---|
 | `CLAUDE.md` | Agent instructions. |
 | `AGENTS.md` | Symlink to `CLAUDE.md`. |
+| `**/CLAUDE.md`, `**/AGENTS.md` | Nested agent instructions. Each `AGENTS.md` is a symlink to the `CLAUDE.md` beside it. |
+| `docs/guides/**` | Per-kind how-to guides that the `CLAUDE.md` files link to. |
 | `REVIEW.md` | Root review rules for the AI reviewer. |
 | `projects/*/REVIEW.md` | Review rules for one project. |
 | `platform/REVIEW.md` | Review rules for the platform. |
 | `docs/templates/**` | Per-kind review templates. |
 | `docs/standards/**` (except `coding-conventions.md`) | Standards documents. |
+
+`tooling/CLAUDE.md` and `.github/CLAUDE.md` match the patterns `tooling/**` and `.github/**` in section 2.1. Section 2.1 wins. The hook blocks agent edits to these two files. An agent writes the proposed text in its final message.
+
+CODEOWNERS status: `.github/CODEOWNERS` lists only `/CLAUDE.md` and `/AGENTS.md` for the agent documents. No line covers nested `**/CLAUDE.md`, `**/AGENTS.md`, or `/docs/guides/`. Until a human adds those lines, CODEOWNERS does not enforce approval for them. Needed lines: `**/CLAUDE.md @vprprudhvi`, `**/AGENTS.md @vprprudhvi`, `/docs/guides/ @vprprudhvi`. `.github/CODEOWNERS` is a gate file (section 2.1).
 
 ### 2.3 Always-human paths (high risk)
 

@@ -89,7 +89,8 @@ Agents write most of the code. Agents follow these files:
 
 | File | What it sets |
 |---|---|
-| `CLAUDE.md` | Stack, commands, import rules, top rules. Read first. |
+| `CLAUDE.md` | Repo conventions and a routing table to guides and skills. Read first. Nested `CLAUDE.md` files cover `projects/`, `platform/`, `packages/`, `tooling/`, `docs/`, and `.github/`. |
+| `docs/guides/*.md` | How to work in one kind: contracts, web, api, api-py, api-go, infra. |
 | `REVIEW.md` | Rules for the AI reviewer. |
 | `docs/standards/*.md` | Coding, testing, security, Git, gate, and risk rules. |
 | `.claude/settings.json` | Agent hooks and permissions. |

@@ -271,3 +271,17 @@ Update the spec in the same PR as the page. A changed page without a changed spe
 | `playwright-coverage` | Each page has a spec with `page.goto` and an axe check | `check-gates`, CI |
 | Playwright skip and fixme | Zero in the diff | Anti-skip scan, CI |
 
+
+## 12. Trace propagation tests
+
+Each part that handles a request has one test that proves trace propagation. The rules are in `docs/standards/observability.md`. The gates are planned until `packages/telemetry` lands. If the package does not exist, skip the test and list it as an open item (observability.md, section 2).
+
+| Part | Test | What it asserts |
+|---|---|---|
+| `api` (TypeScript) | Call the wrapped Lambda handler with a fake HTTP API v2 event that has a `traceparent` header | The response `traceparent` and the log line have the same trace id. |
+| `api-py` | pytest with a fake event that has a `traceparent` header | The log record has the trace id. |
+| `api-go` | `go test` with a request that has a `traceparent` header | The log record has the trace id. |
+| `web` (browser fetch) | Playwright spec that watches the API request. Applies only when a client component calls the API. | The API request carries a `traceparent` header. |
+| `web` (server fetch) | Vitest test of `lib/<resource>-client.ts` with a fake server and an active span | The request carries a `traceparent` header. |
+| Bruno | `assert` block in the `.bru` request | The response has a `traceparent` header. |
+| `infra` | `Template.fromStack` | Each Lambda has the ADOT layer and active tracing. |
