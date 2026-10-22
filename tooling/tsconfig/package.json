@@ -1,0 +1,26 @@
+{
+  "name": "@vprprudhvi/tooling-tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared strict TypeScript configs. Gate file.",
+  "type": "module",
+  "files": [
+    "base.json",
+    "node.json",
+    "nextjs.json",
+    "library.json"
+  ],
+  "exports": {
+    "./base.json": "./base.json",
+    "./node.json": "./node.json",
+    "./nextjs.json": "./nextjs.json",
+    "./library.json": "./library.json"
+  },
+  "scripts": {
+    "_phase:test": "node --test \"test/**/*.test.js\"",
+    "test": "npm run _phase:test"
+  },
+  "engines": {
+    "node": ">=24.11.1"
+  }
+}
