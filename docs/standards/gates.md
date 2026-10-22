@@ -77,7 +77,9 @@ Agents can propose edits to these files. The article practice is to fix a recurr
 | `docs/templates/**` | Per-kind review templates. |
 | `docs/standards/**` (except `coding-conventions.md`) | Standards documents. |
 
-`tooling/CLAUDE.md` and `.github/CLAUDE.md` match the patterns `tooling/**` and `.github/**` in section 2.1. Section 2.1 wins. The hook blocks agent edits to these two files. An agent writes the proposed text in its final message.
+The hook-blocked rule (section 2.1) wins for every path under `tooling/**` and `.github/**`. This includes their `CLAUDE.md` files, such as `tooling/CLAUDE.md` and `.github/CLAUDE.md`. The hook blocks agent edits to these files. An agent writes the proposed text in its final message.
+
+Other `CLAUDE.md` and `AGENTS.md` files follow section 2.2. They are not hook-blocked. An agent proposes an edit in a PR. A human approves it through CODEOWNERS.
 
 CODEOWNERS status: `.github/CODEOWNERS` lists only `/CLAUDE.md` and `/AGENTS.md` for the agent documents. No line covers nested `**/CLAUDE.md`, `**/AGENTS.md`, or `/docs/guides/`. Until a human adds those lines, CODEOWNERS does not enforce approval for them. Needed lines: `**/CLAUDE.md @vprprudhvi`, `**/AGENTS.md @vprprudhvi`, `/docs/guides/ @vprprudhvi`. `.github/CODEOWNERS` is a gate file (section 2.1).
 
