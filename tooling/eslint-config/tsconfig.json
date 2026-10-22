@@ -1,0 +1,11 @@
+{
+  "extends": "@vprprudhvi/tooling-tsconfig/node.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "noPropertyAccessFromIndexSignature": false
+  },
+  "include": ["src/rules/**/*.js", "src/plugin.js", "src/naming.js", "src/restricted-syntax.js"],
+  "exclude": ["src/**/*.test.js"]
+}
