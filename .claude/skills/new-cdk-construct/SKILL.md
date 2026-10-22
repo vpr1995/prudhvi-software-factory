@@ -24,14 +24,16 @@ Rules:
 6. Set the defaults:
    - Stateful resources: encryption at rest, and `removalPolicy: RETAIN`. Use `DESTROY` only when `config/dev.ts` sets it, and never in prod.
    - Buckets: block public access. Web buckets use CloudFront Origin Access Control only.
-   - Lambda: explicit timeout and memory, log group with retention, active tracing. Runtime from the build output: Node for TypeScript, `PROVIDED_AL2023` with a `bootstrap` binary for Go, the current Python runtime for Python.
+   - Lambda: explicit timeout and memory, log group with retention, active tracing. Use the shared Lambda construct from `@vprprudhvi/shared-cdk-constructs`. It adds the ADOT collector-only layer and sets `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_PROPAGATORS`, `OTEL_TRACES_SAMPLER`, and `OTEL_TRACES_SAMPLER_ARG`. Do not add the layer by hand. Do not set `AWS_LAMBDA_EXEC_WRAPPER`. If the shared construct does not offer them, stop and ask the human. See `docs/standards/observability.md`, section 8. Runtime from the build output: Node for TypeScript, `PROVIDED_AL2023` with a `bootstrap` binary for Go, the current Python runtime for Python.
    - API Gateway HTTP API: a JWT authorizer on the Cognito pool for every route that needs a user. Any route without an authorizer needs a written reason in the test.
+   - API Gateway HTTP API: no stage tracing. An HTTP API has no X-Ray support. It forwards `traceparent`. Lambda active tracing starts the X-Ray segment.
    - Cognito app client: one per project. Browser clients do not generate a secret.
    - Grant access with `grantRead`, `grantWrite`, or similar. Do not write `*` in actions or resources.
 7. Read the env from `projects/<name>/infra/src/config/<env>.ts`. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
 8. Write `<kebab>.test.ts` next to the construct:
    - Create a stack: `new Stack(new App())`. Add `Aspects.of(app).add(new AwsSolutionsChecks())`.
    - Use `Template.fromStack(stack)` to assert resources, encryption, removal policy, runtime, log retention, and grants.
+   - Assert that each Lambda has the ADOT layer and `TracingConfig` mode `Active`.
    - Assert that no cdk-nag error exists.
    - Add a snapshot: `expect(template.toJSON()).toMatchSnapshot()`.
 9. Run `rush test --to @vprprudhvi/<name>-infra` and paste the output. If the snapshot changes, read the diff. Update it only when the change is intended.
@@ -45,6 +47,7 @@ Rules:
 - [ ] `Template.fromStack` assertions and the snapshot pass. The output is pasted.
 - [ ] `cdk synth` shows zero cdk-nag errors.
 - [ ] The `verify` skill passes.
+- [ ] Each Lambda has the ADOT layer and active tracing, and a test asserts it.
 
 ## Do not
 

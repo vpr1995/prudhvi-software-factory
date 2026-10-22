@@ -22,10 +22,12 @@ Rules:
 4. Add components in `projects/<name>/web/src/components/<kebab>.tsx`. Use named exports. Add `"use client"` only when the component needs state or browser APIs.
 5. If the page needs login, use the project Cognito app client. Read its client ID and domain from the infra stack outputs or from SSM through the helper. Do not hard-code them.
 6. If the page is user-visible, read its flag from `@vprprudhvi/shared-flags`.
-7. Write a component test next to each component: `<kebab>.test.tsx`. Use Testing Library. Query by role and by name.
-8. Write the Playwright spec at `projects/<name>/web/e2e/<route>.spec.ts`. It must:
+7. Add telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step and report it as an open item (section 2 of that document). Call the api only through `lib/<resource>-client.ts`. Do not set the header by hand. A server fetch sends `traceparent` through the server instrumentation. A browser fetch sends it only when the client component calls `initBrowserTelemetry()` (`src/instrumentation-client.ts`). Check that `src/instrumentation.ts` registers telemetry with `@vprprudhvi/shared-telemetry`. If it does not, or the package exists but is not a dependency, stop. A new dependency needs approval. Add a Vitest test of the lib client: the request carries `traceparent` when a span is active.
+8. Write a component test next to each component: `<kebab>.test.tsx`. Use Testing Library. Query by role and by name.
+9. Write the Playwright spec at `projects/<name>/web/e2e/<route>.spec.ts`. It must:
    - call `page.goto('<route>')` with the literal route string, so the coverage gate can match it;
    - assert the main heading is visible;
+   - when a client component calls the api from the browser, assert that the api request carries a `traceparent` header (`page.waitForRequest`). Skip this line for a server fetch;
    - run `new AxeBuilder({ page }).analyze()` and expect no violations.
    Use this shape:
    ```ts
@@ -40,9 +42,9 @@ Rules:
    });
    ```
    If `@playwright/test` or `@axe-core/playwright` is not in `web/package.json`, stop. A new dependency needs approval. After approval, run `rush add -p <pkg> --dev` from the web folder.
-9. Run `rush test --to @vprprudhvi/<name>-web` and paste the output.
-10. Run `rush e2e --only @vprprudhvi/<name>-web` and paste the output. It builds the app, starts `next start`, and runs Playwright.
-11. Run the `verify` skill. Then run the `e2e-verify` skill and look at the screenshot of the new page.
+10. Run `rush test --to @vprprudhvi/<name>-web` and paste the output.
+11. Run `rush e2e --only @vprprudhvi/<name>-web` and paste the output. It builds the app, starts `next start`, and runs Playwright.
+12. Run the `verify` skill. Then run the `e2e-verify` skill and look at the screenshot of the new page.
 
 ## Done when
 
@@ -50,6 +52,7 @@ Rules:
 - [ ] Data is parsed with the contracts schema at the boundary.
 - [ ] The component test and the Playwright spec with axe both pass. The output is pasted.
 - [ ] The spec calls `page.goto` with the route. The `verify` and `e2e-verify` skills pass.
+- [ ] When a client component calls the api, the Playwright spec asserts the `traceparent` header. For a server fetch, a Vitest test of the lib client asserts it.
 
 ## Do not
 

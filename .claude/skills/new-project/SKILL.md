@@ -32,25 +32,32 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - `src/stacks/<name>-stack.ts`: reads platform values through the SSM helper of `@vprprudhvi/shared-cdk-constructs`. Read that package's exports first. Use `use-platform-resource`.
    - Creates, through project constructs: `AppClient` (its own Cognito app client on the platform pool), `ProjectDomain` (DNS record in the platform zone and a custom domain with the platform wildcard certificate), one `ApiLambdaHttp` per API part (Lambda behind an API Gateway HTTP API), and `WebOpenNext` for web.
    - Write each construct file in `src/constructs/` with `new-cdk-construct`.
-6. Write the gate files to `.claude/state/handoff/<name>/`. Use the `.txt` suffix on every file. Name each file `NN-<target path with / replaced by __>.txt`. The first line is `TARGET: <path>`.
+6. Telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step and report it as an open item (section 2 of that document).
+   - web: `src/instrumentation.ts` registers telemetry with `@vprprudhvi/shared-telemetry`. The Playwright spec asserts the `traceparent` header only when a client component calls the api from the browser. For a server fetch, add a Vitest test of `lib/<resource>-client.ts`.
+   - api: `src/lambda.ts` calls `initTelemetry({ serviceName })` first. Use `wrapLambdaHandler`. Add a handler test with a fake HTTP API v2 event that has a `traceparent` header.
+   - api-py and api-go: add OpenTelemetry setup and a test that the log record has the trace id.
+   - infra: each Lambda uses the shared Lambda construct (ADOT layer and `OTEL_*` variables). Add a `Template.fromStack` assertion.
+   - The Bruno health request asserts the `traceparent` header.
+   - When the package exists, new dependencies (`@vprprudhvi/shared-telemetry` and the language packages) go in the Phase B approval list.
+7. Write the gate files to `.claude/state/handoff/<name>/`. Use the `.txt` suffix on every file. Name each file `NN-<target path with / replaced by __>.txt`. The first line is `TARGET: <path>`.
    - `rush.json` entries, one snippet for the `projects` array. Tags: `project:<name>` and `kind:contracts|web|api|api-py|api-go|infra`. Do not set `shouldPublish`.
    - `<part>/config/rush-project.json` for each part. Outputs: contracts, api, api-py `["dist"]`; web `[".next"]`; api-go `["bin"]`; infra `["cdk.out","dist"]`.
    - TypeScript parts (contracts, web, api, infra): `tsconfig.json`, `eslint.config.mjs`, `vitest.config.ts`. Each extends the base in `tooling/`. Read the exact file names in `tooling/` first.
    - `api-py/pyproject.toml` (ruff, mypy, pytest, bandit settings). `api-go/.golangci.yml`.
    - `infra/cdk.json`.
    - `projects/<name>/REVIEW.md`: one heading per part. Use `docs/templates/REVIEW.web.md` for web, `REVIEW.api.md` for any API part, and `REVIEW.infra.md` for infra. If a template is missing, stop.
-7. Stop. Tell the human: "Copy each handoff file to its TARGET path. Add the rush.json entries. Reply 'gates applied', and approve the dependency list for phase B."
+8. Stop. Tell the human: "Copy each handoff file to its TARGET path. Add the rush.json entries. Reply 'gates applied', and approve the dependency list for phase B."
 
 ## Phase B (only after the human says "gates applied")
 
-8. Check the files exist, and `grep '"@vprprudhvi/<name>-' rush.json` finds the entries.
-9. Dependencies. Show each list and wait for approval first. Lockfiles are gate files.
+9. Check the files exist, and `grep '"@vprprudhvi/<name>-' rush.json` finds the entries.
+10. Dependencies. Show each list and wait for approval first. Lockfiles are gate files.
    - TypeScript parts: `rush add -p <pkg> [--dev]` from the part folder.
    - web: `@playwright/test` and `@axe-core/playwright` (dev). Then run `npx playwright install chromium` from the web folder.
    - any api part: `@usebruno/cli` (dev, pinned) in one TypeScript part, so `bru` is available.
    - api-py and api-go: `rush add -p @vprprudhvi/<name>-contracts --dev` first, so Rush builds contracts first. Then `uv add --dev <pkg>` (api-py, writes `uv.lock`) or `go get <module>` followed by `go mod tidy` (api-go, writes `go.sum`).
-10. Check the platform values exist (read-only): `aws ssm get-parameters-by-path --path /platform/dev --recursive --query 'Parameters[].Name' --output text`. If credentials are missing, say so.
-11. Run `rush build --only tag:project:<name>` and paste the output. Then run `rush verify --only tag:project:<name>` and paste the output. Then run the `verify` skill.
+11. Check the platform values exist (read-only): `aws ssm get-parameters-by-path --path /platform/dev --recursive --query 'Parameters[].Name' --output text`. If credentials are missing, say so.
+12. Run `rush build --only tag:project:<name>` and paste the output. Then run `rush verify --only tag:project:<name>` and paste the output. Then run the `verify` skill.
 
 ## Done when
 
@@ -59,6 +66,7 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 - [ ] The infra stack wires platform values through SSM, and creates its own app client and domain.
 - [ ] The handoff folder has every gate file, each with a `TARGET:` line.
 - [ ] After approval: the build, the verify output, and the `verify` skill pass. Outputs are pasted.
+- [ ] Each part has telemetry wired, and a trace propagation test.
 
 ## Do not
 

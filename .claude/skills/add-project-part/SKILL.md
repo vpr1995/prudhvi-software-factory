@@ -25,24 +25,31 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - web: one `WebOpenNext` construct that points at the OpenNext output.
    - Write the construct file with `new-cdk-construct`. Platform values come from `use-platform-resource`.
    - If the stack already has the construct for this kind, do not add it twice.
-6. Write the gate files to `.claude/state/handoff/<name>-<part>/`. Use the `.txt` suffix on every file. Name each file `NN-<target path with / replaced by __>.txt`. The first line is `TARGET: <path>`.
+6. Telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step and report it as an open item (section 2 of that document).
+   - web: `src/instrumentation.ts` registers telemetry with `@vprprudhvi/shared-telemetry`. The Playwright spec asserts the `traceparent` header only when a client component calls the api from the browser. For a server fetch, add a Vitest test of `lib/<resource>-client.ts`.
+   - api: `src/lambda.ts` calls `initTelemetry({ serviceName })` first. Use `wrapLambdaHandler`. Add a handler test with a fake HTTP API v2 event that has a `traceparent` header.
+   - api-py and api-go: add OpenTelemetry setup and a test that the log record has the trace id.
+   - The compute construct uses the shared Lambda construct (ADOT layer and `OTEL_*` variables). Add a `Template.fromStack` assertion.
+   - The Bruno health request asserts the `traceparent` header.
+   - New dependencies go in the Phase B approval list.
+7. Write the gate files to `.claude/state/handoff/<name>-<part>/`. Use the `.txt` suffix on every file. Name each file `NN-<target path with / replaced by __>.txt`. The first line is `TARGET: <path>`.
    - `rush.json` entry: `{ "packageName": "@vprprudhvi/<name>-<part>", "projectFolder": "projects/<name>/<part>", "tags": ["project:<name>", "kind:<part>"] }`
    - `<part>/config/rush-project.json` with the outputs from `new-project`.
    - TypeScript parts: `tsconfig.json`, `eslint.config.mjs`, `vitest.config.ts`. api-py: `pyproject.toml`. api-go: `.golangci.yml`.
    - `projects/<name>/REVIEW.md`: the full new content. Keep the existing sections. Add the matching template from `docs/templates/` (`REVIEW.web.md` for web, `REVIEW.api.md` for any API part).
    - The updated infra stack file. It is a gate file (`projects/<name>/infra/**`, risk high). Write it to the handoff folder, not to its real path.
-7. Stop. Tell the human: "Copy each handoff file to its TARGET path. Add the rush.json entry. Reply 'gates applied', and approve any new dependency."
+8. Stop. Tell the human: "Copy each handoff file to its TARGET path. Add the rush.json entry. Reply 'gates applied', and approve any new dependency."
 
 ## Phase B (only after the human says "gates applied")
 
-8. Check the files exist, and `rush.json` has the new entry.
-9. Add dependencies. Show the list and wait for approval first. Lockfiles are gate files.
+9. Check the files exist, and `rush.json` has the new entry.
+10. Add dependencies. Show the list and wait for approval first. Lockfiles are gate files.
    - TypeScript parts: `rush add -p <pkg> [--dev]` from the part folder.
    - web: `@playwright/test` and `@axe-core/playwright` (dev), then `npx playwright install chromium`.
    - api-py and api-go: `rush add -p @vprprudhvi/<name>-contracts --dev` first. Then `uv add --dev <pkg>` or `go get <module>` and `go mod tidy`.
-10. Run `rush build --only @vprprudhvi/<name>-<part>` and paste the output.
-11. Run `rush e2e --only @vprprudhvi/<name>-<part>` and paste the output.
-12. Run the `verify` skill, then `e2e-verify`.
+11. Run `rush build --only @vprprudhvi/<name>-<part>` and paste the output.
+12. Run `rush e2e --only @vprprudhvi/<name>-<part>` and paste the output.
+13. Run the `verify` skill, then `e2e-verify`.
 
 ## Done when
 
@@ -51,6 +58,7 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 - [ ] The infra stack gets one compute construct for the part. It is in the handoff folder, not the real path.
 - [ ] The handoff folder has every gate file, each with a `TARGET:` line.
 - [ ] After approval: the build, `rush e2e`, the `verify` skill, and `e2e-verify` pass. Outputs are pasted.
+- [ ] The part has telemetry wired, and a trace propagation test.
 
 ## Do not
 

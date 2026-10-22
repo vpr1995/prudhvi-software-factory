@@ -21,13 +21,15 @@ Rules: path is kebab-case, plural, versioned: `/v1/<resources>`. Errors use the 
 6. Protected routes use the auth hook already in `src/`. Do not parse tokens in the route.
 7. Map each `Result` error to an HTTP status and the error envelope. Use the existing error handler in `server.ts`. Do not add a second handler.
 8. Register the plugin in `projects/<name>/api/src/server.ts`.
-9. Write the tests next to the source:
+9. Add telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step, the trace test in step 10, and the `traceparent` assertion in step 11, and report them as open items (section 2 of that document). Wrap each adapter call in `withSpan('<domain>.<action>', ...)` from `@vprprudhvi/shared-telemetry`. Keep `domain/` free of telemetry. Set `requestId` in the error envelope to the trace id from `getTraceContext()`. Log only with `@vprprudhvi/shared-logger`. If the package exists but is not a dependency of the api, or `src/lambda.ts` does not call `initTelemetry` and use `wrapLambdaHandler`, stop. A new dependency needs approval. After approval, run `rush add -p @vprprudhvi/shared-telemetry` from the api folder.
+10. Write the tests next to the source:
    - `<action>.test.ts`: `app.inject()` for success, each error path, and an invalid body (expect 400 and the envelope).
    - `<action>.domain.test.ts`: unit tests for the domain function.
-10. Write the Bruno request at `projects/<name>/bruno/<resource>/<action>.bru`. Use the `api-docs` skill for the format. It needs a `docs` block (purpose, auth, errors), and an `assert` block and a `tests` block that cover the status, the envelope shape on errors, and the key fields. The URL path must equal the OpenAPI path from the contracts.
-11. Run `rush test --to @vprprudhvi/<name>-api` and paste the output.
-12. Run `rush e2e --only @vprprudhvi/<name>-api` and paste the output. It starts the server and runs the Bruno folder.
-13. Run the `verify` skill.
+   - `<action>.trace.test.ts`: call the wrapped Lambda handler with a fake HTTP API v2 event that has a `traceparent` header. Expect the response `traceparent` and the log line to carry the same trace id.
+11. Write the Bruno request at `projects/<name>/bruno/<resource>/<action>.bru`. Use the `api-docs` skill for the format. It needs a `docs` block (purpose, auth, errors), and an `assert` block and a `tests` block that cover the status, the envelope shape on errors, and the key fields, and that the response has a `traceparent` header. The URL path must equal the OpenAPI path from the contracts.
+12. Run `rush test --to @vprprudhvi/<name>-api` and paste the output.
+13. Run `rush e2e --only @vprprudhvi/<name>-api` and paste the output. It starts the server and runs the Bruno folder.
+14. Run the `verify` skill.
 
 ## Done when
 
@@ -36,6 +38,7 @@ Rules: path is kebab-case, plural, versioned: `/v1/<resources>`. Errors use the 
 - [ ] `inject` tests cover success, errors, and invalid input. The output is pasted.
 - [ ] The `.bru` file has docs, at least one assertion, and a tests block. `rush e2e` output is pasted.
 - [ ] The `verify` skill passes.
+- [ ] The route has a trace propagation test, and the Bruno request asserts the `traceparent` header. No `@opentelemetry/*` SDK import in the api.
 
 ## Do not
 
