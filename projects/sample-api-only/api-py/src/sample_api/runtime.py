@@ -79,7 +79,9 @@ def _flush_spans(provider: TracerProvider, log: Logger) -> None:
     """
     try:
         flushed = provider.force_flush(timeout_millis=FLUSH_TIMEOUT_MILLIS)
-    except Exception as error:  # noqa: BLE001 - nothing the flush raises may replace the response.
+    # Network and exporter failures (OSError covers ConnectionError and timeouts) must not
+    # replace the response.
+    except (OSError, RuntimeError, ValueError) as error:
         log.warning("flush spans failed", error=str(error))
         return
     if not flushed:
