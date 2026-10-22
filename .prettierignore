@@ -1,6 +1,7 @@
 # Generated, vendored and tool-owned files
 common/temp/
 common/deploy/
+common/scripts/
 common/config/rush/
 common/autoinstallers/*/pnpm-lock.yaml
 rush.json
