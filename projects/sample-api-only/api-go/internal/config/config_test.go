@@ -83,6 +83,10 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"level is unknown", map[string]string{"SAMPLE_API_ONLY_API_GO_LOG_LEVEL": "loud"}},
 		{"ratio is above one", map[string]string{"OTEL_TRACES_SAMPLER_ARG": "2"}},
 		{"ratio is not a number", map[string]string{"OTEL_TRACES_SAMPLER_ARG": "x"}},
+		{"ratio is NaN", map[string]string{"OTEL_TRACES_SAMPLER_ARG": "NaN"}},
+		{"ratio is positive infinity", map[string]string{"OTEL_TRACES_SAMPLER_ARG": "+Inf"}},
+		{"ratio is negative", map[string]string{"OTEL_TRACES_SAMPLER_ARG": "-1"}},
+		{"ratio is one and a half", map[string]string{"OTEL_TRACES_SAMPLER_ARG": "1.5"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

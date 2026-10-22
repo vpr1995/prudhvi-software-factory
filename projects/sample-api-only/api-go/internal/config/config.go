@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -116,7 +117,7 @@ func parseRatio(raw, environment string) (float64, error) {
 		return defaultSampleRatio, nil
 	}
 	ratio, err := strconv.ParseFloat(raw, 64)
-	if err != nil || ratio < 0 || ratio > 1 {
+	if err != nil || math.IsNaN(ratio) || ratio < 0 || ratio > 1 {
 		return 0, fmt.Errorf("%w: OTEL_TRACES_SAMPLER_ARG must be between 0 and 1", ErrInvalid)
 	}
 	return ratio, nil
