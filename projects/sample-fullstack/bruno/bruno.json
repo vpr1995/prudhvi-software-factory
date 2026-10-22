@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "sample-fullstack",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}
