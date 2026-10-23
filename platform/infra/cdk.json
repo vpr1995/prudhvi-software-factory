@@ -1,0 +1,7 @@
+{
+  "app": "node dist/bin/app.js",
+  "build": "npm run build --silent",
+  "output": "cdk.out",
+  "notices": false,
+  "versionReporting": false
+}

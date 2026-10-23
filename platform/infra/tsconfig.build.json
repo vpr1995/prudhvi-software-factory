@@ -1,0 +1,10 @@
+{
+  "extends": "@vprprudhvi/tooling-tsconfig/library.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["bin", "lib"],
+  "exclude": ["**/*.test.ts"]
+}

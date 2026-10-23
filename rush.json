@@ -85,6 +85,12 @@
       "projectFolder": "packages/cdk-constructs",
       "shouldPublish": true,
       "tags": ["shared"]
+    },
+    {
+      "packageName": "@vprprudhvi/platform-infra",
+      "projectFolder": "platform/infra",
+      "shouldPublish": false,
+      "tags": ["platform"]
     }
   ]
 }
