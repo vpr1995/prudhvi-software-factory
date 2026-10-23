@@ -10,8 +10,8 @@ import {
 } from '@vprprudhvi/shared-cdk-constructs';
 import type { PlatformEnv } from '@vprprudhvi/shared-cdk-constructs';
 
-import { loadPlatformConfig } from './config/config.js';
-import { GOOGLE_SCOPES, PlatformStack, googleSecretName } from './platform-stack.js';
+import { loadPlatformConfig } from '../lib/config/config.js';
+import { GOOGLE_SCOPES, PlatformStack, googleSecretName } from '../lib/platform-stack.js';
 
 type Built = { readonly stack: PlatformStack; readonly template: Template };
 

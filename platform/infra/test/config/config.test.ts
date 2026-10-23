@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { PLATFORM_REGION, loadPlatformConfig, readPlatformEnvironment } from './config.js';
+import {
+  PLATFORM_REGION,
+  loadPlatformConfig,
+  readPlatformEnvironment,
+} from '../../lib/config/config.js';
 
 describe('loadPlatformConfig', () => {
   it.each(['dev', 'staging', 'prod'])('loads the %s config', (env) => {

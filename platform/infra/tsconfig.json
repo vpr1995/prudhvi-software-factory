@@ -1,5 +1,5 @@
 {
   "extends": "@vprprudhvi/tooling-tsconfig/node.json",
   "compilerOptions": { "noEmit": true },
-  "include": ["bin", "lib", "vitest.config.ts"]
+  "include": ["bin", "lib", "test", "vitest.config.ts"]
 }

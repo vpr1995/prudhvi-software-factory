@@ -6,7 +6,7 @@ import { App } from 'aws-cdk-lib';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { describe, expect, it, vi } from 'vitest';
 
-import { addPlatformStack } from './platform-app.js';
+import { addPlatformStack } from '../lib/platform-app.js';
 
 describe('addPlatformStack', () => {
   it('adds one stack named for the environment, in us-east-1', () => {
