@@ -17,7 +17,7 @@ Rule: show real output. Never say "pass" without pasted output.
 3. Run the gates. `rush verify` runs `build`, `lint`, `typecheck`, `test`, and `e2e` for each project's `_phase:*` scripts. Python and Go parts use the same phases.
    - If `HAS_ORIGIN`: `rush verify --impacted-by git:origin/main > .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
    - If `NO_ORIGIN`: `rush verify > .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
-   The e2e phase starts each api server, runs its Bruno collection, and runs Playwright for each web part.
+     The e2e phase starts each api server, runs its Bruno collection, and runs Playwright for each web part.
 4. Find changed infra. This includes `projects/<name>/bin`, `projects/<name>/lib`, and `platform/infra`:
    `{ git diff --name-only origin/main...HEAD 2>/dev/null; git diff --name-only HEAD; git ls-files --others --exclude-standard; } | sort -u | grep -E '^(projects/[^/]+/(bin|lib)|platform/infra)/'`
 5. For each changed infra app, run `cdk synth` in its folder. The folder is `projects/<name>` for `bin` or `lib` changes, and `platform/infra` otherwise. Name the log `cdk-synth-<name>.log`, where `<name>` is the project name or `platform`:

@@ -39,7 +39,7 @@ Any change under `platform/infra/**` is high risk. Report it with at least one I
   - a CloudFormation cross-stack reference (`Fn.importValue`, `CfnOutput` exports) to a platform stack;
   - a project that creates a user pool, hosted zone, or wildcard certificate;
   - a shared Cognito app client used by more than one project.
-  Check each SSM path is under `/platform/<env>/`. A removed or renamed SSM parameter is Important.
+    Check each SSM path is under `/platform/<env>/`. A removed or renamed SSM parameter is Important.
 - DNS: records go only in the platform hosted zone, under the project's subdomain.
 - Compute: Lambda-first. Flag an ECS, Fargate, EC2, or container addition as Important unless the diff cites an ADR. API Gateway HTTP API routes without a JWT authorizer need a reason in code or tests.
 - Lambda: explicit timeout and memory, log retention set, tracing on, runtime matches the build output (Go uses `PROVIDED_AL2023` with a `bootstrap` binary).
@@ -65,6 +65,7 @@ Then one block per finding, in this order: Important, then Nit, then Pre-existin
 ```
 
 Rules:
+
 - Severity:
   - Important: a risk to data, access, or cost that a user would hit, a replacement or deletion of a stateful resource, or a platform change that needs human review.
   - Nit: a small hardening or cost step. At most 3 Nits.

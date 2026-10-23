@@ -8,6 +8,7 @@ description: Add a route to a project Python api (api-py) that runs on Lambda wi
 Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-toplevel)/common/scripts/install-run-rush.js" "$@"; }`
 
 Rules:
+
 - The schema source is Zod in `projects/<name>/src/contracts`. Never write the Python model by hand.
 - Generated code is in `src/<pkg>/generated/`. Do not edit it.
 - Path is kebab-case, plural, versioned: `/v1/<resources>`.

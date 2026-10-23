@@ -54,6 +54,7 @@ Then one block per finding, in this order: Important, then Nit, then Pre-existin
 ```
 
 Rules:
+
 - Severity:
   - Important: an exploitable weakness, or a missing control on a route or resource in the diff.
   - Nit: a hardening step with low risk. At most 3 Nits.

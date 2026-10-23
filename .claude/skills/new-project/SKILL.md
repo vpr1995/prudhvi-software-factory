@@ -41,10 +41,12 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 
 9. Check the files exist, and `grep '"@vprprudhvi/<name>"' rush.json` finds the entry.
 10. Dependencies. Show each list and wait for approval first. Do not run these commands yourself. They change lockfiles, `go.mod`, and `go.sum`, which are gate files. Write the commands to `.claude/state/handoff/<name>/NN-commands.txt`, one per line, with the folder for each. A human runs them, then replies "deps applied".
-   - TypeScript parts: `rush add -p <pkg> [--dev]` from `projects/<name>`.
-   - web: `@playwright/test` and `@axe-core/playwright` (dev). Then `npx playwright install chromium` from `projects/<name>`.
-   - any api part: `@usebruno/cli` (dev, pinned), so `bru` is available.
-   - api-py: `uv add --dev <pkg>` from `projects/<name>/src/api-py`. api-go: `go get <module>` then `go mod tidy` from `projects/<name>/src/api-go`.
+
+- TypeScript parts: `rush add -p <pkg> [--dev]` from `projects/<name>`.
+- web: `@playwright/test` and `@axe-core/playwright` (dev). Then `npx playwright install chromium` from `projects/<name>`.
+- any api part: `@usebruno/cli` (dev, pinned), so `bru` is available.
+- api-py: `uv add --dev <pkg>` from `projects/<name>/src/api-py`. api-go: `go get <module>` then `go mod tidy` from `projects/<name>/src/api-go`.
+
 11. Check the platform values exist (read-only): `aws ssm get-parameters-by-path --path /platform/dev --recursive --query 'Parameters[].Name' --output text`. If credentials are missing, say so.
 12. Run `rush build --only @vprprudhvi/<name>` and paste the output. Then run `rush verify --only @vprprudhvi/<name>` and paste the output. Then run the `verify` skill.
 
@@ -53,6 +55,7 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 Write each file below to `.claude/state/handoff/<name>/`. Each file starts with a `TARGET:` line. A human copies each file to its target path (`docs/standards/gates.md`, section 2.4). Each path below matches a glob in the gate list, which is the file scripts/gates/gate-files.json.
 
 Gate-glob files (target paths):
+
 - `rush.json`: the entry for the `projects` array: `{ "packageName": "@vprprudhvi/<name>", "projectFolder": "projects/<name>", "tags": ["project/<name>"], "shouldPublish": false }`.
 - `projects/<name>/config/rush-project.json`.
 - `projects/<name>/tsconfig.json`, `projects/<name>/tsconfig.build.json`, `projects/<name>/eslint.config.js`, `projects/<name>/vitest.config.ts`.
@@ -64,9 +67,11 @@ Gate-glob files (target paths):
 - `projects/<name>/scripts/*.sh` and `projects/<name>/src/api-py/scripts/*.sh`, `projects/<name>/src/api-go/scripts/*.sh`: e2e, generate-models, generate-types.
 
 Package file with `_phase:*` scripts (counted as gate changes by content, not by glob):
+
 - `projects/<name>/package.json`: the only one.
 
 Lockfiles and Go module files (not copied from handoff. A human runs the commands in `NN-commands.txt`, and the package manager writes these files):
+
 - `common/config/rush/pnpm-lock.yaml`, `projects/<name>/src/api-py/uv.lock`, `projects/<name>/src/api-go/go.mod`, `projects/<name>/src/api-go/go.sum`.
 
 ## Done when

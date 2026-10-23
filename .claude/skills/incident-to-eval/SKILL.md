@@ -21,7 +21,7 @@ Goal: the reviewer must catch this bug class next time. The case file is the tes
    - The expected finding: severity, `file:line`, and bug class.
    - The expected fix.
    - The source: the PR number, the revert link, and the date.
-   Do not paste secrets or real customer data. Replace them with placeholders.
+     Do not paste secrets or real customer data. Replace them with placeholders.
 7. Decide the prevention. Choose one:
    - A lint rule or a `REVIEW.md` rule that covers the bug class. Write the proposed rule text in chat. Mark it as a gate change. A human must approve it.
    - A test that would have failed. Write it in the affected project, and run it. It must fail on the buggy commit and pass on the fix.

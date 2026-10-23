@@ -23,9 +23,11 @@ Rules: path is kebab-case, plural, versioned: `/v1/<resources>`. Errors use the 
 8. Register the plugin in `projects/<name>/src/api/server.ts`.
 9. Add telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step, the trace test in step 10, and the `traceparent` assertion in step 11, and report them as open items (section 2 of that document). Wrap each adapter call in `withSpan('<domain>.<action>', ...)` from `@vprprudhvi/shared-telemetry`. Keep `domain/` free of telemetry. Set `requestId` in the error envelope to the trace id from `getTraceContext()`. Log only with `@vprprudhvi/shared-logger`. If the package exists but is not a dependency of the api, or `src/lambda.ts` does not call `initTelemetry` and use `wrapLambdaHandler`, stop. A new dependency needs approval. After approval, write `rush add -p @vprprudhvi/shared-telemetry` (run from the api folder) to `.claude/state/handoff/<name>/NN-commands.txt`. A human runs it.
 10. Write the tests in `projects/<name>/test/`. The path mirrors the source path. See `docs/standards/testing.md`, section 1.
-   - `test/api/routes/<resource>/<action>.test.ts`: `app.inject()` for success, each error path, and an invalid body (expect 400 and the envelope).
-   - `test/api/domain/<resource>/<action>.domain.test.ts`: unit tests for the domain function.
-   - `test/api/routes/<resource>/<action>.trace.test.ts`: call the wrapped Lambda handler with a fake HTTP API v2 event that has a `traceparent` header. Expect the response `traceparent` and the log line to carry the same trace id.
+
+- `test/api/routes/<resource>/<action>.test.ts`: `app.inject()` for success, each error path, and an invalid body (expect 400 and the envelope).
+- `test/api/domain/<resource>/<action>.domain.test.ts`: unit tests for the domain function.
+- `test/api/routes/<resource>/<action>.trace.test.ts`: call the wrapped Lambda handler with a fake HTTP API v2 event that has a `traceparent` header. Expect the response `traceparent` and the log line to carry the same trace id.
+
 11. Write the Bruno request at `projects/<name>/bruno/<resource>/<action>.bru`. Use the `api-docs` skill for the format. It needs a `docs` block (purpose, auth, errors), and an `assert` block and a `tests` block that cover the status, the envelope shape on errors, and the key fields, and that the response has a `traceparent` header. The URL path must equal the OpenAPI path from the contracts.
 12. Run `rush test --to @vprprudhvi/<name>` and paste the output.
 13. Run `rush e2e --only @vprprudhvi/<name>` and paste the output. It starts the server and runs the Bruno folder.

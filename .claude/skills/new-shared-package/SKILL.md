@@ -37,13 +37,16 @@ Rules: `packages/*` never import from `projects/*`. Shared packages publish (`sh
 Write each file below to `.claude/state/handoff/<pkg>/`. Each file starts with a `TARGET:` line. A human copies each file to its target path (`docs/standards/gates.md`, section 2.4). Each path below matches a glob in the gate list, which is the file scripts/gates/gate-files.json, unless the line says otherwise.
 
 Gate-glob files (target paths):
+
 - `rush.json`: the entry for the `projects` array (`01-rush-json-entry.txt`).
 - `packages/<pkg>/tsconfig.json`, `packages/<pkg>/eslint.config.mjs`, `packages/<pkg>/vitest.config.ts`: the config files that extend `tooling/`.
 
 Package files with `_phase:*` scripts (counted as gate changes by content, not by glob):
+
 - `packages/<pkg>/package.json`: the new package.
 
 Lockfiles (not copied from handoff. A human runs the command in `NN-commands.txt`, and the package manager writes the lockfile):
+
 - `common/config/rush/pnpm-lock.yaml`.
 
 ## Done when

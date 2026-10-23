@@ -8,6 +8,7 @@ description: Let a project use a shared platform resource such as the Cognito us
 Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-toplevel)/common/scripts/install-run-rush.js" "$@"; }`
 
 Platform facts:
+
 - `platform/infra` (`@vprprudhvi/platform-infra`) owns one Cognito user pool, the imported Route53 hosted zone, and the ACM wildcard certificate.
 - It publishes their IDs and ARNs to SSM under `/platform/<env>/...`.
 - Projects read those values through the SSM helper exported by `@vprprudhvi/shared-cdk-constructs` (folder `packages/cdk-constructs`).

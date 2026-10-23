@@ -42,9 +42,11 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 
 9. Check the files exist, and the project `package.json` runs the new part in each phase.
 10. Add dependencies. Show the list and wait for approval first. Do not run these commands yourself. They change lockfiles, `go.mod`, and `go.sum`, which are gate files. Write the commands to `.claude/state/handoff/<name>-<part>/NN-commands.txt`, one per line, with the folder for each. A human runs them, then replies "deps applied".
-   - TypeScript parts: `rush add -p <pkg> [--dev]` from `projects/<name>`.
-   - web: `@playwright/test` and `@axe-core/playwright` (dev), then `npx playwright install chromium`.
-   - api-py: `uv add --dev <pkg>` from `projects/<name>/src/api-py`. api-go: `go get <module>` and `go mod tidy` from `projects/<name>/src/api-go`.
+
+- TypeScript parts: `rush add -p <pkg> [--dev]` from `projects/<name>`.
+- web: `@playwright/test` and `@axe-core/playwright` (dev), then `npx playwright install chromium`.
+- api-py: `uv add --dev <pkg>` from `projects/<name>/src/api-py`. api-go: `go get <module>` and `go mod tidy` from `projects/<name>/src/api-go`.
+
 11. Run `rush build --only @vprprudhvi/<name>` and paste the output.
 12. Run `rush e2e --only @vprprudhvi/<name>` and paste the output.
 13. Run the `verify` skill, then `e2e-verify`.
@@ -54,6 +56,7 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 Write each file below to `.claude/state/handoff/<name>-<part>/`. Each file starts with a `TARGET:` line. A human copies each file to its target path (`docs/standards/gates.md`, section 2.4). Each path below matches a glob in the gate list, which is the file scripts/gates/gate-files.json, unless the line says otherwise.
 
 Gate-glob files (target paths):
+
 - `projects/<name>/package.json`: the full new content (package file with `_phase:*` scripts, counted as a gate change by content).
 - `projects/<name>/tsconfig.json`, `projects/<name>/eslint.config.js`, `projects/<name>/vitest.config.ts`: only when the part needs a change (for example, a `web/` block).
 - `projects/<name>/src/api-py/pyproject.toml`: api-py.
@@ -64,9 +67,11 @@ Gate-glob files (target paths):
 - `projects/<name>/scripts/*.sh`, `projects/<name>/src/api-py/scripts/generate-models.sh`, `projects/<name>/src/api-go/scripts/generate-types.sh`: the helpers for the part.
 
 High-risk file (not a gate glob, sent to handoff for the human review in gates.md section 2.3):
+
 - `projects/<name>/lib/<name>-stack.ts`: the updated stack, when `lib/` exists.
 
 Lockfiles and Go module files (not copied from handoff. A human runs the commands in `NN-commands.txt`, and the package manager writes these files):
+
 - `common/config/rush/pnpm-lock.yaml`, `projects/<name>/src/api-py/uv.lock`, `projects/<name>/src/api-go/go.mod`, `projects/<name>/src/api-go/go.sum`.
 
 ## Done when

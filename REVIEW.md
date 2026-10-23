@@ -19,10 +19,10 @@ Project files `projects/<name>/REVIEW.md` and `platform/REVIEW.md` add rules for
 
 ## 2. Severity
 
-| Tag | Use when |
-|---|---|
-| `Important` | The change breaks behavior, security, data, cost, or a gate. The author must fix it before merge. |
-| `Nit` | Style or clarity. The change works. Report at most 3 Nits per review. |
+| Tag            | Use when                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------- |
+| `Important`    | The change breaks behavior, security, data, cost, or a gate. The author must fix it before merge. |
+| `Nit`          | Style or clarity. The change works. Report at most 3 Nits per review.                             |
 | `Pre-existing` | The problem exists in code that the diff does not change. Report it, but it does not block merge. |
 
 Report every `Important` finding. Do not hide a real problem to keep the count low.
@@ -120,30 +120,30 @@ Check these failure types on each change.
 
 No tool checks these rules. The reviewer checks them by reading the code. Report each violation as `Important` unless the table says `Nit`.
 
-| Rule | Source | Severity |
-|---|---|---|
-| Functions use a verb first. Example: `getUser()`. | `coding-conventions.md`, A.2 | Nit |
-| Env var names use the project prefix. Example: `SAMPLE_API_DB_URL`. | `coding-conventions.md`, A.12 | Nit |
-| JSON fields in API responses use camelCase. | `coding-conventions.md`, A.14 | Important |
-| Properties in exported types are `readonly`. | `coding-conventions.md`, B.13 | Nit |
-| Domain functions return `Result<T, E>`. Throw only for a bug. | `coding-conventions.md`, C.1 | Important |
-| `"use client"` appears only in leaf components. | `coding-conventions.md`, D.2 | Important |
-| `contracts` has no runtime logic. Only Zod schemas and types. | `coding-conventions.md`, D.3 | Important |
-| Comments explain why, not what. | `coding-conventions.md`, E.1 | Nit |
-| Input is validated at each boundary with Zod from the project's `contracts`. | `coding-conventions.md`, F.1 | Important |
-| Each new user-visible behavior sits behind a flag from `packages/flags`. | `coding-conventions.md`, F.3 | Important |
-| Each bug fix adds a test that fails before the fix. | `coding-conventions.md`, F.4 | Important |
-| Each PR changes one thing. | `coding-conventions.md`, F.5 | Important |
-| Python: code sits in `src/<package>/` as in G.1. | `coding-conventions.md`, G.1 | Nit |
-| Go: each package sits under `cmd/` or `internal/` as in H.1. | `coding-conventions.md`, H.1 | Nit |
-| Go: a handler returns an error. It does not call `panic`. | `coding-conventions.md`, H.6 | Important |
-| Server span names use `<METHOD> <route template>`. A span name never contains an id value. | `observability.md`, section 4 | Important |
-| Internal span names use `<domain>.<action>` in lower case. Do not rename auto-instrumented client spans. | `observability.md`, section 4 | Nit |
-| Span attribute keys use `snake_case` with a dot namespace. Example: `app.order_id`. | `observability.md`, section 5 | Nit |
-| A span attribute holds no personal data, secret, request or response body, or unbounded value. The Opengrep PII rule is planned, so check this by reading the code. | `observability.md`, section 5 | Important |
-| Record an exception once, at the boundary that handles it, with `recordException` and an error status. | `observability.md`, section 6 | Important |
-| A log `msg` is fixed text. Put variable data and the error object in structured fields. | `observability.md`, sections 3 and 6 | Important |
-| Call the tracer provider flush (`forceFlush`, `force_flush()`, `ForceFlush(ctx)`) before a Lambda handler returns. | `observability.md`, section 2 | Important |
+| Rule                                                                                                                                                                | Source                               | Severity  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------- |
+| Functions use a verb first. Example: `getUser()`.                                                                                                                   | `coding-conventions.md`, A.2         | Nit       |
+| Env var names use the project prefix. Example: `SAMPLE_API_DB_URL`.                                                                                                 | `coding-conventions.md`, A.12        | Nit       |
+| JSON fields in API responses use camelCase.                                                                                                                         | `coding-conventions.md`, A.14        | Important |
+| Properties in exported types are `readonly`.                                                                                                                        | `coding-conventions.md`, B.13        | Nit       |
+| Domain functions return `Result<T, E>`. Throw only for a bug.                                                                                                       | `coding-conventions.md`, C.1         | Important |
+| `"use client"` appears only in leaf components.                                                                                                                     | `coding-conventions.md`, D.2         | Important |
+| `contracts` has no runtime logic. Only Zod schemas and types.                                                                                                       | `coding-conventions.md`, D.3         | Important |
+| Comments explain why, not what.                                                                                                                                     | `coding-conventions.md`, E.1         | Nit       |
+| Input is validated at each boundary with Zod from the project's `contracts`.                                                                                        | `coding-conventions.md`, F.1         | Important |
+| Each new user-visible behavior sits behind a flag from `packages/flags`.                                                                                            | `coding-conventions.md`, F.3         | Important |
+| Each bug fix adds a test that fails before the fix.                                                                                                                 | `coding-conventions.md`, F.4         | Important |
+| Each PR changes one thing.                                                                                                                                          | `coding-conventions.md`, F.5         | Important |
+| Python: code sits in `src/<package>/` as in G.1.                                                                                                                    | `coding-conventions.md`, G.1         | Nit       |
+| Go: each package sits under `cmd/` or `internal/` as in H.1.                                                                                                        | `coding-conventions.md`, H.1         | Nit       |
+| Go: a handler returns an error. It does not call `panic`.                                                                                                           | `coding-conventions.md`, H.6         | Important |
+| Server span names use `<METHOD> <route template>`. A span name never contains an id value.                                                                          | `observability.md`, section 4        | Important |
+| Internal span names use `<domain>.<action>` in lower case. Do not rename auto-instrumented client spans.                                                            | `observability.md`, section 4        | Nit       |
+| Span attribute keys use `snake_case` with a dot namespace. Example: `app.order_id`.                                                                                 | `observability.md`, section 5        | Nit       |
+| A span attribute holds no personal data, secret, request or response body, or unbounded value. The Opengrep PII rule is planned, so check this by reading the code. | `observability.md`, section 5        | Important |
+| Record an exception once, at the boundary that handles it, with `recordException` and an error status.                                                              | `observability.md`, section 6        | Important |
+| A log `msg` is fixed text. Put variable data and the error object in structured fields.                                                                             | `observability.md`, sections 3 and 6 | Important |
+| Call the tracer provider flush (`forceFlush`, `force_flush()`, `ForceFlush(ctx)`) before a Lambda handler returns.                                                  | `observability.md`, section 2        | Important |
 
 If a rule in `coding-conventions.md` names `REVIEW.md` as its enforcer, check it here. If a rule is missing from this table, check the rule in the doc.
 

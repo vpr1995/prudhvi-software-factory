@@ -8,6 +8,7 @@ description: Add a route to a project Go api (api-go) that runs on Lambda (provi
 Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-toplevel)/common/scripts/install-run-rush.js" "$@"; }`
 
 Rules:
+
 - The schema source is Zod in `projects/<name>/src/contracts`. Never write the Go type by hand.
 - Generated code is in `internal/gen/` and starts with `// Code generated ... DO NOT EDIT.` Do not edit it.
 - Path is kebab-case, plural, versioned: `/v1/<resources>`. The route key is `METHOD /v1/<resources>`.

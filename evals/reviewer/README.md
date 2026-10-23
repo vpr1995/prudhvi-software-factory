@@ -10,11 +10,11 @@ This folder holds cases for the AI reviewer. Each case is a real bug from a PR, 
 
 ## Files
 
-| Path | Purpose |
-|---|---|
-| `README.md` | This file. |
-| `case-template.md` | Template for a new case. |
-| `cases/*.md` | One case per file. Use `cases/.gitkeep` to keep the folder in Git. |
+| Path               | Purpose                                                            |
+| ------------------ | ------------------------------------------------------------------ |
+| `README.md`        | This file.                                                         |
+| `case-template.md` | Template for a new case.                                           |
+| `cases/*.md`       | One case per file. Use `cases/.gitkeep` to keep the folder in Git. |
 
 ## Add a case
 

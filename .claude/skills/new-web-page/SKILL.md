@@ -8,6 +8,7 @@ description: Add a Next.js App Router page to a project web app. Server Componen
 Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-toplevel)/common/scripts/install-run-rush.js" "$@"; }`
 
 Rules:
+
 - Default export only in `page.tsx`, `layout.tsx`, `route.ts`, and config files.
 - Server Components by default. `"use client"` only in a leaf component.
 - Every `app/**/page.tsx` route has a Playwright spec. The `playwright-coverage` gate fails without one.
@@ -29,7 +30,7 @@ Rules:
    - assert the main heading is visible;
    - when a client component calls the api from the browser, assert that the api request carries a `traceparent` header (`page.waitForRequest`). Skip this line for a server fetch;
    - run `new AxeBuilder({ page }).analyze()` and expect no violations.
-   Use this shape:
+     Use this shape:
    ```ts
    import { test, expect } from '@playwright/test';
    import AxeBuilder from '@axe-core/playwright';

@@ -10,6 +10,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 Prerequisites: the working tree is clean (commit first, see implement-feature), and the `verify` skill passes.
 
 State folder: `.claude/state/pre-pr/`.
+
 - `round-<n>.start`: one line. The HEAD sha at the start of round n.
 - `findings.md`: one row per finding: `id | round | severity | file:line | bug class | status (open, fixed, rejected) | reason`.
 
