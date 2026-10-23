@@ -127,9 +127,10 @@ cdk.out/
 .next/
 dist/
 lib/
-# These lib folders hold source code, not build output.
+# These lib folders hold source or test code, not build output.
 !scripts/gates/lib/
 !projects/*/web/lib/
+!projects/*/test/web/lib/
 !projects/*/lib/
 !platform/infra/lib/
 *.tsbuildinfo
