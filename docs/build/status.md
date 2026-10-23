@@ -118,7 +118,10 @@ Proof at the pause:
 | Single-package projects: one `package.json` for each project. Layout: `bin/`, `lib/` (CDK), `src/contracts`, `src/api`, `src/api-py`, `src/api-go`, `web/`, `bruno/`. | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
 | One sample project, `projects/sample`, with every part. It replaces `sample-fullstack` and `sample-api-only`. | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
 | AWS region: `us-east-1` only. One wildcard certificate serves CloudFront and the HTTP API. | Wave 3 |
-| CDK bundles the Lambda code at synth: `NodejsFunction` (TS), `Code.fromAsset` with local bundling (Go, Python, OpenNext). Unit tests turn bundling off. | Wave 3 |
+| CDK bundles the Lambda code at synth with the CDK constructs: `NodejsFunction` (TS), `GoFunction` (`@aws-cdk/aws-lambda-go-alpha`), `PythonFunction` (`@aws-cdk/aws-lambda-python-alpha`). No custom bundler. Shared constructs: `TracedNodeFunction`, `TracedGoFunction`, `TracedPythonFunction`. Unit tests turn bundling off. Supersedes the `Code.fromAsset` decision. | Wave 3, owner 2026-10-22 |
+| API gateway: REST or HTTP API, whichever is simpler. No catch-all route (`{proxy+}`, `$default`). Each path and method from the Zod OpenAPI spec is its own route. The spec is the API documentation. Swagger UI from a construct (research open). | Wave 3, owner 2026-10-22 |
+| TS and JS unit tests live in `test/` at the package root and mirror the source path (`test/api/...`, `test/web/...`, `test/infra/...`). Python keeps `tests/`. Go keeps `_test.go` in the package. Playwright stays in `web/e2e/`. A `test-location` check enforces it. | Wave 3, owner 2026-10-22 |
+| Relative imports use the `.ts` extension (`./foo.ts`). `rewriteRelativeImportExtensions` writes `.js` in the build. A lint rule enforces it. Runs after the test move. | Wave 3, owner 2026-10-22 |
 | cdk-nag rules that cannot be met go in one acknowledgments file for each stack (cdk-nag 3 `Validations.of().acknowledge`), with a reason. The owner approves each entry. Approved: 2 IAM5 in `TracedFunction` (X-Ray `Resource: *`, log streams). | Wave 3 |
 | OpenNext: own minimal construct in `shared-cdk-constructs`. No third-party construct. | Wave 3 |
 | CDK versions (3-day release age): `aws-cdk-lib` 2.273.0, `aws-cdk` 2.1145.0, `constructs` 10.8.1, `cdk-nag` 3.0.2, `@opennextjs/aws` 4.1.11. License check and audit passed. | Wave 3 |
