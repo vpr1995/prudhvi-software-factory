@@ -160,6 +160,12 @@ Fix these as the work continues. Tracker ids are in brackets.
 15. `dependency-cruiser` is not installed and no command runs it. Wire it in the CI chunk.
 16. `test-location` and the other check-gates checks run only in CI (not built yet). Decide if pre-push runs `test-location`.
 17. [`p-national-parks`] Owner (2026-10-22): first real project, after all local gates work. `projects/national-parks-tracker`: an interactive single page app with a map of the USA (OpenStreetMap) and a marker for each US national park. Each park shows what the park is and when the owner visited it (about half visited now). No backend: the owner edits a JSON file, and the next deploy shows the change. Owner answers (2026-10-23): public page; pictures for each park; extra fields: visit dates, rating, and notes (what we liked, what we did, places to go in the park). Bring a short plan first (data source for the park list, map library, hosting, photo storage).
+18. [`bl-opengrep-py-go`] Owner (2026-10-23): add the Opengrep rules for Python and Go when work on the Python and Go services starts, not now. Scope of that work:
+    - Rules: eval and exec, `subprocess` with `shell=True`, SQL built from strings, secret fields in log calls, Go `exec.Command` with `sh -c`, `fmt.Sprintf` SQL.
+    - Widen the file patterns to `.py` and `.go` in `scripts/security/opengrep-changed.sh` and in `OPENGREP_FILES` in `scripts/gates/lib/stop-checks.mjs`.
+    - Make a missing `opengrep` binary fail. Today `opengrep-changed.sh` exits 0 when the binary is missing.
+    - Fix the false match of `monorepo.no-logging-secret-fields`: the regex matches `tokenCount` in `packages/logger/test/logger.test.ts:228`. The gate fails when that file changes. Narrow the regex (for example `token` only at the end of a key), with rule tests that still catch `accessToken`, `clientSecret` and `password`.
+19. [`bl-nightly-audit`] Owner (2026-10-23): build the nightly audit (`rush audit`, pip-audit, govulncheck) with CI. Until then, `rush gates` does not run audits. It prints a SKIP line, and the audit-only entry point runs them by hand.
 
 ## 5. How to start Wave 3
 
