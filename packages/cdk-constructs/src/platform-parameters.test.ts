@@ -6,6 +6,8 @@ import {
   PLATFORM_ENVS,
   platformParameterName,
   platformParameterNames,
+  PLATFORM_WRITTEN_KEYS,
+  writtenPlatformParameterNames,
 } from './platform-parameters.js';
 
 describe('platformParameterNames', () => {
@@ -13,6 +15,7 @@ describe('platformParameterNames', () => {
     expect(platformParameterNames('dev')).toEqual({
       userPoolId: '/platform/dev/cognito/user-pool-id',
       userPoolArn: '/platform/dev/cognito/user-pool-arn',
+      userPoolDomain: '/platform/dev/cognito/user-pool-domain',
       hostedZoneId: '/platform/dev/dns/hosted-zone-id',
       zoneName: '/platform/dev/dns/zone-name',
       wildcardCertificateArn: '/platform/dev/acm/wildcard-certificate-arn',
@@ -35,10 +38,11 @@ describe('platformParameterName', () => {
 });
 
 describe('allPlatformParameterNames', () => {
-  it('lists exactly the five contract names for staging', () => {
+  it('lists exactly the six contract names for staging', () => {
     expect(allPlatformParameterNames('staging')).toEqual([
       '/platform/staging/cognito/user-pool-id',
       '/platform/staging/cognito/user-pool-arn',
+      '/platform/staging/cognito/user-pool-domain',
       '/platform/staging/dns/hosted-zone-id',
       '/platform/staging/dns/zone-name',
       '/platform/staging/acm/wildcard-certificate-arn',
@@ -48,6 +52,29 @@ describe('allPlatformParameterNames', () => {
   it('has no duplicate names across all environments', () => {
     const all = PLATFORM_ENVS.flatMap((env) => allPlatformParameterNames(env));
     expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+describe('writtenPlatformParameterNames', () => {
+  it('lists only the three Cognito names that platform writes today', () => {
+    expect(writtenPlatformParameterNames('prod')).toEqual([
+      '/platform/prod/cognito/user-pool-id',
+      '/platform/prod/cognito/user-pool-arn',
+      '/platform/prod/cognito/user-pool-domain',
+    ]);
+  });
+
+  it('holds no DNS or ACM name, because no zone and no certificate exist yet', () => {
+    for (const name of writtenPlatformParameterNames('dev')) {
+      expect(name).not.toMatch(/\/(dns|acm)\//);
+    }
+  });
+
+  it.each(PLATFORM_ENVS)('is a part of the full contract for %s', (env) => {
+    expect(allPlatformParameterNames(env)).toEqual(
+      expect.arrayContaining([...writtenPlatformParameterNames(env)]),
+    );
+    expect(PLATFORM_WRITTEN_KEYS).toHaveLength(3);
   });
 });
 

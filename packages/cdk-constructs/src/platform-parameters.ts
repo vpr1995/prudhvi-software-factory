@@ -1,7 +1,11 @@
 /**
  * The SSM parameter names that `platform/infra` writes and every project reads (ADR 0006).
  * The names are a contract. Do not rename or remove one. A change needs a human and a
- * coordinated deploy. `platform/infra` tests that it writes exactly `allPlatformParameterNames`.
+ * coordinated deploy. `platform/infra` tests that it writes exactly `writtenPlatformParameterNames`.
+ *
+ * The contract has two groups. The Cognito names are written now. The DNS and ACM names are
+ * reserved for later: no Route53 zone and no certificate exist yet, so nothing writes them and a
+ * project must not read them (see `readPlatformDns` and `readPlatformCertificate`).
  */
 
 /** The deployment environments that have platform parameters. */
@@ -14,10 +18,15 @@ export type PlatformEnv = (typeof PLATFORM_ENVS)[number];
 export const PLATFORM_PARAMETER_PATHS = {
   userPoolId: 'cognito/user-pool-id',
   userPoolArn: 'cognito/user-pool-arn',
+  /** The host name of the hosted sign-in domain, without a scheme. */
+  userPoolDomain: 'cognito/user-pool-domain',
   hostedZoneId: 'dns/hosted-zone-id',
   zoneName: 'dns/zone-name',
   wildcardCertificateArn: 'acm/wildcard-certificate-arn',
 } as const;
+
+/** The keys that `platform/infra` writes now. The DNS and ACM keys are reserved for later. */
+export const PLATFORM_WRITTEN_KEYS = ['userPoolId', 'userPoolArn', 'userPoolDomain'] as const;
 
 /** The key of one platform value. */
 export type PlatformParameterKey = keyof typeof PLATFORM_PARAMETER_PATHS;
@@ -57,6 +66,7 @@ export function platformParameterNames(env: PlatformEnv): PlatformParameterNames
   return {
     userPoolId: platformParameterName(env, 'userPoolId'),
     userPoolArn: platformParameterName(env, 'userPoolArn'),
+    userPoolDomain: platformParameterName(env, 'userPoolDomain'),
     hostedZoneId: platformParameterName(env, 'hostedZoneId'),
     zoneName: platformParameterName(env, 'zoneName'),
     wildcardCertificateArn: platformParameterName(env, 'wildcardCertificateArn'),
@@ -64,7 +74,17 @@ export function platformParameterNames(env: PlatformEnv): PlatformParameterNames
 }
 
 /**
- * Lists every platform parameter name for one environment.
+ * Lists the names that `platform/infra` writes today for one environment.
+ *
+ * @param env - The environment.
+ * @returns The Cognito names, in the order of `PLATFORM_WRITTEN_KEYS`.
+ */
+export function writtenPlatformParameterNames(env: PlatformEnv): readonly string[] {
+  return PLATFORM_WRITTEN_KEYS.map((key) => platformParameterName(env, key));
+}
+
+/**
+ * Lists every platform parameter name of the contract for one environment, written or reserved.
  *
  * @param env - The environment.
  * @returns All names, in the order of `PLATFORM_PARAMETER_PATHS`.

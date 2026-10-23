@@ -1,17 +1,21 @@
-import { App, Stack } from 'aws-cdk-lib';
+import { App, CfnOutput, Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
 import { Code, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import type { CfnLogGroup } from 'aws-cdk-lib/aws-logs';
-import { TxtRecord } from 'aws-cdk-lib/aws-route53';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { describe, expect, it } from 'vitest';
 
 import { ACCESS_LOG_FIELDS, TracedHttpApi } from './http-api.js';
 import type { TracedHttpApiProps } from './http-api.js';
-import { readPlatformResources } from './platform-resources.js';
+import {
+  readPlatformCertificate,
+  readPlatformDns,
+  readPlatformUserPool,
+} from './platform-resources.js';
+import { createProjectUserPoolClient } from './project-user-pool-client.js';
 import { TracedFunction } from './traced-function.js';
 
 type Overrides = Partial<
@@ -28,7 +32,7 @@ const HEALTH = { method: HttpMethod.GET, path: '/health' };
 /** Creates a stack with the platform imports, one `TracedFunction` and one `TracedHttpApi`. */
 function build({ hasDomain = true, ...overrides }: Overrides = {}): Built {
   const stack = new Stack(new App(), 'TestStack');
-  const platform = readPlatformResources(stack, 'dev');
+  const pool = readPlatformUserPool(stack, 'dev');
   const tracedFunction = new TracedFunction(stack, 'Api', {
     serviceName: 'sample-api',
     env: 'dev',
@@ -36,25 +40,26 @@ function build({ hasDomain = true, ...overrides }: Overrides = {}): Built {
     handler: 'index.handler',
     runtime: Runtime.NODEJS_24_X,
   });
+  // Without a domain the stack reads no DNS and no ACM parameter.
   const domain = {
-    hostedZone: platform.hostedZone,
-    certificate: platform.wildcardCertificate,
+    hostedZone: hasDomain ? readPlatformDns(stack, 'dev') : undefined,
+    certificate: hasDomain ? readPlatformCertificate(stack, 'dev') : undefined,
     recordName: 'sample-api',
   };
   const api = new TracedHttpApi(stack, 'Http', {
     fn: tracedFunction,
-    userPool: platform.userPool,
-    userPoolClient: platform.userPool.addClient('WebClient'),
-    ...(hasDomain ? { domain } : {}),
+    userPool: pool.userPool,
+    userPoolClient: createProjectUserPoolClient(stack, 'WebClient', {
+      userPool: pool.userPool,
+      callbackUrls: ['https://app.example.com/callback'],
+    }),
+    ...(domain.hostedZone !== undefined && domain.certificate !== undefined
+      ? { domain: { ...domain, hostedZone: domain.hostedZone, certificate: domain.certificate } }
+      : {}),
     ...overrides,
   });
-  if (!hasDomain) {
-    // The zone and the certificate are unused here. Reference them so CloudFormation does not warn.
-    new TxtRecord(stack, 'ProbeRecord', {
-      zone: platform.hostedZone,
-      values: [platform.wildcardCertificate.certificateArn],
-    });
-  }
+  // Reference the hosted sign-in domain, so CloudFormation does not warn about an unused parameter.
+  new CfnOutput(stack, 'SignInDomain', { value: pool.domainName });
   return { stack, template: Template.fromStack(stack), api };
 }
 
@@ -374,7 +379,7 @@ describe('TracedHttpApi custom domain', () => {
 
   it.each(['', 'a.b', 'A', '-a', 'a_b'])('rejects the record name "%s"', (recordName) => {
     const stack = new Stack(new App(), 'BadStack');
-    const platform = readPlatformResources(stack, 'dev');
+    const pool = readPlatformUserPool(stack, 'dev');
     const tracedFunction = new TracedFunction(stack, 'Api', {
       serviceName: 'x',
       env: 'dev',
@@ -387,11 +392,14 @@ describe('TracedHttpApi custom domain', () => {
       () =>
         new TracedHttpApi(stack, 'Http', {
           fn: tracedFunction,
-          userPool: platform.userPool,
-          userPoolClient: platform.userPool.addClient('WebClient'),
+          userPool: pool.userPool,
+          userPoolClient: createProjectUserPoolClient(stack, 'WebClient', {
+            userPool: pool.userPool,
+            callbackUrls: ['https://app.example.com/callback'],
+          }),
           domain: {
-            hostedZone: platform.hostedZone,
-            certificate: platform.wildcardCertificate,
+            hostedZone: readPlatformDns(stack, 'dev'),
+            certificate: readPlatformCertificate(stack, 'dev'),
             recordName,
           },
         }),

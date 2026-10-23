@@ -5,14 +5,22 @@ export {
   isPlatformEnv,
   platformParameterName,
   platformParameterNames,
+  PLATFORM_WRITTEN_KEYS,
+  writtenPlatformParameterNames,
 } from './platform-parameters.js';
 export type {
   PlatformEnv,
   PlatformParameterKey,
   PlatformParameterNames,
 } from './platform-parameters.js';
-export { readPlatformResources } from './platform-resources.js';
-export type { PlatformResources } from './platform-resources.js';
+export {
+  readPlatformCertificate,
+  readPlatformDns,
+  readPlatformUserPool,
+} from './platform-resources.js';
+export type { PlatformUserPool } from './platform-resources.js';
+export { createProjectUserPoolClient } from './project-user-pool-client.js';
+export type { ProjectUserPoolClientProps } from './project-user-pool-client.js';
 export {
   ADOT_COLLECTOR_LAYER_ARN,
   OTEL_COLLECTOR_ENDPOINT,
