@@ -1,4 +1,4 @@
-import { CfnOutput, Stack } from 'aws-cdk-lib';
+import { CfnOutput, Stack, Validations } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
@@ -7,7 +7,7 @@ import { AwsSolutionsChecks } from 'cdk-nag';
 import { describe, expect, it } from 'vitest';
 
 import { ACCESS_LOG_FIELDS, TracedHttpApi } from '../src/http-api.js';
-import type { TracedHttpApiProps } from '../src/http-api.js';
+import type { LambdaRouteProps, TracedHttpApiProps } from '../src/http-api.js';
 import {
   readPlatformCertificate,
   readPlatformDns,
@@ -18,19 +18,34 @@ import { TracedNodeFunction } from '../src/traced-node-function.js';
 
 import { newApp, nodeProps } from './support/functions.js';
 
-type Overrides = Partial<
-  Omit<TracedHttpApiProps, 'fn' | 'userPool' | 'userPoolClient' | 'domain'>
-> & {
+type Overrides = Partial<Omit<TracedHttpApiProps, 'userPool' | 'userPoolClient' | 'domain'>> & {
+  /** The routes to add. Defaults to `SAMPLE_ROUTES`. Use `[]` for none. */
+  readonly routes?: readonly (Omit<LambdaRouteProps, 'fn'> & {
+    /** Serve the route with a second function, `Worker`, and not with `Api`. */
+    readonly worker?: boolean;
+  })[];
   /** Add the custom domain `sample-api.<zone>`. Defaults to `true`. */
   readonly hasDomain?: boolean;
 };
 
-type Built = { readonly stack: Stack; readonly template: Template; readonly api: TracedHttpApi };
+type Built = {
+  readonly stack: Stack;
+  readonly template: Template;
+  readonly api: TracedHttpApi;
+  readonly fn: TracedNodeFunction;
+};
 
-const HEALTH = { method: HttpMethod.GET, path: '/health' };
+/** Two routes that need the JWT and one public route. */
+const SAMPLE_ROUTES = [
+  { method: HttpMethod.GET, path: '/v1/health', public: true },
+  { method: HttpMethod.GET, path: '/v1/notes' },
+  { method: HttpMethod.POST, path: '/v1/notes' },
+] as const;
+
+const SAMPLE_ROUTE_KEYS = ['GET /v1/health', 'GET /v1/notes', 'POST /v1/notes'];
 
 /** Creates a stack with the platform imports, one `TracedNodeFunction` and one `TracedHttpApi`. */
-function build({ hasDomain = true, ...overrides }: Overrides = {}): Built {
+function build({ hasDomain = true, routes = SAMPLE_ROUTES, ...overrides }: Overrides = {}): Built {
   const stack = new Stack(newApp(), 'TestStack');
   const pool = readPlatformUserPool(stack, 'dev');
   const tracedFunction = new TracedNodeFunction(stack, 'Api', nodeProps());
@@ -41,7 +56,6 @@ function build({ hasDomain = true, ...overrides }: Overrides = {}): Built {
     recordName: 'sample-api',
   };
   const api = new TracedHttpApi(stack, 'Http', {
-    fn: tracedFunction,
     userPool: pool.userPool,
     userPoolClient: createProjectUserPoolClient(stack, 'WebClient', {
       userPool: pool.userPool,
@@ -52,9 +66,15 @@ function build({ hasDomain = true, ...overrides }: Overrides = {}): Built {
       : {}),
     ...overrides,
   });
+  const worker = routes.some((route) => route.worker === true)
+    ? new TracedNodeFunction(stack, 'Worker', nodeProps({ serviceName: 'worker' }))
+    : tracedFunction;
+  for (const { worker: isWorker, ...route } of routes) {
+    api.addLambdaRoute({ ...route, fn: isWorker === true ? worker : tracedFunction });
+  }
   // Reference the hosted sign-in domain, so CloudFormation does not warn about an unused parameter.
   new CfnOutput(stack, 'SignInDomain', { value: pool.domainName });
-  return { stack, template: Template.fromStack(stack), api };
+  return { stack, template: Template.fromStack(stack), api, fn: tracedFunction };
 }
 
 /** Finds the resources of one type whose properties contain `properties` (deep, partial match). */
@@ -83,44 +103,94 @@ function onlyId(template: Template, type: string): string {
   return ids[0] ?? '';
 }
 
+/** Finds the properties of the one route resource with a route key. */
+function routeResource(template: Template, routeKey: string): Record<string, unknown> {
+  const routes = Object.values(
+    template.findResources('AWS::ApiGatewayV2::Route', { Properties: { RouteKey: routeKey } }),
+  );
+  expect(routes).toHaveLength(1);
+  return (routes[0]?.['Properties'] ?? {}) as Record<string, unknown>;
+}
+
 describe('TracedHttpApi routes and authorizer', () => {
-  it('has only the $default route when there are no public routes', () => {
+  it('has no route until a route is added, and never a $default route', () => {
+    const { template } = build({ routes: [] });
+
+    expect(routeKeys(template)).toEqual([]);
+  });
+
+  it('has exactly the added route keys, and no $default or proxy route', () => {
     const { template } = build();
+    const keys = routeKeys(template);
 
-    expect(routeKeys(template)).toEqual(['$default']);
+    expect(keys).toEqual(SAMPLE_ROUTE_KEYS);
+    expect(keys).not.toContain('$default');
+    expect(keys.filter((key) => key.includes('proxy'))).toEqual([]);
   });
 
-  it('adds a route for each public route and the $default route', () => {
-    const { template } = build({
-      publicRoutes: [HEALTH, { method: HttpMethod.GET, path: '/version' }],
-    });
-
-    expect(routeKeys(template)).toEqual(['$default', 'GET /health', 'GET /version']);
-  });
-
-  it('puts the JWT authorizer on the $default route', () => {
-    const { template } = build({ publicRoutes: [HEALTH] });
+  it('puts the JWT authorizer on each secured route', () => {
+    const { template } = build();
     const authorizerId = onlyId(template, 'AWS::ApiGatewayV2::Authorizer');
 
-    expect(
-      findWith(template, 'AWS::ApiGatewayV2::Route', {
-        RouteKey: '$default',
+    for (const key of ['GET /v1/notes', 'POST /v1/notes']) {
+      expect(routeResource(template, key)).toMatchObject({
         AuthorizationType: 'JWT',
         AuthorizerId: { Ref: authorizerId },
-      }),
+      });
+    }
+  });
+
+  it('puts no authorizer on the public route only', () => {
+    const { template } = build();
+    const publicRoute = routeResource(template, 'GET /v1/health');
+
+    expect(publicRoute).toMatchObject({ AuthorizationType: 'NONE' });
+    expect(publicRoute).not.toHaveProperty('AuthorizerId');
+    expect(
+      findWith(template, 'AWS::ApiGatewayV2::Route', { AuthorizationType: 'NONE' }),
     ).toHaveLength(1);
   });
 
-  it('puts no authorizer on a public route', () => {
-    const { template } = build({ publicRoutes: [HEALTH] });
-    const [publicRoute] = Object.values(
-      template.findResources('AWS::ApiGatewayV2::Route', {
-        Properties: { RouteKey: 'GET /health' },
-      }),
-    );
+  it('secures a route that does not say public, and a route with public false', () => {
+    const { template } = build({
+      routes: [
+        { method: HttpMethod.GET, path: '/a' },
+        { method: HttpMethod.GET, path: '/b', public: false },
+      ],
+    });
 
-    expect(publicRoute?.['Properties']).toMatchObject({ AuthorizationType: 'NONE' });
-    expect(publicRoute?.['Properties']).not.toHaveProperty('AuthorizerId');
+    expect(routeResource(template, 'GET /a')).toMatchObject({ AuthorizationType: 'JWT' });
+    expect(routeResource(template, 'GET /b')).toMatchObject({ AuthorizationType: 'JWT' });
+  });
+
+  it('lists the routes and the public routes with their constructs', () => {
+    const { api } = build();
+
+    expect(api.routes.map((entry) => `${entry.method} ${entry.path}`)).toEqual(SAMPLE_ROUTE_KEYS);
+    expect(api.publicRoutes).toHaveLength(1);
+    expect(api.publicRoutes[0]).toMatchObject({
+      method: 'GET',
+      path: '/v1/health',
+      isPublic: true,
+    });
+    expect(api.publicRoutes[0]?.route.node.id).toBe('RouteGetV1Health');
+  });
+
+  it('returns the route from addLambdaRoute', () => {
+    const { api, fn } = build({ routes: [] });
+
+    const entry = api.addLambdaRoute({ method: HttpMethod.DELETE, path: '/v1/notes/{id}', fn });
+
+    expect(entry).toMatchObject({ method: 'DELETE', path: '/v1/notes/{id}', isPublic: false });
+    expect(api.routes).toEqual([entry]);
+  });
+
+  it('keeps a path parameter in the route key', () => {
+    const { template } = build({
+      routes: [{ method: HttpMethod.DELETE, path: '/v1/notes/{id}' }],
+    });
+
+    expect(routeKeys(template)).toEqual(['DELETE /v1/notes/{id}']);
   });
 
   it('builds a JWT authorizer from the user pool and the app client', () => {
@@ -136,8 +206,8 @@ describe('TracedHttpApi routes and authorizer', () => {
     expect(JSON.stringify(properties['JwtConfiguration'])).toContain('https://cognito-idp.');
   });
 
-  it('sends every route to the one Lambda with the HTTP API 2.0 payload', () => {
-    const { template } = build({ publicRoutes: [HEALTH] });
+  it('shares one Lambda integration between the routes of one function', () => {
+    const { template } = build();
 
     expect(
       findWith(template, 'AWS::ApiGatewayV2::Integration', {
@@ -147,45 +217,75 @@ describe('TracedHttpApi routes and authorizer', () => {
     ).toHaveLength(1);
   });
 
-  it('lets API Gateway invoke the function', () => {
-    const { template } = build({ publicRoutes: [HEALTH] });
+  it('gives each function its own integration', () => {
+    const { template } = build({
+      routes: [
+        { method: HttpMethod.GET, path: '/a' },
+        { method: HttpMethod.GET, path: '/b', worker: true },
+        { method: HttpMethod.GET, path: '/c', worker: true },
+      ],
+    });
+
+    expect(Object.keys(template.findResources('AWS::ApiGatewayV2::Integration'))).toHaveLength(2);
+  });
+
+  it('lets API Gateway invoke the function from each route', () => {
+    const { template } = build();
 
     expect(
       findWith(template, 'AWS::Lambda::Permission', {
         Action: 'lambda:InvokeFunction',
         Principal: 'apigateway.amazonaws.com',
       }),
-    ).toHaveLength(2);
-  });
-
-  it('keeps one integration ID when the public routes change', () => {
-    const first = Object.keys(build().template.findResources('AWS::ApiGatewayV2::Integration'));
-    const second = Object.keys(
-      build({ publicRoutes: [HEALTH] }).template.findResources('AWS::ApiGatewayV2::Integration'),
-    );
-
-    expect(second).toEqual(first);
+    ).toHaveLength(3);
   });
 
   it('gives unique construct IDs to routes that give the same ID text', () => {
     const { template } = build({
-      publicRoutes: [
+      routes: [
         { method: HttpMethod.GET, path: '/a-b' },
         { method: HttpMethod.GET, path: '/a/b' },
       ],
     });
 
-    expect(routeKeys(template)).toEqual(['$default', 'GET /a-b', 'GET /a/b']);
+    expect(routeKeys(template)).toEqual(['GET /a-b', 'GET /a/b']);
   });
 
-  it('rejects a public path without a leading slash', () => {
-    expect(() => build({ publicRoutes: [{ method: HttpMethod.GET, path: 'health' }] })).toThrow(
+  it.each(['/{proxy+}', '/files/{path+}'])('rejects the greedy path %s', (path) => {
+    expect(() => build({ routes: [{ method: HttpMethod.GET, path }] })).toThrow(/catch-all/);
+  });
+
+  it('rejects the $default route', () => {
+    expect(() => build({ routes: [{ method: HttpMethod.GET, path: '$default' }] })).toThrow(
+      /\$default route is a catch-all/,
+    );
+  });
+
+  it('rejects a path without a leading slash', () => {
+    expect(() => build({ routes: [{ method: HttpMethod.GET, path: 'health' }] })).toThrow(
       /must start with "\/"/,
     );
   });
 
-  it('rejects a duplicate public route', () => {
-    expect(() => build({ publicRoutes: [HEALTH, HEALTH] })).toThrow(/Duplicate public route/);
+  it('rejects a duplicate route, and allows the same path with another method', () => {
+    expect(() =>
+      build({
+        routes: [
+          { method: HttpMethod.GET, path: '/a' },
+          { method: HttpMethod.GET, path: '/a' },
+        ],
+      }),
+    ).toThrow('Duplicate route: GET /a');
+    expect(
+      routeKeys(
+        build({
+          routes: [
+            { method: HttpMethod.GET, path: '/a' },
+            { method: HttpMethod.POST, path: '/a' },
+          ],
+        }).template,
+      ),
+    ).toEqual(['GET /a', 'POST /a']);
   });
 });
 
@@ -374,12 +474,9 @@ describe('TracedHttpApi custom domain', () => {
   it.each(['', 'a.b', 'A', '-a', 'a_b'])('rejects the record name "%s"', (recordName) => {
     const stack = new Stack(newApp(), 'BadStack');
     const pool = readPlatformUserPool(stack, 'dev');
-    const tracedFunction = new TracedNodeFunction(stack, 'Api', nodeProps());
-
     expect(
       () =>
         new TracedHttpApi(stack, 'Http', {
-          fn: tracedFunction,
           userPool: pool.userPool,
           userPoolClient: createProjectUserPoolClient(stack, 'WebClient', {
             userPool: pool.userPool,
@@ -397,9 +494,9 @@ describe('TracedHttpApi custom domain', () => {
 
 describe('TracedHttpApi cdk-nag', () => {
   // cdk-nag 3 is a validation plugin, so these tests call `validateScope` and read the report.
-  // The only open finding is AwsSolutions-APIG4 on a public route. It has no suppression. The rule
-  // wants an authorizer on every route. A public route such as `GET /health` has none on purpose.
-  // Without public routes, the API has no violation.
+  // The only open finding is AwsSolutions-APIG4 on a public route. The rule wants an authorizer on
+  // every route, and a public route such as `GET /v1/health` has none on purpose. The construct
+  // acknowledges nothing. The project acknowledges it on `api.publicRoutes`, and so does a test.
 
   /** Lists the rule names of all violations. */
   function violationNames(stack: Stack): string[] {
@@ -418,24 +515,41 @@ describe('TracedHttpApi cdk-nag', () => {
       );
   }
 
-  it('has zero AwsSolutions violations without public routes', () => {
+  it('has zero AwsSolutions violations when every route is secured', () => {
+    const { stack } = build({
+      routes: [
+        { method: HttpMethod.GET, path: '/v1/notes' },
+        { method: HttpMethod.POST, path: '/v1/notes' },
+      ],
+    });
+
+    expect(violationNames(stack)).toEqual([]);
+  });
+
+  it('has zero AwsSolutions violations with CORS, a custom domain and no routes', () => {
+    const { stack } = build({ routes: [], corsOrigins: ['https://app.example.com'] });
+
+    expect(violationNames(stack)).toEqual([]);
+  });
+
+  it('has only APIG4, on the public route', () => {
     const { stack } = build();
-
-    expect(violationNames(stack)).toEqual([]);
-  });
-
-  it('has zero AwsSolutions violations with CORS and a custom domain', () => {
-    const { stack } = build({ corsOrigins: ['https://app.example.com'] });
-
-    expect(violationNames(stack)).toEqual([]);
-  });
-
-  it('has only APIG4, on the public route, with one public route', () => {
-    const { stack } = build({ publicRoutes: [HEALTH] });
 
     expect(violationNames(stack)).toEqual(['AwsSolutions-APIG4']);
     expect(violatingPaths(stack, 'AwsSolutions-APIG4')).toEqual([
-      'TestStack/Http/PublicRouteGetHealth/Resource',
+      'TestStack/Http/RouteGetV1Health/Resource',
     ]);
+  });
+
+  it('has zero violations when the project acknowledges APIG4 on the public routes', () => {
+    const { stack, api } = build({ corsOrigins: ['https://app.example.com'] });
+    for (const entry of api.publicRoutes) {
+      Validations.of(entry.route).acknowledge({
+        id: 'AwsSolutions-APIG4',
+        reason: 'The health route is public on purpose. Owner approved.',
+      });
+    }
+
+    expect(violationNames(stack)).toEqual([]);
   });
 });

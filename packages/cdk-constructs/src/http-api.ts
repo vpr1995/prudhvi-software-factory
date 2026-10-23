@@ -25,12 +25,31 @@ import { Construct } from 'constructs';
 
 import type { TracedFunctionBase } from './traced-function-base.js';
 
-/** A route that needs no sign-in, for example `GET /health`. */
-export type PublicRoute = {
+/** Settings for one route of `TracedHttpApi`. See `TracedHttpApi.addLambdaRoute`. */
+export type LambdaRouteProps = {
   /** The HTTP method. */
   readonly method: HttpMethod;
-  /** The path, starting with `/`. */
+  /**
+   * The path, starting with `/`, for example `/v1/notes/{id}`. A greedy parameter such as
+   * `{proxy+}` is not allowed.
+   */
   readonly path: string;
+  /** The traced function that serves the route. */
+  readonly fn: TracedFunctionBase;
+  /** `true` for a route that needs no sign-in, for example `GET /v1/health`. Defaults to `false`. */
+  readonly public?: boolean;
+};
+
+/** A route of `TracedHttpApi` with its construct. */
+export type TracedHttpRoute = {
+  /** The HTTP method. */
+  readonly method: HttpMethod;
+  /** The path. */
+  readonly path: string;
+  /** `true` when the route has no authorizer. */
+  readonly isPublic: boolean;
+  /** The route construct. Use it to acknowledge a cdk-nag finding on this route. */
+  readonly route: HttpRoute;
 };
 
 /** A custom domain for the API, in the imported platform zone. */
@@ -45,14 +64,10 @@ export type HttpApiDomain = {
 
 /** Settings for `TracedHttpApi`. */
 export type TracedHttpApiProps = {
-  /** The traced function that serves every route. */
-  readonly fn: TracedFunctionBase;
   /** The user pool that issues the tokens. Its ID gives the JWT issuer. */
   readonly userPool: IUserPool;
   /** The app client of this project. It gives the JWT audience. */
   readonly userPoolClient: IUserPoolClient;
-  /** Routes without the JWT authorizer. Defaults to none. */
-  readonly publicRoutes?: readonly PublicRoute[];
   /** A custom domain with Route53 alias records. Defaults to none. */
   readonly domain?: HttpApiDomain;
   /** Browser origins for CORS. Without it the API sends no CORS headers. `*` is not allowed. */
@@ -119,17 +134,6 @@ function isDnsLabel(label: string): boolean {
  * @param props - The props of the construct.
  */
 function validateProps(props: TracedHttpApiProps): void {
-  const seen = new Set<string>();
-  for (const route of props.publicRoutes ?? []) {
-    if (!route.path.startsWith('/')) {
-      throw new Error(`A public route path must start with "/": ${route.path}`);
-    }
-    const key = `${route.method} ${route.path}`;
-    if (seen.has(key)) {
-      throw new Error(`Duplicate public route: ${key}`);
-    }
-    seen.add(key);
-  }
   if (props.corsOrigins?.includes('*') === true) {
     throw new Error('corsOrigins must list the origins. "*" is not allowed.');
   }
@@ -137,6 +141,25 @@ function validateProps(props: TracedHttpApiProps): void {
     throw new Error(
       `domain.recordName must be one DNS label (lower case letters, digits, "-"): ${props.domain.recordName}`,
     );
+  }
+}
+
+/**
+ * Checks the path of a route. An HTTP API with a catch-all route sends every unknown request to
+ * the Lambda, so the path must name one resource.
+ *
+ * @param path - The path of the route.
+ * @throws When the path is `$default`, does not start with `/`, or has a greedy parameter.
+ */
+function validateRoutePath(path: string): void {
+  if (path === '$default') {
+    throw new Error('The $default route is a catch-all route and is not allowed. Add each route.');
+  }
+  if (!path.startsWith('/')) {
+    throw new Error(`A route path must start with "/": ${path}`);
+  }
+  if (path.includes('+}')) {
+    throw new Error(`A greedy path parameter is a catch-all route and is not allowed: ${path}`);
   }
 }
 
@@ -160,8 +183,13 @@ function buildCors(origins: readonly string[]): CorsPreflightOptions {
  * An API Gateway HTTP API in front of one traced function (`TracedNodeFunction`, `TracedGoFunction` or
  * `TracedPythonFunction`).
  *
- * - Public routes (`publicRoutes`) have no authorizer. Every other route goes to the `$default`
- *   route, which uses the JWT authorizer of the Cognito user pool.
+ * - The API has no routes at first. Add each route with `addLambdaRoute`. There is no `$default`
+ *   route and no `{proxy+}` route, so a request that matches no route gets a 404 from the gateway
+ *   and never reaches the Lambda.
+ * - A route uses the JWT authorizer of the Cognito user pool, unless it has `public: true`.
+ *   `publicRoutes` lists the public routes. cdk-nag reports `AwsSolutions-APIG4` on each. The
+ *   project acknowledges it on exactly those routes with `Validations.of(entry.route).acknowledge`,
+ *   in its own acknowledgments file.
  * - The `$default` stage has JSON access logs in its own log group, and throttling.
  * - The stage has no tracing. An HTTP API has no X-Ray support. Lambda active tracing starts the
  *   segment.
@@ -172,10 +200,24 @@ export class TracedHttpApi extends Construct {
   public readonly api: HttpApi;
   /** The `$default` stage. */
   public readonly stage: HttpStage;
+  /** Every route that `addLambdaRoute` added, in the order of the calls. */
+  public get routes(): readonly TracedHttpRoute[] {
+    return [...this.routeList];
+  }
+  /** The routes without an authorizer. */
+  public get publicRoutes(): readonly TracedHttpRoute[] {
+    return this.routeList.filter((entry) => entry.isPublic);
+  }
   /** The access log group. */
   public readonly accessLogGroup: ILogGroup;
   /** The base URL of the API: the custom domain when set, else the `execute-api` URL. */
   public readonly url: string;
+
+  private readonly routeList: TracedHttpRoute[] = [];
+  private readonly integrations = new Map<TracedFunctionBase, HttpLambdaIntegration>();
+  private readonly usedRouteIds = new Set<string>();
+  private readonly usedIntegrationIds = new Set<string>();
+  private readonly authorizer: HttpUserPoolAuthorizer;
 
   /**
    * @param scope - The parent construct.
@@ -220,7 +262,9 @@ export class TracedHttpApi extends Construct {
       ...(domainName === undefined ? {} : { domainMapping: { domainName } }),
     });
 
-    this.addRoutes(props);
+    this.authorizer = new HttpUserPoolAuthorizer('UserPoolAuthorizer', props.userPool, {
+      userPoolClients: [props.userPoolClient],
+    });
 
     if (props.domain !== undefined && domainName !== undefined) {
       this.addAliasRecords(props.domain, domainName);
@@ -229,34 +273,51 @@ export class TracedHttpApi extends Construct {
   }
 
   /**
-   * Adds the public routes and the `$default` route.
+   * Adds one route that sends the request to a traced function. The route uses the JWT authorizer
+   * unless `public` is `true`. All routes of one function share one Lambda integration. CDK
+   * creates the integration of a function at its first route. If you change which route of a
+   * function comes first, the next deploy replaces that integration. CloudFormation handles it.
    *
-   * @param props - The props of the construct.
+   * @param props - The method, the path, the function and the `public` flag.
+   * @returns The route with its construct.
+   * @throws When the path is not valid (see `LambdaRouteProps.path`), or the route exists.
    */
-  private addRoutes(props: TracedHttpApiProps): void {
-    // The `$default` route comes first, so the shared integration is a child of it. Its ID then
-    // does not change when someone edits `publicRoutes`.
-    const integration = new HttpLambdaIntegration('LambdaIntegration', props.fn.function);
-    const authorizer = new HttpUserPoolAuthorizer('UserPoolAuthorizer', props.userPool, {
-      userPoolClients: [props.userPoolClient],
-    });
-
-    new HttpRoute(this, 'DefaultRoute', {
-      httpApi: this.api,
-      routeKey: HttpRouteKey.DEFAULT,
-      integration,
-      authorizer,
-    });
-
-    const usedIds = new Set<string>();
-    for (const route of props.publicRoutes ?? []) {
-      const id = uniqueId(`PublicRoute${routeIdSuffix(route)}`, usedIds);
-      new HttpRoute(this, id, {
-        httpApi: this.api,
-        routeKey: HttpRouteKey.with(route.path, route.method),
-        integration,
-      });
+  public addLambdaRoute(props: LambdaRouteProps): TracedHttpRoute {
+    validateRoutePath(props.path);
+    if (
+      this.routeList.some((entry) => entry.method === props.method && entry.path === props.path)
+    ) {
+      throw new Error(`Duplicate route: ${props.method} ${props.path}`);
     }
+    const isPublic = props.public === true;
+    const route = new HttpRoute(this, uniqueId(`Route${routeIdSuffix(props)}`, this.usedRouteIds), {
+      httpApi: this.api,
+      routeKey: HttpRouteKey.with(props.path, props.method),
+      integration: this.integrationFor(props.fn),
+      ...(isPublic ? {} : { authorizer: this.authorizer }),
+    });
+    const entry = { method: props.method, path: props.path, isPublic, route };
+    this.routeList.push(entry);
+    return entry;
+  }
+
+  /**
+   * Gets the Lambda integration of a function. It creates the integration at the first call.
+   *
+   * @param target - The traced function.
+   * @returns The one integration of the function.
+   */
+  private integrationFor(target: TracedFunctionBase): HttpLambdaIntegration {
+    const known = this.integrations.get(target);
+    if (known !== undefined) {
+      return known;
+    }
+    const integration = new HttpLambdaIntegration(
+      uniqueId(`${target.node.id}Integration`, this.usedIntegrationIds),
+      target.function,
+    );
+    this.integrations.set(target, integration);
+    return integration;
   }
 
   /**
@@ -286,12 +347,12 @@ export class TracedHttpApi extends Construct {
 }
 
 /**
- * Builds a PascalCase construct ID part from a route, for example `GetHealth`.
+ * Builds a PascalCase construct ID part from a route, for example `GetV1Health`.
  *
- * @param route - A public route.
+ * @param route - A route.
  * @returns The ID part. It has only letters and digits.
  */
-function routeIdSuffix(route: PublicRoute): string {
+function routeIdSuffix(route: Pick<LambdaRouteProps, 'method' | 'path'>): string {
   const words = `${route.method.toLowerCase()}-${route.path}`.split(/[^a-z0-9]+/i).filter(Boolean);
   return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join('');
 }

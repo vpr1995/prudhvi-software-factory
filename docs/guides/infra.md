@@ -37,6 +37,8 @@ CDK bundles the Lambda code at synth. Do not build code in a separate deploy ste
 - Buckets block public access. Web buckets use CloudFront Origin Access Control only.
 - Lambda: set timeout, memory, log retention, and active tracing.
 - Use a JWT authorizer on the Cognito pool for each route that needs a user.
+- Add each HTTP API route by hand with `TracedHttpApi.addLambdaRoute({ method, path, fn })`. A route uses the JWT authorizer unless it has `public: true`. Do not add a `$default` route or a greedy `{proxy+}` route: the construct rejects them. A request that matches no route gets a 404 from the gateway and never reaches the Lambda.
+- A public route raises `AwsSolutions-APIG4`. In the acknowledgments file of the stack, acknowledge it only on the routes in `api.publicRoutes`, with `Validations.of(entry.route).acknowledge({ id: 'AwsSolutions-APIG4', reason })`. The owner approves each entry.
 - Grant with `grantRead` and `grantWrite`. Never write `*` in IAM actions or resources.
 - Read platform values only through the SSM helper in `shared-cdk-constructs`. Never import `platform/infra`. See the `use-platform-resource` skill.
 - Each project makes its own Cognito app client, DNS records, and Lambdas.

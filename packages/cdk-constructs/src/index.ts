@@ -48,4 +48,9 @@ export {
   CORS_EXPOSE_HEADERS,
   TracedHttpApi,
 } from './http-api.js';
-export type { HttpApiDomain, PublicRoute, TracedHttpApiProps } from './http-api.js';
+export type {
+  HttpApiDomain,
+  LambdaRouteProps,
+  TracedHttpApiProps,
+  TracedHttpRoute,
+} from './http-api.js';
