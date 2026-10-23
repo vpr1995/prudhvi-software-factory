@@ -1,4 +1,4 @@
-import { base, boundaries, next, node, scope, test } from '@vprprudhvi/tooling-eslint-config';
+import { base, boundaries, cdk, next, node, scope, test } from '@vprprudhvi/tooling-eslint-config';
 
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
 
@@ -21,7 +21,7 @@ const otelGuard = {
 };
 
 // One config for the whole package. Each folder gets the shared config of its kind:
-// web/** and test/web/** get `next` (and `node` for the server files), everything else gets `node`.
+// web/** and test/web/** get `next` (and `node` for the server files), bin/** and lib/** get `cdk` as well as `node`, everything else gets `node`.
 export default [
   // The Python and Go parts have their own tools (ruff, mypy, golangci-lint). They hold no
   // JavaScript that this config must check. The .venv folder holds installed Python packages.
@@ -29,6 +29,7 @@ export default [
   ...base,
   ...node,
   ...scope(['web/**', 'test/web/**'], next),
+  ...scope(['bin/**', 'lib/**'], cdk),
   ...test,
   ...boundaries({ rootPath: REPO_ROOT }),
   otelGuard,

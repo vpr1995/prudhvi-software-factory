@@ -2,7 +2,7 @@
   "name": "@vprprudhvi/sample",
   "version": "0.0.0",
   "private": true,
-  "description": "The sample project: contracts, TypeScript, Python and Go APIs, Next.js web app and Bruno collection in one package. The CDK app (bin, lib) comes in Wave 3.",
+  "description": "The sample project: contracts, TypeScript, Python and Go APIs, Next.js web app and Bruno collection in one package. The CDK app (bin, lib) builds the API stack.",
   "type": "module",
   "main": "./dist/api/lambda.js",
   "files": [
@@ -15,6 +15,7 @@
     "_phase:test": "node scripts/phase.mjs test",
     "_phase:typecheck": "node scripts/phase.mjs typecheck",
     "build": "npm run _phase:build",
+    "build:cdk": "tsc -p tsconfig.cdk.json",
     "dev:web": "cd web && next dev",
     "e2e": "npm run _phase:e2e",
     "gen:go": "bash src/api-go/scripts/generate-types.sh",
@@ -24,6 +25,7 @@
     "security": "bash src/api-py/scripts/security.sh && bash src/api-go/scripts/security.sh",
     "start": "node dist/api/main.js",
     "start:web": "cd web && next start",
+    "synth": "cdk synth",
     "test": "npm run _phase:test",
     "typecheck": "npm run _phase:typecheck"
   },

@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 import type { TestProjectInlineConfiguration } from 'vitest/config';
 
 // One config for the whole package. The shared factory gives the fixed settings and the coverage
-// thresholds. Two Vitest projects split the environments: `node` for test/api and test/contracts,
+// thresholds. Two Vitest projects split the environments: `node` for test/api, test/contracts and test/infra (the CDK app in bin and lib),
 // and `web` (jsdom) for test/web. Coverage runs once over both. The thresholds apply to the sum,
 // and again to each folder, so the web app cannot hide behind the API (or the reverse).
 const shared = createVitestConfig().test ?? {};
@@ -16,7 +16,11 @@ const nodeProject: TestProjectInlineConfiguration = {
     ...projectOptions,
     name: 'node',
     environment: 'node',
-    include: ['test/api/**/*.test.{ts,tsx}', 'test/contracts/**/*.test.{ts,tsx}'],
+    include: [
+      'test/api/**/*.test.{ts,tsx}',
+      'test/contracts/**/*.test.{ts,tsx}',
+      'test/infra/**/*.test.ts',
+    ],
     exclude: IGNORED_FILES,
   },
 };
@@ -42,7 +46,13 @@ export default defineConfig({
     coverage: {
       ...coverage,
       // Not src/**: the Python and Go parts live in src/api-py and src/api-go and hold no TypeScript.
-      include: ['src/contracts/**/*.ts', 'src/api/**/*.ts', 'web/**/*.{ts,tsx}'],
+      include: [
+        'src/contracts/**/*.ts',
+        'src/api/**/*.ts',
+        'bin/**/*.ts',
+        'lib/**/*.ts',
+        'web/**/*.{ts,tsx}',
+      ],
       exclude: [
         '**/*.test.{ts,tsx,js,jsx}',
         '**/*.d.ts',
@@ -53,6 +63,7 @@ export default defineConfig({
       thresholds: {
         ...thresholds,
         'src/**': { ...thresholds },
+        'lib/**': { ...thresholds },
         'web/**': { ...thresholds },
       },
     },
