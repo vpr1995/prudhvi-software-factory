@@ -18,8 +18,9 @@
   },
 
   "repository": {
-    // Placeholder. Replace with the real remote URL before the first push.
-    "url": "https://github.com/OWNER/projects-monorepo.git",
+    // Local bare repo (owner decision 2026-10-23). Rush matches it to the "origin" remote as a plain
+    // path (a file:// URL does not match). Replace with the real remote URL when one exists.
+    "url": "/Users/PrudhviGenie/Desktop/Dev/projects-monorepo.git",
     "defaultBranch": "main",
     "defaultRemote": "origin"
   },

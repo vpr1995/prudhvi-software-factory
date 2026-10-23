@@ -1,40 +1,10 @@
 #!/bin/sh
-# Installed by `rush install`. Runs the same commands as CI, cheap checks first.
+# Installed by `rush install`. Runs the local gate suite (scripts/gates/local-gates.sh), cheap
+# checks first: rush change --verify (only with an origin remote), audit, licenses, opengrep,
+# anti-skip, check-gates, gate tests and lint, rush verify, Bruno and Playwright coverage.
+# The same runner is `node common/scripts/install-run-rush.js gates`. It stops at the first failure.
 set -eu
 
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
-rush() {
-  node common/scripts/install-run-rush.js "$@"
-}
-
-echo "pre-push: rush change --verify"
-if ! git remote get-url origin >/dev/null 2>&1; then
-  echo "pre-push: no 'origin' remote, skipping rush change --verify"
-else
-  rush change --verify
-fi
-
-echo "pre-push: rush audit"
-rush audit
-
-echo "pre-push: rush license-check"
-rush license-check
-
-echo "pre-push: opengrep on changed files"
-bash scripts/security/opengrep-changed.sh
-
-echo "pre-push: rush verify"
-if git rev-parse --verify --quiet origin/main >/dev/null; then
-  rush verify --impacted-by git:origin/main
-else
-  echo "pre-push: origin/main not found, running the full verify"
-  rush verify
-fi
-
-echo "pre-push: coverage gates and anti-skip"
-node scripts/gates/bruno-coverage.mjs
-node scripts/gates/playwright-coverage.mjs
-if git rev-parse --verify --quiet origin/main >/dev/null; then
-  node scripts/gates/anti-skip.mjs --range origin/main...HEAD
-fi
+exec bash scripts/gates/local-gates.sh

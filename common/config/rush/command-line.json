@@ -101,6 +101,16 @@
       "summary": "Fail on high or critical advisories in the pnpm lockfile (audit-ci).",
       "autoinstallerName": "rush-security",
       "shellCommand": "bash scripts/security/audit.sh"
+    },
+    // "gates" does no Rush work itself: it only starts other Rush commands, one at a time. Each of
+    // them takes the Rush lock, so a Rush command started at the same time still fails on the lock.
+    // With false, the outer command would hold the lock and every inner call would be refused.
+    {
+      "commandKind": "global",
+      "name": "gates",
+      "summary": "Run the local gate suite (the pre-push checks) against the gates base. Stops at the first failure.",
+      "safeForSimultaneousRushProcesses": true,
+      "shellCommand": "bash scripts/gates/local-gates.sh"
     }
   ],
 
