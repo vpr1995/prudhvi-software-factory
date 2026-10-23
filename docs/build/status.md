@@ -146,6 +146,7 @@ Fix these as the work continues. Tracker ids are in brackets.
 10. [`bl-dns`] Backlog (owner, 2026-10-22): the domain is in Cloudflare. Decide later to import or create a Route53 zone, then add the ACM wildcard certificate. Until then, platform writes no `dns` or `acm` parameters, and projects use the default API and CloudFront URLs.
 11. [`bl-cognito-triggers`] Backlog: Cognito trigger Lambdas create each new user in the users table.
 12. [`bl-users-table`] Backlog: one shared DynamoDB users table (single-table design) in `platform/infra`. Projects read it. They do not keep their own user tables.
+13. [`bl-dynamodb-standard`] Backlog standard (owner, 2026-10-22), for the end of the build: DynamoDB is the default database because of its price. Each DB item has a Zod schema. Mapper functions convert the input (contracts) to the DB item and back, and the types match on both sides. The key attributes (partition key, sort key, index keys) and their formats are defined once in the schema, so no code writes a free-form key. Write it as a standard in `docs/standards/` with an enforcer (types plus tests, or a lint rule).
 
 ## 5. How to start Wave 3
 
