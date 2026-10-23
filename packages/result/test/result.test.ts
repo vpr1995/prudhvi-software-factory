@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { andThen, fail, isFail, isOk, map, mapError, ok, unwrapOr } from './result.js';
+import { andThen, fail, isFail, isOk, map, mapError, ok, unwrapOr } from '../src/result.js';
 
 describe('result helpers', () => {
   it('creates ok and fail results', () => {

@@ -4,13 +4,13 @@ import { HostedZone, TxtRecord } from 'aws-cdk-lib/aws-route53';
 import type { IHostedZone } from 'aws-cdk-lib/aws-route53';
 import { describe, expect, it } from 'vitest';
 
-import { platformParameterNames } from './platform-parameters.js';
-import type { PlatformEnv } from './platform-parameters.js';
+import { platformParameterNames } from '../src/platform-parameters.js';
+import type { PlatformEnv } from '../src/platform-parameters.js';
 import {
   readPlatformCertificate,
   readPlatformDns,
   readPlatformUserPool,
-} from './platform-resources.js';
+} from '../src/platform-resources.js';
 
 const SSM_VALUE_TYPE = 'AWS::SSM::Parameter::Value<String>';
 

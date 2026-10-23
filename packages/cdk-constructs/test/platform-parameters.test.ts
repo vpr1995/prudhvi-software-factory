@@ -8,7 +8,7 @@ import {
   platformParameterNames,
   PLATFORM_WRITTEN_KEYS,
   writtenPlatformParameterNames,
-} from './platform-parameters.js';
+} from '../src/platform-parameters.js';
 
 describe('platformParameterNames', () => {
   it('returns the exact names of ADR 0006 for dev', () => {

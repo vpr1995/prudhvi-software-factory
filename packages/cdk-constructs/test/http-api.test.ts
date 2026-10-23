@@ -8,15 +8,15 @@ import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { describe, expect, it } from 'vitest';
 
-import { ACCESS_LOG_FIELDS, TracedHttpApi } from './http-api.js';
-import type { TracedHttpApiProps } from './http-api.js';
+import { ACCESS_LOG_FIELDS, TracedHttpApi } from '../src/http-api.js';
+import type { TracedHttpApiProps } from '../src/http-api.js';
 import {
   readPlatformCertificate,
   readPlatformDns,
   readPlatformUserPool,
-} from './platform-resources.js';
-import { createProjectUserPoolClient } from './project-user-pool-client.js';
-import { TracedFunction } from './traced-function.js';
+} from '../src/platform-resources.js';
+import { createProjectUserPoolClient } from '../src/project-user-pool-client.js';
+import { TracedFunction } from '../src/traced-function.js';
 
 type Overrides = Partial<
   Omit<TracedHttpApiProps, 'fn' | 'userPool' | 'userPoolClient' | 'domain'>

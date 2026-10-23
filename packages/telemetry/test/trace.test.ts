@@ -1,17 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { initTelemetry } from './node.js';
-import type { TelemetryHandle } from './node.js';
+import { trace } from '../src/index.js';
+import type { Span } from '../src/index.js';
+import { initTelemetry } from '../src/node.js';
+import type { TelemetryHandle } from '../src/node.js';
 import {
   formatTraceparent,
   getTraceContext,
   getTraceHeaders,
   recordSpanError,
   withSpan,
-} from './trace.js';
-
-import { trace } from './index.js';
-import type { Span } from './index.js';
+} from '../src/trace.js';
 
 const TRACE_ID_LENGTH = 32;
 const SPAN_ID_LENGTH = 16;

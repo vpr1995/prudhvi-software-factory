@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { buildResourceAttributes, initTelemetry } from './node.js';
+import { buildResourceAttributes, initTelemetry } from '../src/node.js';
 
 const options = { serviceName: 'svc', serviceVersion: '1.2.3', environment: 'dev' };
 

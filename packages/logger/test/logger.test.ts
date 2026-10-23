@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { initTelemetry, withSpan } from '@vprprudhvi/shared-telemetry';
 import type { TelemetryHandle } from '@vprprudhvi/shared-telemetry';
 
-import { createLogger, getTraceLogFields } from './logger.js';
-import { buildRedactPaths, isRedactedKey, keyVariants, REDACTED_TEXT } from './redact.js';
+import { createLogger, getTraceLogFields } from '../src/logger.js';
+import { buildRedactPaths, isRedactedKey, keyVariants, REDACTED_TEXT } from '../src/redact.js';
 
 const TRACE_ID_LENGTH = 32;
 const SPAN_ID_LENGTH = 16;

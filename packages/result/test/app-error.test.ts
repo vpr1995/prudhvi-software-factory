@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AppError, isErrorCode } from './app-error.js';
+import { AppError, isErrorCode } from '../src/app-error.js';
 
 class UserNotFoundError extends AppError {
   readonly code = 'USER_NOT_FOUND';

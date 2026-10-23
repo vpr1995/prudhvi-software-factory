@@ -2,8 +2,8 @@ import { App, CfnOutput, Stack } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
 
-import { readPlatformUserPool } from './platform-resources.js';
-import { createProjectUserPoolClient } from './project-user-pool-client.js';
+import { readPlatformUserPool } from '../src/platform-resources.js';
+import { createProjectUserPoolClient } from '../src/project-user-pool-client.js';
 
 /** Creates a stack with an imported platform pool and one project client. */
 function build(logoutUrls?: readonly string[]): { stack: Stack; template: Template } {

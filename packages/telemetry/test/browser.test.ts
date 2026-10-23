@@ -2,7 +2,7 @@
 import type * as SdkTrace from '@opentelemetry/sdk-trace';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { initBrowserTelemetry } from './browser.js';
+import { initBrowserTelemetry } from '../src/browser.js';
 
 const API_ORIGIN = 'http://api.test';
 const TRACEPARENT_PATTERN = /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/;
@@ -27,7 +27,7 @@ describe('browser sample ratio', () => {
       }
       return { ...actual, TraceIdRatioBasedSampler: RecordingSampler };
     });
-    const { initBrowserTelemetry: init } = await import('./browser.js');
+    const { initBrowserTelemetry: init } = await import('../src/browser.js');
     init({
       serviceName: 'web-browser',
       serviceVersion: '0.0.0',

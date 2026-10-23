@@ -5,7 +5,7 @@ import {
   PROD_SAMPLE_RATIO,
   defaultSampleRatio,
   loadTelemetryConfig,
-} from './config.js';
+} from '../src/config.js';
 
 describe('defaultSampleRatio', () => {
   it('keeps 100% outside prod and 10% in prod', () => {

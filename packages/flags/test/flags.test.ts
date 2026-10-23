@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { createFlagClient, defineFlags } from './flags.js';
-import type { FlagProvider } from './flags.js';
-import { createEnvFlagProvider, createJsonFlagProvider, toEnvName } from './providers.js';
+import { createFlagClient, defineFlags } from '../src/flags.js';
+import type { FlagProvider } from '../src/flags.js';
+import { createEnvFlagProvider, createJsonFlagProvider, toEnvName } from '../src/providers.js';
 
 const flags = defineFlags({
   newNotesList: { defaultValue: false, description: 'Show the new notes list.' },

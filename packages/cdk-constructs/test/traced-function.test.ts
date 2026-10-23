@@ -6,13 +6,13 @@ import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { describe, expect, it } from 'vitest';
 
-import type { PlatformEnv } from './platform-parameters.js';
+import type { PlatformEnv } from '../src/platform-parameters.js';
 import {
   ADOT_COLLECTOR_LAYER_ARN,
   RESERVED_ENVIRONMENT_KEYS,
   TracedFunction,
-} from './traced-function.js';
-import type { TracedFunctionProps } from './traced-function.js';
+} from '../src/traced-function.js';
+import type { TracedFunctionProps } from '../src/traced-function.js';
 
 type Overrides = Partial<TracedFunctionProps>;
 
