@@ -1,5 +1,5 @@
 // Tests for the base of the local gate run (lib/gates-base.mjs, gates-base.mjs) and for the runner
-// local-gates.sh. Everything runs for real against temp git repos.
+// local-gates.sh (with the plan of dep-checks.mjs). Everything runs for real against temp git repos.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -178,13 +178,18 @@ describe('local-gates.sh runner', () => {
    * Runs the runner in the temp repo.
    *
    * @param {Record<string, string>} [env] - Extra variables.
+   * @param {string[]} [args] - Runner arguments.
    * @returns {{ status: number, stdout: string, stderr: string }} Result.
    */
-  function runGates(env = {}) {
-    return exec('bash', [path.join(repository.root, 'scripts', 'gates', 'local-gates.sh')], {
-      cwd: repository.root,
-      env: { GATES_BASE: '', GATE_LABELS: '', ...env },
-    });
+  function runGates(env = {}, args = []) {
+    return exec(
+      'bash',
+      [path.join(repository.root, 'scripts', 'gates', 'local-gates.sh'), ...args],
+      {
+        cwd: repository.root,
+        env: { GATES_BASE: '', GATE_LABELS: '', GATES_FULL: '', ...env },
+      },
+    );
   }
 
   /**
@@ -197,6 +202,8 @@ describe('local-gates.sh runner', () => {
   }
 
   it('prints the base, skips rush change without a remote, and stops at the first failure', () => {
+    // An uncommitted lock change makes the license check run. The stub fails it.
+    repository.write('common/config/rush/pnpm-lock.yaml', 'lockfileVersion: 9\n');
     repository.write('common/temp/stub-fail', '');
     const result = runGates();
     assert.equal(result.status, 1);
@@ -206,19 +213,63 @@ describe('local-gates.sh runner', () => {
       result.stdout,
       /gates: SKIP rush change --verify \(no origin remote; rush change needs a remote\)/,
     );
-    assert.match(result.stderr, /gates: FAIL rush audit \(exit 1\)/);
-    assert.deepEqual(rushCalls(), ['audit']);
-    assert.doesNotMatch(result.stdout, /gates: RUN rush license-check/);
+    assert.match(result.stdout, /gates: RUN license-check \(pnpm-lock\.yaml changed\)/);
+    assert.match(result.stderr, /gates: FAIL license-check \(pnpm-lock\.yaml changed\) \(exit 1\)/);
+    assert.deepEqual(rushCalls(), ['license-check']);
+    assert.doesNotMatch(result.stdout, /gates: (?:RUN|SKIP) audits/);
   });
 
-  it('runs the steps in order and fails a step whose script is missing', () => {
-    // scripts/security is not in the temp repo, so the opengrep step fails after audit and licenses.
+  it('skips the license check and the audits with no lock change, then fails a missing script', () => {
+    // scripts/security is not in the temp repo, so the opengrep step fails after the skips.
     const result = runGates();
     assert.equal(result.status, 1);
-    assert.deepEqual(rushCalls(), ['audit', 'license-check']);
-    assert.match(result.stdout, /gates: PASS rush audit\ngates: RUN rush license-check/);
+    assert.deepEqual(rushCalls(), []);
+    const root = repository.git('rev-parse', 'HEAD').trim();
+    assert.ok(
+      result.stdout.includes(
+        `gates: SKIP license-check (no lock or policy change since ${root.slice(0, 12)})\n` +
+          'gates: SKIP audits (nightly in CI, not set up yet; run bash scripts/gates/local-gates.sh --audit-only or GATES_FULL=1)\n' +
+          'gates: RUN opengrep\n',
+      ),
+      result.stdout,
+    );
     assert.match(result.stderr, /gates: FAIL opengrep/);
     assert.doesNotMatch(result.stdout, /gates: RUN anti-skip/);
+  });
+
+  it('runs every license check and the audits with GATES_FULL=1', () => {
+    const result = runGates({ GATES_FULL: '1' });
+    assert.equal(result.status, 1);
+    assert.deepEqual(rushCalls(), ['license-check', 'audit']);
+    assert.match(result.stdout, /gates: PASS license-check \(GATES_FULL=1\)/);
+    assert.match(result.stdout, /gates: PASS rush audit \(GATES_FULL=1\)/);
+    assert.match(result.stderr, /gates: FAIL opengrep/);
+  });
+
+  it('--audit-only runs the audits and nothing else', () => {
+    const result = runGates({}, ['--audit-only']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(rushCalls(), ['audit']);
+    assert.equal(
+      result.stdout
+        .split('\n')
+        .filter((line) => line.startsWith('gates: '))
+        .join('\n'),
+      [
+        'gates: RUN rush audit (audit only)',
+        'gates: PASS rush audit (audit only)',
+        'gates: pass (audits only)',
+      ].join('\n'),
+    );
+    assert.doesNotMatch(result.stderr, /gates: base/);
+  });
+
+  it('--audit-only stops at a failing audit, and a bad argument is a usage error', () => {
+    repository.write('common/temp/stub-fail', '');
+    const failed = runGates({}, ['--audit-only']);
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /gates: FAIL rush audit \(audit only\)/);
+    assert.equal(runGates({}, ['--bogus']).status, 2);
   });
 
   it('runs rush change --verify when an origin remote exists', () => {

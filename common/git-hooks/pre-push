@@ -1,7 +1,8 @@
 #!/bin/sh
 # Installed by `rush install`. Runs the local gate suite (scripts/gates/local-gates.sh), cheap
-# checks first: rush change --verify (only with an origin remote), audit, licenses, opengrep,
-# anti-skip, check-gates, gate tests and lint, rush verify, Bruno and Playwright coverage.
+# checks first: rush change --verify (only with an origin remote), license checks (when a lock or
+# the license policy changed), opengrep, anti-skip, check-gates, gate tests and lint, rush verify,
+# Bruno and Playwright coverage. The audits run nightly (later, in CI) or with GATES_FULL=1.
 # The same runner is `node common/scripts/install-run-rush.js gates`. It stops at the first failure.
 set -eu
 
