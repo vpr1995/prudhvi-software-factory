@@ -1,0 +1,46 @@
+{
+  "name": "@vprprudhvi/shared-cdk-constructs",
+  "version": "0.0.0",
+  "description": "Shared AWS CDK constructs: platform SSM names and readers, Lambda with ADOT, HTTP API, OpenNext site.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "_phase:build": "tsc -p tsconfig.build.json",
+    "_phase:lint": "eslint --max-warnings 0 .",
+    "_phase:test": "vitest run --coverage",
+    "_phase:typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "npm run _phase:build",
+    "lint": "npm run _phase:lint",
+    "test": "npm run _phase:test",
+    "typecheck": "npm run _phase:typecheck"
+  },
+  "peerDependencies": {
+    "aws-cdk-lib": "^2.273.0",
+    "constructs": "^10.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.0.5",
+    "@vprprudhvi/tooling-eslint-config": "workspace:*",
+    "@vprprudhvi/tooling-tsconfig": "workspace:*",
+    "@vprprudhvi/tooling-vitest-config": "workspace:*",
+    "aws-cdk-lib": "2.273.0",
+    "cdk-nag": "3.0.2",
+    "constructs": "10.8.1",
+    "eslint": "^10.13.0",
+    "typescript": "~6.0.3",
+    "vite": "^7.3.0",
+    "vitest": "^5.0.5"
+  }
+}

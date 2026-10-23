@@ -79,6 +79,12 @@
       "projectFolder": "projects/sample",
       "shouldPublish": false,
       "tags": ["project/sample"]
+    },
+    {
+      "packageName": "@vprprudhvi/shared-cdk-constructs",
+      "projectFolder": "packages/cdk-constructs",
+      "shouldPublish": true,
+      "tags": ["shared"]
     }
   ]
 }
