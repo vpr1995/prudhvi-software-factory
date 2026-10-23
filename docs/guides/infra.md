@@ -8,7 +8,7 @@ Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, const
 - `lib/stacks/`: stacks. Example: `<name>-stack.ts`.
 - `lib/constructs/`: constructs for this project only, in kebab-case files.
 - `lib/config/<env>.ts`: account-neutral settings per environment. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
-- `lib/nag-suppressions/<stack>.ts`: the one suppressions file for a stack (see Rules).
+- `lib/nag-acknowledgments/<stack>.ts`: the one cdk-nag acknowledgments file for a stack (see Rules).
 - `cdk.json` (project root): gate file.
 - `bin` and `lib` use the one project `package.json`. They have no `package.json` of their own.
 - Shared constructs go in `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
@@ -40,7 +40,7 @@ CDK bundles the Lambda code at synth. Do not build code in a separate deploy ste
 - Grant with `grantRead` and `grantWrite`. Never write `*` in IAM actions or resources.
 - Read platform values only through the SSM helper in `shared-cdk-constructs`. Never import `platform/infra`. See the `use-platform-resource` skill.
 - Each project makes its own Cognito app client, DNS records, and Lambdas.
-- cdk-nag: meet each rule. If a rule cannot be met, add one suppression to the one suppressions file of the stack. Give a reason for each suppression. The owner approves the file. Never add a `NagSuppressions` call anywhere else.
+- cdk-nag 3: the app runs `Validations.of(app).addPlugins(new AwsSolutionsChecks(app))`. A finding makes `cdk synth` fail. Meet each rule. If a rule cannot be met, add one `Validations.of(construct).acknowledge({ id, reason })` to the one acknowledgments file of the stack. The id includes the bracket part, for example `AwsSolutions-IAM5[Resource::*]`. Give a reason for each one. The owner approves each one. `TracedFunction` holds two owner-approved acknowledgments (X-Ray `Resource: *`, log streams `<logGroupArn>:*`).
 - Never run `cdk deploy` or `cdk destroy`. Run `cdk synth` and read-only commands.
 
 ## Tests

@@ -117,7 +117,7 @@ Proof at the pause:
 | One sample project, `projects/sample`, with every part. It replaces `sample-fullstack` and `sample-api-only`. | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
 | AWS region: `us-east-1` only. One wildcard certificate serves CloudFront and the HTTP API. | Wave 3 |
 | CDK bundles the Lambda code at synth: `NodejsFunction` (TS), `Code.fromAsset` with local bundling (Go, Python, OpenNext). Unit tests turn bundling off. | Wave 3 |
-| cdk-nag rules that cannot be met go in one suppressions file for each stack, with a reason. The owner approves each entry. | Wave 3 |
+| cdk-nag rules that cannot be met go in one acknowledgments file for each stack (cdk-nag 3 `Validations.of().acknowledge`), with a reason. The owner approves each entry. Approved: 2 IAM5 in `TracedFunction` (X-Ray `Resource: *`, log streams). | Wave 3 |
 | OpenNext: own minimal construct in `shared-cdk-constructs`. No third-party construct. | Wave 3 |
 | CDK versions (3-day release age): `aws-cdk-lib` 2.273.0, `aws-cdk` 2.1145.0, `constructs` 10.8.1, `cdk-nag` 3.0.2, `@opennextjs/aws` 4.1.11. License check and audit passed. | Wave 3 |
 

@@ -46,7 +46,7 @@ Any change under `platform/infra/**` is high risk. Report it with at least one I
 - Public exposure: `0.0.0.0/0` ingress, public subnets for compute that does not need them, unauthenticated function URLs.
 - Cost: NAT gateways, provisioned concurrency, large memory settings, log groups with no retention.
 - Naming: PascalCase construct IDs. No physical names. No hard-coded account IDs or regions in constructs.
-- cdk-nag: any new `NagSuppressions` call is Important. It is allowed only in the one suppressions file of the stack, with a reason, and the owner approves it.
+- cdk-nag: any new `Validations.of(...).acknowledge(...)` call is Important. It is allowed only in the one acknowledgments file of the stack (`lib/nag-acknowledgments/<stack>.ts`), with a reason, and the owner approves it.
 - Config: no `process.env` outside `config`.
 
 Do not report a finding without evidence in the code or the synth output. Do not report style issues.

@@ -32,10 +32,10 @@ Rules:
    - Grant access with `grantRead`, `grantWrite`, or similar. Do not write `*` in actions or resources.
 7. Read the env from `projects/<name>/lib/config/<env>.ts`. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
 8. Write `<kebab>.test.ts` next to the construct:
-   - Create a stack: `new Stack(new App())`. Add `Aspects.of(app).add(new AwsSolutionsChecks())`.
+   - Create a stack: `new Stack(new App())`. cdk-nag 3 has no aspect. Run `new AwsSolutionsChecks().validateScope(stack)` and read `report.violations`.
    - Use `Template.fromStack(stack)` to assert resources, encryption, removal policy, runtime, log retention, and grants.
    - Assert that each Lambda has the ADOT layer and `TracingConfig` mode `Active`.
-   - Assert that no cdk-nag error exists.
+   - Assert that `report.violations` is empty. An `Annotations` check does not see cdk-nag 3 findings.
    - Add a snapshot: `expect(template.toJSON()).toMatchSnapshot()`.
 9. Run `rush test --to @vprprudhvi/<name>` and paste the output. If the snapshot changes, read the diff. Update it only when the change is intended.
 10. Run `cd projects/<name> && npx cdk synth --quiet`. It must show zero nag errors.
@@ -52,7 +52,7 @@ Rules:
 
 ## Do not
 
-- Add a `NagSuppressions` call outside the one suppressions file of the stack (`lib/nag-suppressions/<stack>.ts`). Each suppression there needs a reason, and the owner approves the file.
+- Add a cdk-nag acknowledgment (`Validations.of(construct).acknowledge({ id, reason })`) outside the one acknowledgments file of the stack (`lib/nag-acknowledgments/<stack>.ts`). Each acknowledgment needs a reason, and the owner approves it. A shared construct in `packages/cdk-constructs` can hold an acknowledgment only with an owner approval in the commit.
 - Set `RemovalPolicy.DESTROY` on a stateful resource outside dev.
 - Write `*` in IAM actions or resources.
 - Import code from `platform/infra`, or use a CloudFormation cross-stack reference to a platform stack.
