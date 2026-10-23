@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-cdk-constructs",
+      "comment": "Default TracedNodeFunction to the repo root and the Rush lock file, with a temporary package.json during bundling.",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-cdk-constructs"
+}

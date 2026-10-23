@@ -51,14 +51,15 @@ export type CommonOverrides = Partial<
   >
 >;
 
-/** The kind-specific props of a Node.js function, with the fixture code. */
+/**
+ * The kind-specific props of a Node.js function, with the fixture code. The bundle root and the
+ * lock file use the defaults (the Rush root folder and the Rush lock file).
+ */
 export function nodeProps(overrides: CommonOverrides = {}): TracedNodeFunctionProps {
   return {
     serviceName: 'sample-api',
     env: 'dev',
     entry: PATHS.nodeEntry,
-    projectRoot: PATHS.nodeProjectRoot,
-    depsLockFilePath: PATHS.lockFile,
     ...overrides,
   };
 }

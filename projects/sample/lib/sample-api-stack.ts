@@ -110,10 +110,6 @@ export class SampleApiStack extends Stack {
       serviceName: 'sample-api',
       env: config.env,
       entry: resolve(projectRoot, 'src/api/lambda.ts'),
-      // `pnpm-lock.yaml` in the project folder is a link to the lock file of Rush. CDK runs esbuild
-      // with `pnpm exec` in the folder of the bundle root, and Rush has no package at the repo root.
-      depsLockFilePath: resolve(projectRoot, 'pnpm-lock.yaml'),
-      projectRoot,
       environment: { SAMPLE_API_ENVIRONMENT: config.env },
     });
   }
