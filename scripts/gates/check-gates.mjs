@@ -13,7 +13,7 @@ import {
   SIZE_FAIL_LINES,
   SIZE_WARN_LINES,
 } from './lib/pr-size.mjs';
-import { git } from './lib/proc.mjs';
+import { resolveCommit } from './lib/revisions.mjs';
 
 const HELP = `check-gates: check a pull request range for gate file changes and for size.
 
@@ -93,33 +93,6 @@ export function parseLabels(text) {
     .split(',')
     .map((label) => label.trim())
     .filter((label) => label !== '');
-}
-
-/**
- * Checks that a revision names a commit, and turns it into a commit id. The id cannot act as a
- * git option, and it does not change while the checks run.
- *
- * @param {string} root - Repo root.
- * @param {string} revision - Revision text from the command line.
- * @returns {string} The commit id. It throws when git does not know the revision.
- */
-function resolveCommit(root, revision) {
-  if (revision === '' || revision.startsWith('-')) {
-    throw new Error(
-      `Bad revision "${revision}": it must name a commit and must not start with "-".`,
-    );
-  }
-  const found = git(root, [
-    'rev-parse',
-    '--verify',
-    '--quiet',
-    '--end-of-options',
-    `${revision}^{commit}`,
-  ]);
-  if (found.status !== 0 || found.stdout.trim() === '') {
-    throw new Error(`Bad revision "${revision}": git cannot find that commit.`);
-  }
-  return found.stdout.trim();
 }
 
 /**
