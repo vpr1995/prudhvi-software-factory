@@ -357,7 +357,7 @@ describe('check-gates', () => {
       assert.deepEqual(Object.keys(report).sort(), ['checks', 'failed', 'riskHigh']);
       assert.deepEqual(
         report.checks.map((entry) => entry.name),
-        ['gate-files', 'pr-size', 'disable-count', 'test-deletion'],
+        ['gate-files', 'pr-size', 'disable-count', 'test-deletion', 'test-location'],
       );
       for (const entry of report.checks) {
         assert.ok(['pass', 'warn', 'fail'].includes(entry.status));

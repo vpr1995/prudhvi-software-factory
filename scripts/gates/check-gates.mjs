@@ -6,6 +6,8 @@
 //     increase fails without the `lint-exception` label.
 //   - test-deletion: a deleted test file or fewer test cases in a test file fails without the
 //     `test-removal` label. A rename is a move.
+//   - test-location: a `*.test.*` file outside a `test/` folder fails. Vitest runs only `test/**`, so such a
+//     test would never run. Playwright specs in `web/e2e`, Python and Go tests are not checked.
 // Later parts add more checks. Each check gives `{ name, status, summary, ... }`, and `status` is
 // `pass`, `warn` or `fail`.
 import { collectDiff } from './lib/diff-source.mjs';
@@ -23,8 +25,9 @@ import {
 import { git } from './lib/proc.mjs';
 import { mergeBase, resolveCommit } from './lib/revisions.mjs';
 import { findRemovals, judgeRemovals, TEST_REMOVAL_LABEL } from './lib/test-deletion.mjs';
+import { findMisplacedTests, judgeTestLocation } from './lib/test-location.mjs';
 
-const HELP = `check-gates: check a pull request range: gate files, size, disable markers and removed tests.
+const HELP = `check-gates: check a pull request range: gate files, size, disable markers, removed tests and test places.
 
 Usage:
   node scripts/gates/check-gates.mjs --base <ref> --head <ref> [--labels a,b,c] [--json] [--root <dir>]
@@ -45,6 +48,8 @@ Checks:
                added minus removed. A net increase fails, unless the label ${LINT_EXCEPTION_LABEL} is set.
   test-deletion  a deleted test file, or fewer test cases in a test file, fails, unless the label
                ${TEST_REMOVAL_LABEL} is set. A rename that git detects is a move.
+  test-location  a *.test.* file (or a *.spec.* file) outside a test/ folder fails. The check reads every
+               tracked file at the head. Playwright specs in web/e2e, Python and Go tests are allowed.
 
 Exit code: 0 no check failed, 1 a check failed, 2 bad usage or a check that could not run.
 `;
@@ -204,6 +209,27 @@ export function testDeletionCheck(context) {
 }
 
 /**
+ * Check 5: the test files that are outside a `test/` folder.
+ *
+ * @param {CheckContext} context - The repo, the range and the PR labels.
+ * @returns {CheckResult} The result. It reads every tracked file at the head of the range.
+ */
+export function testLocationCheck(context) {
+  const listed = git(context.root, ['ls-tree', '-r', '-z', '--name-only', context.head]);
+  if (listed.status !== 0) {
+    throw new Error(`git ls-tree failed: ${listed.stderr.trim()}`);
+  }
+  const misplaced = findMisplacedTests(listed.stdout.split('\0').filter((file) => file !== ''));
+  const judged = judgeTestLocation(misplaced);
+  return {
+    name: 'test-location',
+    status: judged.status,
+    summary: judged.summary,
+    details: { misplaced },
+  };
+}
+
+/**
  * Runs all checks.
  *
  * @param {{ root: string, base: string, head: string, labels?: readonly string[] }} input - The repo, the range and the PR labels.
@@ -232,6 +258,7 @@ export function runChecks(input) {
     prSizeCheck(context),
     disableCountCheck(context),
     testDeletionCheck(context),
+    testLocationCheck(context),
   ];
   return {
     checks,

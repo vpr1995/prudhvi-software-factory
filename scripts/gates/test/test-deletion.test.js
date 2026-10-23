@@ -46,11 +46,11 @@ describe('check-gates test-deletion', () => {
 
   beforeEach(() => {
     repository = makeRepository({
-      'packages/a/src/a.test.ts': tsTests(6),
-      'packages/a/src/b.test.ts': tsTests(6, 'other'),
+      'packages/a/test/a.test.ts': tsTests(6),
+      'packages/a/test/b.test.ts': tsTests(6, 'other'),
       'packages/a/src/a.ts': 'export const a = 1;\n',
-      'packages/a/e2e/home.spec.ts': tsTests(3, 'home'),
-      'packages/a/src/view.test.tsx': tsTests(3, 'view'),
+      'projects/p/web/e2e/home.spec.ts': tsTests(3, 'home'),
+      'packages/a/test/view.test.tsx': tsTests(3, 'view'),
       'projects/p/src/api-py/tests/test_a.py': pyTests(4),
       'projects/p/src/api-py/tests/b_test.py': pyTests(4),
       'projects/p/src/api-go/a_test.go': goTests(4),
@@ -91,9 +91,9 @@ describe('check-gates test-deletion', () => {
 
   describe('deleted files', () => {
     const deleted = [
-      'packages/a/src/a.test.ts',
-      'packages/a/e2e/home.spec.ts',
-      'packages/a/src/view.test.tsx',
+      'packages/a/test/a.test.ts',
+      'projects/p/web/e2e/home.spec.ts',
+      'packages/a/test/view.test.tsx',
       'projects/p/src/api-py/tests/test_a.py',
       'projects/p/src/api-py/tests/b_test.py',
       'projects/p/src/api-go/a_test.go',
@@ -118,7 +118,7 @@ describe('check-gates test-deletion', () => {
     }
 
     it('allows the deletion with the test-removal label and exits 0', () => {
-      repository.git('rm', '-q', 'packages/a/src/a.test.ts');
+      repository.git('rm', '-q', 'packages/a/test/a.test.ts');
       commit();
       const { result, check: found } = check(['--labels', `risk:low, ${TEST_REMOVAL_LABEL}`]);
       assert.equal(result.status, 0, result.stderr);
@@ -127,18 +127,18 @@ describe('check-gates test-deletion', () => {
     });
 
     it('does not accept another label in place of test-removal', () => {
-      repository.git('rm', '-q', 'packages/a/src/a.test.ts');
+      repository.git('rm', '-q', 'packages/a/test/a.test.ts');
       commit();
       assert.equal(check(['--labels', 'lint-exception,large-pr']).result.status, 1);
     });
 
     it('reports every deleted file', () => {
-      repository.git('rm', '-q', 'packages/a/src/a.test.ts', 'packages/a/src/b.test.ts');
+      repository.git('rm', '-q', 'packages/a/test/a.test.ts', 'packages/a/test/b.test.ts');
       commit();
       const { check: found } = check();
       assert.deepEqual(
         found.details.removals.map((entry) => entry.file),
-        ['packages/a/src/a.test.ts', 'packages/a/src/b.test.ts'],
+        ['packages/a/test/a.test.ts', 'packages/a/test/b.test.ts'],
       );
       assert.match(found.summary, /^2 removals: /);
     });
@@ -166,13 +166,13 @@ describe('check-gates test-deletion', () => {
 
   describe('renames', () => {
     it('treats a rename with no change as a move', () => {
-      move('packages/a/src/a.test.ts', 'packages/a/lib/a.test.ts');
+      move('packages/a/test/a.test.ts', 'packages/a/test/moved/a.test.ts');
       commit();
       const { result, check: found } = check();
       assert.equal(result.status, 0, result.stderr);
       assert.equal(found.status, 'pass');
       assert.deepEqual(found.details.moves, [
-        { from: 'packages/a/src/a.test.ts', to: 'packages/a/lib/a.test.ts' },
+        { from: 'packages/a/test/a.test.ts', to: 'packages/a/test/moved/a.test.ts' },
       ]);
       assert.match(found.summary, /1 test file moved with no loss/);
     });
@@ -188,8 +188,8 @@ describe('check-gates test-deletion', () => {
     });
 
     it('passes when a moved file has more cases', () => {
-      move('packages/a/src/a.test.ts', 'packages/a/lib/a.test.ts');
-      repository.write('packages/a/lib/a.test.ts', tsTests(7));
+      move('packages/a/test/a.test.ts', 'packages/a/test/moved/a.test.ts');
+      repository.write('packages/a/test/moved/a.test.ts', tsTests(7));
       commit();
       const { result, check: found } = check();
       assert.equal(result.status, 0, result.stderr);
@@ -197,32 +197,35 @@ describe('check-gates test-deletion', () => {
     });
 
     it('passes when a moved file has the same cases with new titles', () => {
-      move('packages/a/src/a.test.ts', 'packages/a/lib/a.test.ts');
-      repository.write('packages/a/lib/a.test.ts', tsTests(6).replaceAll('case', 'renamed case'));
+      move('packages/a/test/a.test.ts', 'packages/a/test/moved/a.test.ts');
+      repository.write(
+        'packages/a/test/moved/a.test.ts',
+        tsTests(6).replaceAll('case', 'renamed case'),
+      );
       commit();
       assert.equal(check().result.status, 0);
     });
 
     it('fails when a moved file has fewer cases', () => {
-      move('packages/a/src/a.test.ts', 'packages/a/lib/a.test.ts');
-      repository.write('packages/a/lib/a.test.ts', tsTests(5));
+      move('packages/a/test/a.test.ts', 'packages/a/test/moved/a.test.ts');
+      repository.write('packages/a/test/moved/a.test.ts', tsTests(5));
       commit();
       const { result, check: found } = check();
       assert.equal(result.status, 1, result.stderr);
       assert.equal(found.details.removals.length, 1);
       assert.equal(found.details.removals[0].kind, 'fewer-cases');
-      assert.equal(found.details.removals[0].file, 'packages/a/src/a.test.ts');
+      assert.equal(found.details.removals[0].file, 'packages/a/test/a.test.ts');
       assert.match(found.summary, /fewer test cases \(1 removed, 0 added\)/);
     });
 
     it('fails when a test file is renamed to a path that is not a test', () => {
-      move('packages/a/src/a.test.ts', 'packages/a/src/a-notes.txt');
+      move('packages/a/test/a.test.ts', 'packages/a/src/a-notes.txt');
       commit();
       const { result, check: found } = check();
       assert.equal(result.status, 1, result.stderr);
       assert.deepEqual(found.details.removals, [
         {
-          file: 'packages/a/src/a.test.ts',
+          file: 'packages/a/test/a.test.ts',
           line: 1,
           kind: 'moved-out',
           detail: 'moved to packages/a/src/a-notes.txt, which is not a test path',
@@ -231,7 +234,7 @@ describe('check-gates test-deletion', () => {
     });
 
     it('does not count a file that is renamed into a test file', () => {
-      move('packages/a/src/a.ts', 'packages/a/src/c.test.ts');
+      move('packages/a/src/a.ts', 'packages/a/test/c.test.ts');
       commit();
       assert.equal(check().result.status, 0);
     });
@@ -239,14 +242,14 @@ describe('check-gates test-deletion', () => {
 
   describe('modified files', () => {
     it('fails when a test file has fewer cases', () => {
-      repository.write('packages/a/src/a.test.ts', tsTests(4));
+      repository.write('packages/a/test/a.test.ts', tsTests(4));
       commit();
       const { result, check: found } = check();
       assert.equal(result.status, 1, result.stderr);
       assert.equal(found.details.removals[0].kind, 'fewer-cases');
       assert.match(
         found.summary,
-        /packages\/a\/src\/a\.test\.ts:\d+ \(fewer test cases \(2 removed, 0 added\)\)/,
+        /packages\/a\/test\/a\.test\.ts:\d+ \(fewer test cases \(2 removed, 0 added\)\)/,
       );
     });
 
@@ -263,7 +266,7 @@ describe('check-gates test-deletion', () => {
 
     it('reports the old line of the first removed case', () => {
       repository.write(
-        'packages/a/src/a.test.ts',
+        'packages/a/test/a.test.ts',
         tsTests(6).replace("it('case 2'", "// moved\nconst skipped = ('case 2'"),
       );
       commit();
@@ -272,8 +275,8 @@ describe('check-gates test-deletion', () => {
     });
 
     it('passes when the cases change but the count does not drop', () => {
-      repository.write('packages/a/src/a.test.ts', tsTests(6).replaceAll('case', 'new'));
-      repository.write('packages/a/src/b.test.ts', tsTests(8, 'other'));
+      repository.write('packages/a/test/a.test.ts', tsTests(6).replaceAll('case', 'new'));
+      repository.write('packages/a/test/b.test.ts', tsTests(8, 'other'));
       commit();
       const { result, check: found } = check();
       assert.equal(result.status, 0, result.stderr);
@@ -284,13 +287,13 @@ describe('check-gates test-deletion', () => {
     it('does not count a case that moves to another place in the same file', () => {
       const text = tsTests(6);
       const [head, ...cases] = text.split("it('");
-      repository.write('packages/a/src/a.test.ts', [head, ...cases.reverse()].join("it('"));
+      repository.write('packages/a/test/a.test.ts', [head, ...cases.reverse()].join("it('"));
       commit();
       assert.equal(check().result.status, 0);
     });
 
     it('does not count a new test file or a change to a file that is not a test', () => {
-      repository.write('packages/a/src/new.test.ts', tsTests(2));
+      repository.write('packages/a/test/new.test.ts', tsTests(2));
       repository.write('packages/a/src/a.ts', '');
       commit();
       assert.equal(check().result.status, 0);
@@ -300,7 +303,7 @@ describe('check-gates test-deletion', () => {
       repository.write('packages/a/src/new.ts', 'export const n = 1;\n');
       commit();
       repository.git('checkout', '-q', 'main');
-      repository.git('rm', '-q', 'packages/a/src/b.test.ts');
+      repository.git('rm', '-q', 'packages/a/test/b.test.ts');
       commit('base moves');
       repository.git('checkout', '-q', 'feature');
       const { result, check: found } = check();
@@ -310,7 +313,7 @@ describe('check-gates test-deletion', () => {
   });
 
   it('prints the check in the human summary', () => {
-    repository.git('rm', '-q', 'packages/a/src/a.test.ts');
+    repository.git('rm', '-q', 'packages/a/test/a.test.ts');
     commit();
     const result = exec('node', [
       CLI,
@@ -324,7 +327,7 @@ describe('check-gates test-deletion', () => {
     assert.equal(result.status, 1);
     assert.match(
       result.stdout,
-      /^FAIL test-deletion: 1 removal: packages\/a\/src\/a\.test\.ts:1 \(test file deleted\)/m,
+      /^FAIL test-deletion: 1 removal: packages\/a\/test\/a\.test\.ts:1 \(test file deleted\)/m,
     );
   });
 });

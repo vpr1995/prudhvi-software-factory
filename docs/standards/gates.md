@@ -210,12 +210,14 @@ Git hooks install on `rush install`. See `docs/onboarding.md`.
 
 | Workflow | Checks |
 |---|---|
-| `ci.yml` | `rush install` with frozen lockfile, `rush check`, `rush change --verify`, impacted build, lint, typecheck, tests with coverage, diff coverage, `rush e2e` (Bruno and Playwright with axe), gate integrity (`check-gates`, including `bruno-coverage` and `playwright-coverage`), dependency-cruiser. |
+| `ci.yml` | `rush install` with frozen lockfile, `rush check`, `rush change --verify`, impacted build, lint, typecheck, tests with coverage, diff coverage, `rush e2e` (Bruno and Playwright with axe), gate integrity (`check-gates`, including `test-location`, `bruno-coverage` and `playwright-coverage`), dependency-cruiser. |
 | `sast.yml` | Opengrep, njsscan, gitleaks (PR range), TruffleHog (verified only), zizmor, pinact. |
 | `deps.yml` | audit-ci, OSV-Scanner on `common/config/rush/pnpm-lock.yaml`, license check, new-dependency report. |
 | `infra.yml` | Per impacted project: `cdk synth`, cdk-nag, Checkov, `cdk diff` posted as a PR comment. |
 | `claude-review.yml` | AI review with severity tags. Open review threads block merge. Security review action. |
 | `risk-classify.yml` | Sets `risk:low`, `risk:medium`, or `risk:high`. Ruleset checks approvals for the tier. |
+
+The `test-location` check of `check-gates` fails when a unit test file is outside a `test/` folder. A unit test file is a `*.test.*` file, or a `*.spec.ts` or `*.spec.tsx` file. Vitest runs only the files in `test/`. A test in another folder never runs. The message names the path to use. The `test/` folder is at the root of the Rush project and has the same sub-folders as the source. Example: `packages/a/src/x.test.ts` goes to `packages/a/test/x.test.ts`. The check does not look at Playwright specs in `projects/<name>/web/e2e/`, Python tests, or Go tests. No label allows a test outside `test/`. Move the file to pass the check.
 
 ### 4.5 Scheduled checks
 
