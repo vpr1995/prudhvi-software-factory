@@ -1,6 +1,6 @@
 # Build status and resume guide
 
-Last update: 2026-10-22. Current state: **Wave 3 in progress. Step 1: restructure to single-package projects.**
+Last update: 2026-10-23. Current state: **Wave 3 in progress. Step 1: restructure to single-package projects.**
 
 Read this file before you continue the build of this repo. It tells you what is done, what is open, and how to start Wave 3.
 
@@ -159,7 +159,10 @@ Fix these as the work continues. Tracker ids are in brackets.
 14. [`bl-envs`] Done (2026-10-23, 9e2db15 and 8ac6749): owner chose `local` + `prod` only, no plug and play, one AWS account, one user pool (platform deploys only `prod`), one client for each env, nothing deployed. Original note: Owner (2026-10-22), after Wave 3: bring a short plan first, no edits before the owner agrees. Goal: fewer environments for a personal project, for example `local` (the app runs on the Mac, `localhost:3000`, and can use cloud resources such as Cognito and DynamoDB tables) and `prod` (deployed). Environments must be plug and play: adding an environment is one config file and no code change. Today the code has `dev`, `staging` and `prod`.
 15. `dependency-cruiser` is not installed and no command runs it. Wire it in the CI chunk.
 16. `test-location` and the other check-gates checks run only in CI (not built yet). Decide if pre-push runs `test-location`.
-17. [`p-national-parks`] Owner (2026-10-22): first real project, after all local gates work. `projects/national-parks-tracker`: an interactive single page app with a map of the USA (OpenStreetMap) and a marker for each US national park. Each park shows what the park is and when the owner visited it (about half visited now). No backend: the owner edits a JSON file, and the next deploy shows the change. Owner answers (2026-10-23): public page; pictures for each park; extra fields: visit dates, rating, and notes (what we liked, what we did, places to go in the park). Bring a short plan first (data source for the park list, map library, hosting, photo storage).
+17. [`p-national-parks`] Site done (2026-10-23, 19 commits 0e17ae9..b27de44). `projects/national-parks-tracker` is a static Next.js export. It has a Leaflet and OpenStreetMap map of all 64 parks (Chiricahua, AZ, is a park from 2026-10-20), a park list with search, filter and sort, and one page for each park. The park data and the Wikimedia photo credits are in `web/data/parks.json` and `web/data/photos.json`. The owner edits `web/data/visits.json`, which ships empty. Zod contracts validate it at build time. A data test fails when an owner photo has EXIF or XMP data. No feature flag: the owner decided this exception, because the project is new and not deployed. Open items:
+    - The hosting PR (S3 and CloudFront in `bin/` and `lib/`). It sets the CSP and the Referrer-Policy from the project README.
+    - A faint tile seam on high-density phones (a Leaflet issue).
+    - `bl-new-project-unlock`: a gate exemption for a project folder that is not on `origin/main` yet. The owner chose it on 2026-10-23.
 18. [`bl-opengrep-py-go`] Owner (2026-10-23): add the Opengrep rules for Python and Go when work on the Python and Go services starts, not now. Scope of that work:
     - Rules: eval and exec, `subprocess` with `shell=True`, SQL built from strings, secret fields in log calls, Go `exec.Command` with `sh -c`, `fmt.Sprintf` SQL.
     - Widen the file patterns to `.py` and `.go` in `scripts/security/opengrep-changed.sh` and in `OPENGREP_FILES` in `scripts/gates/lib/stop-checks.mjs`.
