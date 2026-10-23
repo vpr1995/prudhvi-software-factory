@@ -170,6 +170,7 @@ Fix these as the work continues. Tracker ids are in brackets.
 21. [`bl-spawn-timeouts`] `scripts/gates/test-impacted.mjs` and the `scripts/gates/lib/*.mjs` modules that tests call in-process use `spawnSync` with no timeout. The test harness `exec` has a 180 s timeout (c0af0e7), but these calls do not.
 22. [`bl-md-lint-staged`] Owner (2026-10-23): Markdown is not in `.lintstagedrc.cjs`. A Markdown edit passes pre-commit and fails the prettier step at push. Kept as is by owner decision.
 23. [`bl-gates-base-guard`] `GATES_BASE` and `.claude/state/gates-base` move the base for every diff check, and no gate protects them. Add the state file to `gate-files.json` (with the `gates.md` docs-sync change), or drop that source now that `origin` exists.
+24. [`bl-gate-fixtures`] Owner (2026-10-23): build the gate fixtures with CI, not now. A fixtures script plants one bad change for each fixture in plan section 11 in a temp clone and expects the gate to fail. Results go to `docs/standards/gate-fixtures.md`. The nightly job runs it. The script path in the plan is a gate file, so it goes through the handoff folder (`gates.md` 2.4).
 
 ## 5. How to start Wave 3
 
