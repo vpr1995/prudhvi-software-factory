@@ -1,0 +1,898 @@
+[
+  {
+    "id": "acadia",
+    "name": "Acadia",
+    "fullName": "Acadia National Park",
+    "states": ["ME"],
+    "coordinates": {
+      "lat": 44.35,
+      "lng": -68.21
+    },
+    "established": "1919-02-26",
+    "areaAcres": 49071,
+    "description": "Granite summits, lakes and rocky shoreline on Mount Desert Island and nearby islands in Maine, topped by Cadillac Mountain, the highest point on the US Atlantic coast.",
+    "npsCode": "acad"
+  },
+  {
+    "id": "american-samoa",
+    "name": "American Samoa",
+    "fullName": "National Park of American Samoa",
+    "states": ["AS"],
+    "coordinates": {
+      "lat": -14.25,
+      "lng": -170.68
+    },
+    "established": "1988-10-31",
+    "areaAcres": 8257,
+    "description": "The only US national park south of the equator spans parts of three Samoan islands, guarding rainforest, volcanic peaks, sandy beaches and coral reefs full of fish.",
+    "npsCode": "npsa"
+  },
+  {
+    "id": "arches",
+    "name": "Arches",
+    "fullName": "Arches National Park",
+    "states": ["UT"],
+    "coordinates": {
+      "lat": 38.68,
+      "lng": -109.57
+    },
+    "established": "1971-11-12",
+    "areaAcres": 76679,
+    "description": "Utah desert park with over 2,000 sandstone arches, Delicate Arch among them, plus balanced rocks, fins and spires shaped by long erosion.",
+    "npsCode": "arch"
+  },
+  {
+    "id": "badlands",
+    "name": "Badlands",
+    "fullName": "Badlands National Park",
+    "states": ["SD"],
+    "coordinates": {
+      "lat": 43.75,
+      "lng": -102.5
+    },
+    "established": "1978-11-10",
+    "areaAcres": 242756,
+    "description": "Striped buttes, spires and mixed-grass prairie in southwestern South Dakota, rich in ancient mammal fossils and grazed by bison and bighorn sheep.",
+    "npsCode": "badl"
+  },
+  {
+    "id": "big-bend",
+    "name": "Big Bend",
+    "fullName": "Big Bend National Park",
+    "states": ["TX"],
+    "coordinates": {
+      "lat": 29.25,
+      "lng": -103.25
+    },
+    "established": "1944-06-12",
+    "areaAcres": 801163,
+    "description": "A vast Chihuahuan Desert park where the Rio Grande curves along the Mexican border, with the Chisos Mountains, deep river canyons and many fossils.",
+    "npsCode": "bibe"
+  },
+  {
+    "id": "biscayne",
+    "name": "Biscayne",
+    "fullName": "Biscayne National Park",
+    "states": ["FL"],
+    "coordinates": {
+      "lat": 25.65,
+      "lng": -80.08
+    },
+    "established": "1980-06-28",
+    "areaAcres": 172971,
+    "description": "Almost all water, this park covers central Biscayne Bay, mangrove shores, the northern Florida Keys and coral reefs used by manatees and sea turtles.",
+    "npsCode": "bisc"
+  },
+  {
+    "id": "black-canyon-of-the-gunnison",
+    "name": "Black Canyon of the Gunnison",
+    "fullName": "Black Canyon of the Gunnison National Park",
+    "states": ["CO"],
+    "coordinates": {
+      "lat": 38.57,
+      "lng": -107.72
+    },
+    "established": "1999-10-21",
+    "areaAcres": 30780,
+    "description": "The Gunnison River has cut a narrow gorge into ancient dark rock here, leaving some of the steepest and deepest canyon walls in North America.",
+    "npsCode": "blca"
+  },
+  {
+    "id": "bryce-canyon",
+    "name": "Bryce Canyon",
+    "fullName": "Bryce Canyon National Park",
+    "states": ["UT"],
+    "coordinates": {
+      "lat": 37.57,
+      "lng": -112.18
+    },
+    "established": "1928-02-25",
+    "areaAcres": 35835,
+    "description": "A series of natural amphitheaters on the edge of the Paunsaugunt Plateau in southern Utah, filled with orange, pink and white rock hoodoos.",
+    "npsCode": "brca"
+  },
+  {
+    "id": "canyonlands",
+    "name": "Canyonlands",
+    "fullName": "Canyonlands National Park",
+    "states": ["UT"],
+    "coordinates": {
+      "lat": 38.2,
+      "lng": -109.93
+    },
+    "established": "1964-09-12",
+    "areaAcres": 337598,
+    "description": "The Colorado and Green rivers split this Utah park into districts of deep canyons, mesas, buttes and arches, with traces of Ancestral Puebloan life.",
+    "npsCode": "cany"
+  },
+  {
+    "id": "capitol-reef",
+    "name": "Capitol Reef",
+    "fullName": "Capitol Reef National Park",
+    "states": ["UT"],
+    "coordinates": {
+      "lat": 38.2,
+      "lng": -111.17
+    },
+    "established": "1971-12-18",
+    "areaAcres": 241904,
+    "description": "Centered on the Waterpocket Fold, a long wrinkle in the crust of south-central Utah that shows colorful rock layers, cliffs, domes and canyons.",
+    "npsCode": "care"
+  },
+  {
+    "id": "carlsbad-caverns",
+    "name": "Carlsbad Caverns",
+    "fullName": "Carlsbad Caverns National Park",
+    "states": ["NM"],
+    "coordinates": {
+      "lat": 32.17,
+      "lng": -104.44
+    },
+    "established": "1930-05-14",
+    "areaAcres": 46766,
+    "description": "More than 100 caves under the Chihuahuan Desert of New Mexico, including the huge Big Room, shelter hundreds of thousands of Mexican free-tailed bats.",
+    "npsCode": "cave"
+  },
+  {
+    "id": "channel-islands",
+    "name": "Channel Islands",
+    "fullName": "Channel Islands National Park",
+    "states": ["CA"],
+    "coordinates": {
+      "lat": 34.01,
+      "lng": -119.42
+    },
+    "established": "1980-03-05",
+    "areaAcres": 249561,
+    "description": "Five islands off the southern California coast and the sea around them, home to plants and animals found nowhere else, such as the island fox.",
+    "npsCode": "chis"
+  },
+  {
+    "id": "chiricahua",
+    "name": "Chiricahua",
+    "fullName": "Chiricahua National Park",
+    "states": ["AZ"],
+    "coordinates": {
+      "lat": 32.01,
+      "lng": -109.36
+    },
+    "established": "2026-10-20",
+    "areaAcres": 12025,
+    "description": "Hoodoos and stone columns of rhyolite tuff in southeastern Arizona's Chiricahua Mountains, left by a huge eruption about 27 million years ago.",
+    "npsCode": "chir"
+  },
+  {
+    "id": "congaree",
+    "name": "Congaree",
+    "fullName": "Congaree National Park",
+    "states": ["SC"],
+    "coordinates": {
+      "lat": 33.78,
+      "lng": -80.78
+    },
+    "established": "2003-11-10",
+    "areaAcres": 26693,
+    "description": "Along the Congaree River in South Carolina, a floodplain with the biggest remaining tract of old-growth bottomland forest in the US and very tall trees.",
+    "npsCode": "cong"
+  },
+  {
+    "id": "crater-lake",
+    "name": "Crater Lake",
+    "fullName": "Crater Lake National Park",
+    "states": ["OR"],
+    "coordinates": {
+      "lat": 42.94,
+      "lng": -122.1
+    },
+    "established": "1902-05-22",
+    "areaAcres": 183224,
+    "description": "The deepest lake in the US fills the caldera of the collapsed volcano Mount Mazama, famous for its intense blue, clear water and Wizard Island.",
+    "npsCode": "crla"
+  },
+  {
+    "id": "cuyahoga-valley",
+    "name": "Cuyahoga Valley",
+    "fullName": "Cuyahoga Valley National Park",
+    "states": ["OH"],
+    "coordinates": {
+      "lat": 41.24,
+      "lng": -81.55
+    },
+    "established": "2000-10-11",
+    "areaAcres": 32572,
+    "description": "Along the Cuyahoga River in Ohio, the valley offers waterfalls, woods, historic buildings, a scenic railroad and the old Ohio and Erie Canal towpath.",
+    "npsCode": "cuva"
+  },
+  {
+    "id": "death-valley",
+    "name": "Death Valley",
+    "fullName": "Death Valley National Park",
+    "states": ["CA", "NV"],
+    "coordinates": {
+      "lat": 36.24,
+      "lng": -116.82
+    },
+    "established": "1994-10-31",
+    "areaAcres": 3408396,
+    "description": "The hottest, driest and lowest national park, straddling California and Nevada, with salt flats at Badwater Basin, sand dunes, canyons and old mines.",
+    "npsCode": "deva"
+  },
+  {
+    "id": "denali",
+    "name": "Denali",
+    "fullName": "Denali National Park and Preserve",
+    "states": ["AK"],
+    "coordinates": {
+      "lat": 63.33,
+      "lng": -150.5
+    },
+    "established": "1917-02-26",
+    "areaAcres": 4740911,
+    "description": "Huge Alaskan wilderness around Denali, the highest peak in North America, reached by one road and home to grizzly bears, caribou, moose and wolves.",
+    "npsCode": "dena"
+  },
+  {
+    "id": "dry-tortugas",
+    "name": "Dry Tortugas",
+    "fullName": "Dry Tortugas National Park",
+    "states": ["FL"],
+    "coordinates": {
+      "lat": 24.63,
+      "lng": -82.87
+    },
+    "established": "1992-10-26",
+    "areaAcres": 64701,
+    "description": "Small islands at the far western end of the Florida Keys, reached only by boat or plane, with the brick Fort Jefferson, coral reefs and shipwrecks.",
+    "npsCode": "drto"
+  },
+  {
+    "id": "everglades",
+    "name": "Everglades",
+    "fullName": "Everglades National Park",
+    "states": ["FL"],
+    "coordinates": {
+      "lat": 25.32,
+      "lng": -80.93
+    },
+    "established": "1934-05-30",
+    "areaAcres": 1508939,
+    "description": "The biggest tropical wilderness in the US, a slow river of sawgrass, mangroves and estuaries in south Florida that shelters panthers and manatees.",
+    "npsCode": "ever"
+  },
+  {
+    "id": "gates-of-the-arctic",
+    "name": "Gates of the Arctic",
+    "fullName": "Gates of the Arctic National Park and Preserve",
+    "states": ["AK"],
+    "coordinates": {
+      "lat": 67.78,
+      "lng": -153.3
+    },
+    "established": "1980-12-02",
+    "areaAcres": 7523897,
+    "description": "The northernmost US national park, a roadless area of the Brooks Range in Alaska with no visitor facilities, wild rivers and migrating caribou.",
+    "npsCode": "gaar"
+  },
+  {
+    "id": "gateway-arch",
+    "name": "Gateway Arch",
+    "fullName": "Gateway Arch National Park",
+    "states": ["MO"],
+    "coordinates": {
+      "lat": 38.63,
+      "lng": -90.19
+    },
+    "established": "2018-02-22",
+    "areaAcres": 91,
+    "description": "At 91 acres the smallest national park, in St. Louis, it holds the steel arch that honors westward expansion and the Old Courthouse of the Dred Scott case.",
+    "npsCode": "jeff"
+  },
+  {
+    "id": "glacier",
+    "name": "Glacier",
+    "fullName": "Glacier National Park",
+    "states": ["MT"],
+    "coordinates": {
+      "lat": 48.8,
+      "lng": -114
+    },
+    "established": "1910-05-11",
+    "areaAcres": 1013126,
+    "description": "Rugged Rocky Mountain peaks, shrinking glaciers and more than 100 lakes in northern Montana, crossed by the Going-to-the-Sun Road.",
+    "npsCode": "glac"
+  },
+  {
+    "id": "glacier-bay",
+    "name": "Glacier Bay",
+    "fullName": "Glacier Bay National Park and Preserve",
+    "states": ["AK"],
+    "coordinates": {
+      "lat": 58.5,
+      "lng": -137
+    },
+    "established": "1980-12-02",
+    "areaAcres": 3223383,
+    "description": "An Alaska bay of fjords and tidewater glaciers that has opened up as the ice retreated since 1794, with whales, seals, bears and mountain goats.",
+    "npsCode": "glba"
+  },
+  {
+    "id": "grand-canyon",
+    "name": "Grand Canyon",
+    "fullName": "Grand Canyon National Park",
+    "states": ["AZ"],
+    "coordinates": {
+      "lat": 36.06,
+      "lng": -112.14
+    },
+    "established": "1919-02-26",
+    "areaAcres": 1201647,
+    "description": "The Colorado River carved this immense canyon in northern Arizona, exposing bands of colored rock that visitors view from both rims.",
+    "npsCode": "grca"
+  },
+  {
+    "id": "grand-teton",
+    "name": "Grand Teton",
+    "fullName": "Grand Teton National Park",
+    "states": ["WY"],
+    "coordinates": {
+      "lat": 43.73,
+      "lng": -110.8
+    },
+    "established": "1929-02-26",
+    "areaAcres": 310044,
+    "description": "The sharp Teton Range rises abruptly above the sagebrush valley of Jackson Hole and its lakes in northwestern Wyoming.",
+    "npsCode": "grte"
+  },
+  {
+    "id": "great-basin",
+    "name": "Great Basin",
+    "fullName": "Great Basin National Park",
+    "states": ["NV"],
+    "coordinates": {
+      "lat": 38.98,
+      "lng": -114.3
+    },
+    "established": "1986-10-27",
+    "areaAcres": 77180,
+    "description": "Eastern Nevada park around Wheeler Peak, known for bristlecone pines thousands of years old, the limestone Lehman Caves and very dark night skies.",
+    "npsCode": "grba"
+  },
+  {
+    "id": "great-sand-dunes",
+    "name": "Great Sand Dunes",
+    "fullName": "Great Sand Dunes National Park and Preserve",
+    "states": ["CO"],
+    "coordinates": {
+      "lat": 37.73,
+      "lng": -105.51
+    },
+    "established": "2004-09-24",
+    "areaAcres": 107346,
+    "description": "The tallest dunes in North America rise at the base of the Sangre de Cristo Mountains in southern Colorado, next to grasslands, wetlands and forests.",
+    "npsCode": "grsa"
+  },
+  {
+    "id": "great-smoky-mountains",
+    "name": "Great Smoky Mountains",
+    "fullName": "Great Smoky Mountains National Park",
+    "states": ["NC", "TN"],
+    "coordinates": {
+      "lat": 35.68,
+      "lng": -83.53
+    },
+    "established": "1934-06-15",
+    "areaAcres": 522427,
+    "description": "Forested Appalachian ridges on the North Carolina and Tennessee border, rich in plant and animal life, with many trails and old farm buildings.",
+    "npsCode": "grsm"
+  },
+  {
+    "id": "guadalupe-mountains",
+    "name": "Guadalupe Mountains",
+    "fullName": "Guadalupe Mountains National Park",
+    "states": ["TX"],
+    "coordinates": {
+      "lat": 31.92,
+      "lng": -104.87
+    },
+    "established": "1972-09-30",
+    "areaAcres": 86367,
+    "description": "West Texas park around Guadalupe Peak, the state's highest point, with McKittrick Canyon and the remains of an ancient Permian reef.",
+    "npsCode": "gumo"
+  },
+  {
+    "id": "haleakala",
+    "name": "Haleakalā",
+    "fullName": "Haleakalā National Park",
+    "states": ["HI"],
+    "coordinates": {
+      "lat": 20.72,
+      "lng": -156.17
+    },
+    "established": "1961-07-01",
+    "areaAcres": 33489,
+    "description": "On Maui, the summit area of the Haleakalā volcano with its vast crater of cinder cones, plus the coastal Kīpahulu area, home to many endangered species.",
+    "npsCode": "hale"
+  },
+  {
+    "id": "hawaii-volcanoes",
+    "name": "Hawaiʻi Volcanoes",
+    "fullName": "Hawaiʻi Volcanoes National Park",
+    "states": ["HI"],
+    "coordinates": {
+      "lat": 19.38,
+      "lng": -155.2
+    },
+    "established": "1916-08-01",
+    "areaAcres": 344812,
+    "description": "On the Island of Hawaiʻi, this park covers Kīlauea and Mauna Loa, two of the most active volcanoes on Earth, from fresh lava fields to rainforest.",
+    "npsCode": "havo"
+  },
+  {
+    "id": "hot-springs",
+    "name": "Hot Springs",
+    "fullName": "Hot Springs National Park",
+    "states": ["AR"],
+    "coordinates": {
+      "lat": 34.51,
+      "lng": -93.05
+    },
+    "established": "1921-03-04",
+    "areaAcres": 5554,
+    "description": "Thermal springs from the Ouachita Mountains flow through this park in the city of Hot Springs, Arkansas, beside the historic bathhouses of Bathhouse Row.",
+    "npsCode": "hosp"
+  },
+  {
+    "id": "indiana-dunes",
+    "name": "Indiana Dunes",
+    "fullName": "Indiana Dunes National Park",
+    "states": ["IN"],
+    "coordinates": {
+      "lat": 41.65,
+      "lng": -87.05
+    },
+    "established": "2019-02-15",
+    "areaAcres": 15349,
+    "description": "Beaches and high sand dunes on Lake Michigan's southern shore, plus prairie, bogs and marshes that support a remarkable variety of species.",
+    "npsCode": "indu"
+  },
+  {
+    "id": "isle-royale",
+    "name": "Isle Royale",
+    "fullName": "Isle Royale National Park",
+    "states": ["MI"],
+    "coordinates": {
+      "lat": 48.1,
+      "lng": -88.55
+    },
+    "established": "1940-04-03",
+    "areaAcres": 571790,
+    "description": "A remote, roadless island in Lake Superior and hundreds of small islets around it, known for shipwrecks, hiking and its wolves and moose.",
+    "npsCode": "isro"
+  },
+  {
+    "id": "joshua-tree",
+    "name": "Joshua Tree",
+    "fullName": "Joshua Tree National Park",
+    "states": ["CA"],
+    "coordinates": {
+      "lat": 33.79,
+      "lng": -115.9
+    },
+    "established": "1994-10-31",
+    "areaAcres": 795156,
+    "description": "Where the Mojave and Colorado deserts meet in southern California, with forests of Joshua trees and giant piles of rounded granite boulders.",
+    "npsCode": "jotr"
+  },
+  {
+    "id": "katmai",
+    "name": "Katmai",
+    "fullName": "Katmai National Park and Preserve",
+    "states": ["AK"],
+    "coordinates": {
+      "lat": 58.5,
+      "lng": -155
+    },
+    "established": "1980-12-02",
+    "areaAcres": 3674529,
+    "description": "On the Alaska Peninsula, a land of volcanoes, including the 1912 Valley of Ten Thousand Smokes, where grizzly bears gather to fish for salmon.",
+    "npsCode": "katm"
+  },
+  {
+    "id": "kenai-fjords",
+    "name": "Kenai Fjords",
+    "fullName": "Kenai Fjords National Park",
+    "states": ["AK"],
+    "coordinates": {
+      "lat": 59.92,
+      "lng": -149.65
+    },
+    "established": "1980-12-02",
+    "areaAcres": 669650,
+    "description": "Near Seward, Alaska, the Harding Icefield feeds many glaciers that flow down to the sea; Exit Glacier is the one part reachable by road.",
+    "npsCode": "kefj"
+  },
+  {
+    "id": "kings-canyon",
+    "name": "Kings Canyon",
+    "fullName": "Kings Canyon National Park",
+    "states": ["CA"],
+    "coordinates": {
+      "lat": 36.8,
+      "lng": -118.55
+    },
+    "established": "1940-03-04",
+    "areaAcres": 461901,
+    "description": "Next to Sequoia in California's Sierra Nevada, with a deep granite canyon of the Kings River and giant sequoia groves, including the General Grant Tree.",
+    "npsCode": "seki"
+  },
+  {
+    "id": "kobuk-valley",
+    "name": "Kobuk Valley",
+    "fullName": "Kobuk Valley National Park",
+    "states": ["AK"],
+    "coordinates": {
+      "lat": 67.55,
+      "lng": -159.28
+    },
+    "established": "1980-12-02",
+    "areaAcres": 1750716,
+    "description": "Arctic park in northwest Alaska on the Kobuk River, with large active sand dunes and a route crossed by huge herds of migrating caribou.",
+    "npsCode": "kova"
+  },
+  {
+    "id": "lake-clark",
+    "name": "Lake Clark",
+    "fullName": "Lake Clark National Park and Preserve",
+    "states": ["AK"],
+    "coordinates": {
+      "lat": 60.97,
+      "lng": -153.42
+    },
+    "established": "1980-12-02",
+    "areaAcres": 2619816,
+    "description": "Southwest Alaska park with active volcanoes such as Mount Redoubt, glaciers, rivers, waterfalls, rainforest, tundra and three mountain ranges.",
+    "npsCode": "lacl"
+  },
+  {
+    "id": "lassen-volcanic",
+    "name": "Lassen Volcanic",
+    "fullName": "Lassen Volcanic National Park",
+    "states": ["CA"],
+    "coordinates": {
+      "lat": 40.49,
+      "lng": -121.51
+    },
+    "established": "1916-08-09",
+    "areaAcres": 106589,
+    "description": "Northern California park with all four types of volcano, including Lassen Peak, a lava dome, and boiling mud pots, steam vents and hot pools.",
+    "npsCode": "lavo"
+  },
+  {
+    "id": "mammoth-cave",
+    "name": "Mammoth Cave",
+    "fullName": "Mammoth Cave National Park",
+    "states": ["KY"],
+    "coordinates": {
+      "lat": 37.18,
+      "lng": -86.1
+    },
+    "established": "1941-07-01",
+    "areaAcres": 72473,
+    "description": "Beneath the hills of central Kentucky lies the longest known cave system in the world, with cave life above the Green River valley.",
+    "npsCode": "maca"
+  },
+  {
+    "id": "mesa-verde",
+    "name": "Mesa Verde",
+    "fullName": "Mesa Verde National Park",
+    "states": ["CO"],
+    "coordinates": {
+      "lat": 37.18,
+      "lng": -108.49
+    },
+    "established": "1906-06-29",
+    "areaAcres": 52485,
+    "description": "Southwest Colorado park with thousands of Ancestral Puebloan sites, including Cliff Palace, built into canyon walls in the 1100s and 1200s.",
+    "npsCode": "meve"
+  },
+  {
+    "id": "mount-rainier",
+    "name": "Mount Rainier",
+    "fullName": "Mount Rainier National Park",
+    "states": ["WA"],
+    "coordinates": {
+      "lat": 46.85,
+      "lng": -121.75
+    },
+    "established": "1899-03-02",
+    "areaAcres": 236382,
+    "description": "An ice-clad active volcano in Washington's Cascade Range, wrapped in glaciers and in summer meadows full of wildflowers.",
+    "npsCode": "mora"
+  },
+  {
+    "id": "new-river-gorge",
+    "name": "New River Gorge",
+    "fullName": "New River Gorge National Park and Preserve",
+    "states": ["WV"],
+    "coordinates": {
+      "lat": 38.07,
+      "lng": -81.08
+    },
+    "established": "2020-12-27",
+    "areaAcres": 7021,
+    "description": "No river gorge in the eastern US is deeper than this West Virginia canyon, crossed by the New River Gorge Bridge and loved by whitewater rafters.",
+    "npsCode": "neri"
+  },
+  {
+    "id": "north-cascades",
+    "name": "North Cascades",
+    "fullName": "North Cascades National Park",
+    "states": ["WA"],
+    "coordinates": {
+      "lat": 48.7,
+      "lng": -121.2
+    },
+    "established": "1968-10-02",
+    "areaAcres": 504781,
+    "description": "Jagged, heavily glaciated peaks in northern Washington, with deep valleys and a large backcountry wilderness reached on foot.",
+    "npsCode": "noca"
+  },
+  {
+    "id": "olympic",
+    "name": "Olympic",
+    "fullName": "Olympic National Park",
+    "states": ["WA"],
+    "coordinates": {
+      "lat": 47.97,
+      "lng": -123.5
+    },
+    "established": "1938-06-29",
+    "areaAcres": 922649,
+    "description": "On Washington's Olympic Peninsula, the park runs from wild Pacific beaches through temperate rainforests such as the Hoh to glacier-capped peaks.",
+    "npsCode": "olym"
+  },
+  {
+    "id": "petrified-forest",
+    "name": "Petrified Forest",
+    "fullName": "Petrified Forest National Park",
+    "states": ["AZ"],
+    "coordinates": {
+      "lat": 35.07,
+      "lng": -109.78
+    },
+    "established": "1962-12-09",
+    "areaAcres": 221390,
+    "description": "Northeastern Arizona badlands with large deposits of fossilized wood about 225 million years old, the colorful Painted Desert and ancient rock art.",
+    "npsCode": "pefo"
+  },
+  {
+    "id": "pinnacles",
+    "name": "Pinnacles",
+    "fullName": "Pinnacles National Park",
+    "states": ["CA"],
+    "coordinates": {
+      "lat": 36.48,
+      "lng": -121.16
+    },
+    "established": "2013-01-10",
+    "areaAcres": 26686,
+    "description": "Rock spires in central California, left from part of an old volcano, where rock climbers come and endangered California condors fly free.",
+    "npsCode": "pinn"
+  },
+  {
+    "id": "redwood",
+    "name": "Redwood",
+    "fullName": "Redwood National and State Parks",
+    "states": ["CA"],
+    "coordinates": {
+      "lat": 41.3,
+      "lng": -124
+    },
+    "established": "1968-10-02",
+    "areaAcres": 138999,
+    "description": "Run jointly with state parks in northern California, it protects old-growth coast redwoods, the world's tallest trees, plus prairie and a wild coast.",
+    "npsCode": "redw"
+  },
+  {
+    "id": "rocky-mountain",
+    "name": "Rocky Mountain",
+    "fullName": "Rocky Mountain National Park",
+    "states": ["CO"],
+    "coordinates": {
+      "lat": 40.4,
+      "lng": -105.58
+    },
+    "established": "1915-01-26",
+    "areaAcres": 265848,
+    "description": "High peaks, alpine tundra and lakes on both sides of the Continental Divide in northern Colorado, with elk, moose and Longs Peak.",
+    "npsCode": "romo"
+  },
+  {
+    "id": "saguaro",
+    "name": "Saguaro",
+    "fullName": "Saguaro National Park",
+    "states": ["AZ"],
+    "coordinates": {
+      "lat": 32.25,
+      "lng": -110.5
+    },
+    "established": "1994-10-14",
+    "areaAcres": 92877,
+    "description": "Two districts on either side of Tucson, Arizona, protect Sonoran Desert landscapes dense with giant saguaro cacti and other desert life.",
+    "npsCode": "sagu"
+  },
+  {
+    "id": "sequoia",
+    "name": "Sequoia",
+    "fullName": "Sequoia National Park",
+    "states": ["CA"],
+    "coordinates": {
+      "lat": 36.43,
+      "lng": -118.68
+    },
+    "established": "1890-09-25",
+    "areaAcres": 404063,
+    "description": "In California's southern Sierra Nevada, the Giant Forest holds the General Sherman Tree, and the park reaches the highest summit in the lower 48 states.",
+    "npsCode": "seki"
+  },
+  {
+    "id": "shenandoah",
+    "name": "Shenandoah",
+    "fullName": "Shenandoah National Park",
+    "states": ["VA"],
+    "coordinates": {
+      "lat": 38.53,
+      "lng": -78.35
+    },
+    "established": "1935-12-26",
+    "areaAcres": 200446,
+    "description": "A long, narrow park on the Blue Ridge in Virginia, followed by Skyline Drive and the Appalachian Trail through hardwood forest.",
+    "npsCode": "shen"
+  },
+  {
+    "id": "theodore-roosevelt",
+    "name": "Theodore Roosevelt",
+    "fullName": "Theodore Roosevelt National Park",
+    "states": ["ND"],
+    "coordinates": {
+      "lat": 46.97,
+      "lng": -103.45
+    },
+    "established": "1978-11-10",
+    "areaAcres": 70447,
+    "description": "Three units of North Dakota badlands that shaped Theodore Roosevelt, with his old cabin, scenic drives, bison, pronghorn and wild horses.",
+    "npsCode": "thro"
+  },
+  {
+    "id": "virgin-islands",
+    "name": "Virgin Islands",
+    "fullName": "Virgin Islands National Park",
+    "states": ["VI"],
+    "coordinates": {
+      "lat": 18.33,
+      "lng": -64.73
+    },
+    "established": "1956-08-02",
+    "areaAcres": 15052,
+    "description": "Covers much of the island of St. John, with white beaches, coral reefs, Taíno sites and the ruins of colonial sugar plantations.",
+    "npsCode": "viis"
+  },
+  {
+    "id": "voyageurs",
+    "name": "Voyageurs",
+    "fullName": "Voyageurs National Park",
+    "states": ["MN"],
+    "coordinates": {
+      "lat": 48.5,
+      "lng": -92.88
+    },
+    "established": "1975-04-08",
+    "areaAcres": 218222,
+    "description": "A lake and forest park on the Minnesota-Canada border, named for French fur traders, best explored by canoe, kayak or boat.",
+    "npsCode": "voya"
+  },
+  {
+    "id": "white-sands",
+    "name": "White Sands",
+    "fullName": "White Sands National Park",
+    "states": ["NM"],
+    "coordinates": {
+      "lat": 32.78,
+      "lng": -106.17
+    },
+    "established": "2019-12-20",
+    "areaAcres": 146344,
+    "description": "In New Mexico's Tularosa Basin, the largest gypsum dune field on Earth forms a sea of brilliant white sand.",
+    "npsCode": "whsa"
+  },
+  {
+    "id": "wind-cave",
+    "name": "Wind Cave",
+    "fullName": "Wind Cave National Park",
+    "states": ["SD"],
+    "coordinates": {
+      "lat": 43.57,
+      "lng": -103.48
+    },
+    "established": "1903-01-09",
+    "areaAcres": 33971,
+    "description": "A huge cave system, among the longest on the planet, known for rare boxwork formations, under a South Dakota prairie where bison and prairie dogs live.",
+    "npsCode": "wica"
+  },
+  {
+    "id": "wrangell-st-elias",
+    "name": "Wrangell–St. Elias",
+    "fullName": "Wrangell–St. Elias National Park and Preserve",
+    "states": ["AK"],
+    "coordinates": {
+      "lat": 61,
+      "lng": -142
+    },
+    "established": "1980-12-02",
+    "areaAcres": 8323146,
+    "description": "The largest US national park, in Alaska, where four mountain ranges meet, with many of North America's highest peaks and vast glaciers.",
+    "npsCode": "wrst"
+  },
+  {
+    "id": "yellowstone",
+    "name": "Yellowstone",
+    "fullName": "Yellowstone National Park",
+    "states": ["WY", "MT", "ID"],
+    "coordinates": {
+      "lat": 44.6,
+      "lng": -110.5
+    },
+    "established": "1872-03-01",
+    "areaAcres": 2219791,
+    "description": "The first national park, mostly in Wyoming, sits on a volcanic caldera with geysers such as Old Faithful, hot springs, a great canyon and bison herds.",
+    "npsCode": "yell"
+  },
+  {
+    "id": "yosemite",
+    "name": "Yosemite",
+    "fullName": "Yosemite National Park",
+    "states": ["CA"],
+    "coordinates": {
+      "lat": 37.83,
+      "lng": -119.5
+    },
+    "established": "1890-10-01",
+    "areaAcres": 761748,
+    "description": "In California's Sierra Nevada, granite cliffs such as El Capitan and Half Dome, tall waterfalls and giant sequoias surround Yosemite Valley.",
+    "npsCode": "yose"
+  },
+  {
+    "id": "zion",
+    "name": "Zion",
+    "fullName": "Zion National Park",
+    "states": ["UT"],
+    "coordinates": {
+      "lat": 37.3,
+      "lng": -113.05
+    },
+    "established": "1919-11-19",
+    "areaAcres": 147243,
+    "description": "Southwest Utah park of towering sandstone cliffs and narrow canyons cut by the Virgin River, including the Narrows and Angels Landing.",
+    "npsCode": "zion"
+  }
+]
