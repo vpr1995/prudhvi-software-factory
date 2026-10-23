@@ -1,10 +1,10 @@
 # Build status and resume guide
 
-Last update: 2026-10-22, 18:40 CDT. Current state: **paused after Wave 2.**
+Last update: 2026-10-22. Current state: **Wave 3 in progress. Step 1: restructure to single-package projects.**
 
 Read this file before you continue the build of this repo. It tells you what is done, what is open, and how to start Wave 3.
 
-**Do not start Wave 3 until the repo owner says so.**
+The owner started Wave 3 on 2026-10-22.
 
 ## 1. Sources of truth
 
@@ -113,6 +113,13 @@ Proof at the pause:
 | `pre-push` runs the coverage gates and anti-skip | `b4a1291` |
 | Coverage stays at 80 lines, statements, functions and 75 branches (TS), 80 (Python, Go) | this file |
 | The 90 percent diff-coverage check is a separate task after all waves. It is not in Wave 3. | this file |
+| Single-package projects: one `package.json` for each project. Layout: `bin/`, `lib/` (CDK), `src/contracts`, `src/api`, `src/api-py`, `src/api-go`, `web/`, `bruno/`. | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
+| One sample project, `projects/sample`, with every part. It replaces `sample-fullstack` and `sample-api-only`. | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
+| AWS region: `us-east-1` only. One wildcard certificate serves CloudFront and the HTTP API. | Wave 3 |
+| CDK bundles the Lambda code at synth: `NodejsFunction` (TS), `Code.fromAsset` with local bundling (Go, Python, OpenNext). Unit tests turn bundling off. | Wave 3 |
+| cdk-nag rules that cannot be met go in one suppressions file for each stack, with a reason. The owner approves each entry. | Wave 3 |
+| OpenNext: own minimal construct in `shared-cdk-constructs`. No third-party construct. | Wave 3 |
+| CDK versions (3-day release age): `aws-cdk-lib` 2.273.0, `aws-cdk` 2.1145.0, `constructs` 10.8.1, `cdk-nag` 3.0.2, `@opennextjs/aws` 4.1.11. License check and audit passed. | Wave 3 |
 
 ### 3.4 Facts that differ from the first plan
 
@@ -132,7 +139,7 @@ Fix these as the work continues. Tracker ids are in brackets.
 3. [`w2-fu-noassert`] Anti-skip does not flag a test with no assertion.
 4. [`w2-fu-redact`] The Go API has no log redact list. TS redaction stops at depth 3. Secrets in URL query strings are logged.
 5. [`w2-fu-deferred`] Nonce-based CSP (web uses `'unsafe-inline'`), Docker image digest pins, BOM and NEL title handling, sha256 object-format repos.
-6. [`w2-fu-docs`] Some docs still name `tag:project:<name>`, `docker-compose.otel.yml` and `instrumentation-client.ts`.
+6. [`w2-fu-docs`] Done in `8dfece4`.
 7. [`fu-diffcov`] Separate task: the 90 percent diff-coverage check.
 8. `rush change --verify` cannot run until the repo has a real `origin` remote.
 9. guard-bash reads command text, so some commands get past it. See "Known limits" in [gates.md](../standards/gates.md). Gate integrity, CODEOWNERS and CI are the real controls.
@@ -151,7 +158,7 @@ Wave 3 scope:
 | Task id | Work | Owner of files |
 |---|---|---|
 | `w3-platform` | `platform/infra`: one Cognito user pool, imported Route53 hosted zone, ACM wildcard certificate. Write the ids to SSM under `/platform/<env>/...`. | `platform/**` |
-| `w3-project-infra` | `packages/cdk-constructs` (Lambda construct with the ADOT layer, tracing on, SSM read helpers) and `projects/*/infra` (API Gateway HTTP API, Lambda, OpenNext for web, own Cognito app client, DNS records). cdk-nag, assertion tests, snapshots. | `packages/cdk-constructs/**`, `projects/*/infra/**` |
+| `w3-project-infra` | `packages/cdk-constructs` (Lambda construct with the ADOT layer, tracing on, SSM read helpers) and `projects/sample/bin` + `lib` (API Gateway HTTP API, Lambda, OpenNext for web, own Cognito app client, DNS records). cdk-nag, assertion tests, snapshots. | `packages/cdk-constructs/**`, `projects/*/bin/**`, `projects/*/lib/**`, `projects/*/cdk.json` |
 | `w3-ci` | `.github/workflows`: `ci`, `sast`, `deps`, `infra`, `claude-review`, `risk-classify`, `nightly`, `release`, `rollback`, `scorecard`. Actions pinned by SHA. Least-privilege permissions. OIDC for AWS. | `.github/**` |
 | `w3-gates-scripts` | `scripts/check-gates` (reuse `scripts/gates/lib/gate-integrity.mjs`; disable count, test deletion, PR size) and `scripts/classify-risk`. No diff coverage yet. | `scripts/check-gates*`, `scripts/classify-risk*` |
 | `w3-gh-setup` | `scripts/gh-setup.sh`: ruleset, merge queue, environments. The owner runs it. | `scripts/gh-setup.sh` |
