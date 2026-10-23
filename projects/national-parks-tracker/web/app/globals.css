@@ -1,0 +1,407 @@
+/* National Parks Tracker: global styles. Components keep their own CSS Modules. */
+
+:root {
+  color-scheme: light dark;
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --color-bg: #f5f3ec;
+  --color-surface: #ffffff;
+  --color-surface-muted: #ebe9e0;
+  --color-placeholder: #d9d6c8;
+  --color-text: #1c2721;
+  --color-text-muted: #4a584f;
+  --color-border: #d4d1c4;
+  --color-accent: #2c6548;
+  --color-accent-hover: #214f38;
+  --color-accent-soft: #e1eee6;
+  --color-on-accent: #ffffff;
+  --color-link: #1d5c86;
+  --color-visited: #2c6548;
+  --color-not-visited: #8a4f1d;
+  --color-not-visited-soft: #f6ebdf;
+  --color-selected: #b83d0f;
+  --color-star: #8f5300;
+  --color-focus: #1a5fd0;
+  --color-banner-bg: #fff4d6;
+  --color-banner-text: #5b3d00;
+  --shadow-small: 0 1px 2px rgb(20 30 25 / 8%);
+  --shadow-medium: 0 4px 16px rgb(20 30 25 / 12%);
+  --radius: 10px;
+  --radius-large: 14px;
+  --header-height: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #101612;
+    --color-surface: #18201b;
+    --color-surface-muted: #232c26;
+    --color-placeholder: #2f3a33;
+    --color-text: #e4ebe6;
+    --color-text-muted: #a9b7ae;
+    --color-border: #354239;
+    --color-accent: #82d3a6;
+    --color-accent-hover: #a6e2c0;
+    --color-accent-soft: #1f3529;
+    --color-on-accent: #0c1a12;
+    --color-link: #8fc9ef;
+    --color-visited: #74c99a;
+    --color-not-visited: #e9b481;
+    --color-not-visited-soft: #3a2a1b;
+    --color-selected: #ffab70;
+    --color-star: #f1c453;
+    --color-focus: #8ab8ff;
+    --color-banner-bg: #3d3112;
+    --color-banner-text: #ffe7a8;
+    --shadow-small: 0 1px 2px rgb(0 0 0 / 35%);
+    --shadow-medium: 0 4px 16px rgb(0 0 0 / 45%);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--color-link);
+  text-underline-offset: 0.15em;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2000;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+.button-link {
+  display: inline-block;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.button-link:hover {
+  background: var(--color-accent-hover);
+}
+
+/* Home page: header on top. Desktop: list on the left, map on the right, both fill the screen. */
+.home {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.home-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+@media (min-width: 1024px) {
+  .home {
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
+.credits {
+  padding: 1rem 1.25rem 1.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* Content pages: park page and 404. */
+.page {
+  width: min(100%, 1040px);
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+
+.not-found {
+  display: grid;
+  gap: 1rem;
+  padding-top: 3rem;
+}
+
+.not-found h1 {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+}
+
+.back-link {
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.park-title {
+  font-size: clamp(1.6rem, 4.5vw, 2.5rem);
+  letter-spacing: -0.01em;
+}
+
+.park-subtitle {
+  margin: 0.25rem 0 1rem;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+}
+
+.park-columns {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1.75rem;
+}
+
+@media (min-width: 860px) {
+  .park-columns {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.park-section {
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-large);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-small);
+  min-width: 0;
+}
+
+.park-section h2 {
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+}
+
+.park-description {
+  margin-bottom: 1.25rem;
+}
+
+/* Leaflet: markers, popup and controls in the site colors. */
+.park-map {
+  position: absolute;
+  inset: 0;
+  font: inherit;
+}
+
+.leaflet-container {
+  background: var(--color-surface-muted);
+  font-family: var(--font-sans);
+}
+
+.park-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.park-marker__dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  transition: transform 120ms ease;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 35%);
+}
+
+.park-marker--visited .park-marker__dot {
+  background: var(--color-visited);
+  border: 2px solid #ffffff;
+  color: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .park-marker--visited .park-marker__dot {
+    color: #0c1a12;
+    border-color: #0c1a12;
+  }
+}
+
+.park-marker--not-visited .park-marker__dot {
+  width: 16px;
+  height: 16px;
+  background: rgb(255 255 255 / 70%);
+  border: 4px solid var(--color-not-visited);
+}
+
+@media (prefers-color-scheme: dark) {
+  .park-marker--not-visited .park-marker__dot {
+    background: rgb(16 22 18 / 60%);
+  }
+}
+
+.park-marker__check {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.park-marker--selected .park-marker__dot {
+  transform: scale(1.55);
+  outline: 3px solid var(--color-selected);
+  outline-offset: 2px;
+}
+
+.park-marker:focus-visible {
+  outline: none;
+}
+
+.park-marker:focus-visible .park-marker__dot {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-medium);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius);
+}
+
+.leaflet-popup-content {
+  margin: 0.85rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--color-text-muted);
+}
+
+.park-popup {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 170px;
+}
+
+.leaflet-popup-content .park-popup p,
+.leaflet-popup-content .park-popup h3 {
+  margin: 0;
+}
+
+.park-popup__title {
+  font-size: 1.05rem;
+  padding-right: 1rem;
+}
+
+.park-popup__states {
+  color: var(--color-text-muted);
+}
+
+.park-popup__status--visited {
+  color: var(--color-visited);
+  font-weight: 600;
+}
+
+.park-popup__rating {
+  color: var(--color-star);
+  letter-spacing: 0.08em;
+}
+
+.leaflet-container a.park-popup__link {
+  justify-self: start;
+  margin-top: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.leaflet-container a.park-popup__link:hover {
+  background: var(--color-accent-hover);
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-bottom-color: var(--color-border);
+}
+
+.leaflet-bar a.leaflet-disabled {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
