@@ -98,6 +98,24 @@ export const CASES = [
     expect: ['vitest/expect-expect'],
   },
   {
+    name: 'focused test in a test folder',
+    file: 'packages/sample/test/focus.ts',
+    code: "import { it } from 'vitest';\n\nit.only('runs', () => {});\n",
+    expect: ['vitest/no-focused-tests'],
+  },
+  {
+    name: 'skipped test in a project test folder',
+    file: 'projects/sample/test/api/skip.ts',
+    code: "import { it } from 'vitest';\n\nit.skip('runs', () => {});\n",
+    expect: ['vitest/no-disabled-tests'],
+  },
+  {
+    name: 'test without expect in a test folder',
+    file: 'platform/infra/test/empty.ts',
+    code: "import { it } from 'vitest';\n\nit('runs', () => {});\n",
+    expect: ['vitest/expect-expect'],
+  },
+  {
     name: 'eslint-disable without description',
     file: 'packages/sample/src/disable.ts',
     code: '// eslint-disable-next-line no-console\nconsole.log(1);\n',

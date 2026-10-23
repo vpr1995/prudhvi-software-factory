@@ -5,9 +5,6 @@ import { dirname, join } from 'node:path';
 import { ESLint } from 'eslint';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { BOUNDARY_CASES, SUPPORT_FILES } from './boundary-fixtures.js';
-import { CASES } from './fixtures.js';
-
 import {
   base,
   boundaries,
@@ -18,7 +15,10 @@ import {
   react,
   scope,
   test,
-} from './index.js';
+} from '../src/index.js';
+
+import { BOUNDARY_CASES, SUPPORT_FILES } from './boundary-fixtures.js';
+import { CASES } from './fixtures.js';
 
 const TSCONFIG = {
   extends: new URL('../../tsconfig/base.json', import.meta.url).pathname,

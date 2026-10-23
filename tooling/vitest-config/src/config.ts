@@ -34,7 +34,8 @@ export function createVitestConfig(options: CreateVitestConfigOptions = {}): Vit
     test: {
       environment,
       setupFiles: [...setupFiles],
-      include: ['src/**/*.test.{ts,tsx,js,jsx}'],
+      // `src/**` is temporary while tests move to `test/`. Remove it when the move ends.
+      include: ['test/**/*.test.{ts,tsx,js,jsx}', 'src/**/*.test.{ts,tsx,js,jsx}'],
       exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
       globals: false,
       passWithNoTests: false,

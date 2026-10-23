@@ -6,6 +6,14 @@
     "checkJs": true,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src/rules/**/*.js", "src/plugin.js", "src/naming.js", "src/restricted-syntax.js"],
-  "exclude": ["src/**/*.test.js"]
+  "include": [
+    "src/rules/**/*.js",
+    "src/plugin.js",
+    "src/naming.js",
+    "src/restricted-syntax.js",
+    "test/**/*.js"
+  ],
+  // configs.test.js imports src/index.js. Type errors in the config sources (untyped plugins) stop
+  // the check there. Before the move, no test file had a typecheck. Remove this when they are fixed.
+  "exclude": ["test/configs.test.js"]
 }

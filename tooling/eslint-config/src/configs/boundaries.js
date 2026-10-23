@@ -14,7 +14,13 @@ const TYPESCRIPT_RESOLVER = createRequire(import.meta.url).resolve(
 const REPO_ROOT = new URL('../../../../', import.meta.url).pathname;
 
 // Order matters: the first matching descriptor wins, so specific api folders come before `api`.
+// Test folders come first because `packages/*`, `tooling/*` and `platform/infra` also match them.
 const ELEMENTS = [
+  // Unit tests live in the `test/` folder at the root of each Rush project.
+  { type: 'project-test', pattern: 'projects/*/test', capture: ['project'], partialMatch: false },
+  { type: 'package-test', pattern: 'packages/*/test', capture: ['package'], partialMatch: false },
+  { type: 'tooling-test', pattern: 'tooling/*/test', capture: ['tool'], partialMatch: false },
+  { type: 'platform-test', pattern: 'platform/infra/test', partialMatch: false },
   {
     type: 'contracts',
     pattern: 'projects/*/src/contracts',
@@ -44,6 +50,7 @@ const ELEMENTS = [
 ];
 
 const API_TYPES = ['api', 'api-domain', 'api-adapters'];
+const TEST_TYPES = ['project-test', 'package-test', 'tooling-test', 'platform-test'];
 const SAME_PROJECT = { captured: { project: '{{from.element.captured.project}}' } };
 const ALL_LOCAL_PROJECT_TYPES = [
   'contracts',
@@ -54,6 +61,51 @@ const ALL_LOCAL_PROJECT_TYPES = [
   'shared',
 ];
 const FASTIFY = ['fastify', 'fastify-*', '@fastify/*'];
+
+/**
+ * Policies for the `test/` folders. A test may import its own package or project parts, as the
+ * source may. Tests of projects reach only their own project and shared packages. Tests of shared
+ * packages reach only shared packages. Tests of platform/infra reach only platform/infra and
+ * cdk-constructs. Nothing imports a test file.
+ *
+ * @returns {object[]} Policies.
+ */
+function createTestPolicies() {
+  const from = (/** @type {string[]} */ types) => ({ element: { type: types } });
+  const shared = { element: { type: 'shared' } };
+
+  return [
+    {
+      from: from(['project-test', 'package-test', 'platform-test']),
+      disallow: { to: { element: { type: ALL_LOCAL_PROJECT_TYPES } } },
+    },
+    {
+      from: from(['project-test']),
+      allow: {
+        to: [
+          shared,
+          { element: { type: ['contracts', ...API_TYPES, 'web', 'infra'], ...SAME_PROJECT } },
+        ],
+      },
+    },
+    { from: from(['package-test']), allow: { to: [shared] } },
+    {
+      from: from(['platform-test']),
+      allow: {
+        to: [
+          { element: { type: 'platform-infra' } },
+          { element: { type: 'shared', captured: { package: 'cdk-constructs' } } },
+        ],
+      },
+    },
+    // Nothing imports a test file. Imports inside the same test folder stay allowed by the
+    // last policies of `createPolicies`.
+    {
+      disallow: { to: { element: { type: TEST_TYPES } } },
+      message: 'Nothing may import a test file. Move shared test code to the test folder helpers.',
+    },
+  ];
+}
 
 /**
  * Policies for `boundaries/dependencies`. The last matching policy wins, so each source type
@@ -140,6 +192,7 @@ function createPolicies() {
       disallow: { to: { element: { type: 'platform-infra' } } },
       message: 'Nothing may import platform/infra. Share values through SSM at deploy time.',
     },
+    ...createTestPolicies(),
     { allow: { dependency: { relationship: { to: 'internal' } } } },
     { allow: { to: { element: { type: 'tooling' } } } },
   ];
@@ -148,6 +201,7 @@ function createPolicies() {
 /**
  * Creates the boundaries config. Element types come from the path: `projects/<name>/src/(contracts|api)`,
  * `projects/<name>/web`, `projects/<name>/(bin|lib)`, `platform/infra`, `packages/*` and `tooling/*`.
+ * The `test/` folder of each of these is its own element type.
  *
  * @param {{ rootPath?: string }} [options] - `rootPath` is the repo root. It defaults to this repo.
  * @returns {import('eslint').Linter.Config[]} Config blocks.
@@ -161,7 +215,10 @@ export function boundaries({ rootPath = REPO_ROOT } = {}) {
       settings: {
         'boundaries/root-path': rootPath,
         'boundaries/elements': ELEMENTS,
-        'boundaries/files': [{ pattern: '**/*.test.{ts,tsx,js}', category: 'test' }],
+        'boundaries/files': [
+          { pattern: '**/*.test.{ts,tsx,js}', category: 'test' },
+          { pattern: '**/test/**/*.{ts,tsx,js}', category: 'test' },
+        ],
         'import/resolver': { [TYPESCRIPT_RESOLVER]: { alwaysTryTypes: true } },
       },
       rules: {

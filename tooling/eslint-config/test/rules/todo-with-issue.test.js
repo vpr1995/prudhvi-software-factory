@@ -1,9 +1,10 @@
 import { RuleTester } from 'eslint';
 import { afterAll, describe, it } from 'vitest';
 
-import { todoWithIssue } from './todo-with-issue.js';
+import { todoWithIssue } from '../../src/rules/todo-with-issue.js';
 
-RuleTester.afterAll = afterAll;
+// eslint types declare describe, it and itOnly but not afterAll.
+Object.assign(RuleTester, { afterAll });
 RuleTester.describe = describe;
 RuleTester.it = it;
 RuleTester.itOnly = it.only;

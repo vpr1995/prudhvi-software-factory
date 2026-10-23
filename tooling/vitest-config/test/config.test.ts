@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { COVERAGE_THRESHOLDS, createVitestConfig } from './config.js';
+import { COVERAGE_THRESHOLDS, createVitestConfig } from '../src/config.js';
 
 describe('createVitestConfig', () => {
   it('uses v8 coverage with the fixed thresholds', () => {
@@ -11,6 +11,22 @@ describe('createVitestConfig', () => {
       reportsDirectory: 'coverage',
       thresholds: { lines: 80, branches: 75, functions: 80, statements: 80 },
     });
+  });
+
+  it('runs tests from test/ and, for now, from src/', () => {
+    const config = createVitestConfig();
+
+    expect(config.test?.include).toStrictEqual([
+      'test/**/*.test.{ts,tsx,js,jsx}',
+      'src/**/*.test.{ts,tsx,js,jsx}',
+    ]);
+  });
+
+  it('measures coverage on the source folder and never on test files', () => {
+    const coverage = createVitestConfig().test?.coverage;
+
+    expect(coverage?.include).toStrictEqual(['src/**/*.{ts,tsx,js,jsx}']);
+    expect(coverage?.exclude).toContain('src/**/*.test.{ts,tsx,js,jsx}');
   });
 
   it('writes lcov output', () => {
@@ -47,7 +63,7 @@ describe('createVitestConfig', () => {
     expect(createVitestConfig().test?.reporters).toContain('default');
     vi.stubEnv('CI', 'true');
     vi.resetModules();
-    const { createVitestConfig: freshFactory } = await import('./config.js');
+    const { createVitestConfig: freshFactory } = await import('../src/config.js');
 
     expect(freshFactory().test?.reporters).toContain('junit');
   });

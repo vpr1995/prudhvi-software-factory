@@ -8,8 +8,8 @@ export const E2E_FILES = ['**/e2e/**/*.spec.{ts,tsx}'];
 export const TEST_FILES = [
   '**/*.test.{ts,tsx,js,jsx}',
   '**/e2e/**/*.spec.{ts,tsx}',
-  '**/test/**/*.{ts,tsx,js}',
-  '**/tests/**/*.{ts,tsx,js}',
+  '**/test/**/*.{ts,tsx,js,jsx}',
+  '**/tests/**/*.{ts,tsx,js,jsx}',
 ];
 
 /** Files where a default export is required by Next.js or by the tool that loads them. */
