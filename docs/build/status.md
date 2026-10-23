@@ -160,7 +160,7 @@ Wave 3 scope:
 | `w3-platform` | `platform/infra`: one Cognito user pool, imported Route53 hosted zone, ACM wildcard certificate. Write the ids to SSM under `/platform/<env>/...`. | `platform/**` |
 | `w3-project-infra` | `packages/cdk-constructs` (Lambda construct with the ADOT layer, tracing on, SSM read helpers) and `projects/sample/bin` + `lib` (API Gateway HTTP API, Lambda, OpenNext for web, own Cognito app client, DNS records). cdk-nag, assertion tests, snapshots. | `packages/cdk-constructs/**`, `projects/*/bin/**`, `projects/*/lib/**`, `projects/*/cdk.json` |
 | `w3-ci` | `.github/workflows`: `ci`, `sast`, `deps`, `infra`, `claude-review`, `risk-classify`, `nightly`, `release`, `rollback`, `scorecard`. Actions pinned by SHA. Least-privilege permissions. OIDC for AWS. | `.github/**` |
-| `w3-gates-scripts` | `scripts/check-gates` (reuse `scripts/gates/lib/gate-integrity.mjs`; disable count, test deletion, PR size) and `scripts/classify-risk`. No diff coverage yet. | `scripts/check-gates*`, `scripts/classify-risk*` |
+| `w3-gates-scripts` | `scripts/check-gates` (reuse `scripts/gates/lib/gate-integrity.mjs`; disable count, test deletion, PR size) and `scripts/classify-risk`. No diff coverage yet. | `scripts/gates/check-gates.mjs`, `scripts/gates/classify-risk.mjs` |
 | `w3-gh-setup` | `scripts/gh-setup.sh`: ruleset, merge queue, environments. The owner runs it. | `scripts/gh-setup.sh` |
 
 Wave 3 rules:

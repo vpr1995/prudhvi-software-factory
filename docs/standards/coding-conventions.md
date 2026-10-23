@@ -294,7 +294,7 @@ src/domain/getUser.ts
 src/domain/__tests__/getUser.js
 ```
 
-**Enforcer:** The vitest `include` glob in `tooling/vitest-config`, and `scripts/check-gates.ts`.
+**Enforcer:** The vitest `include` glob in `tooling/vitest-config`, and `scripts/gates/check-gates.mjs`.
 
 ### A.12 Environment variables
 
@@ -1294,7 +1294,7 @@ PR title: feat(orders): add CSV export
 PR title: misc fixes, lint config, and orders export
 ```
 
-**Enforcer:** The PR size check in `scripts/check-gates.ts` (planned). The one-change check is in `REVIEW.md` ("Conventions with no tool enforcer").
+**Enforcer:** The PR size check in `scripts/gates/check-gates.mjs` (planned). The one-change check is in `REVIEW.md` ("Conventions with no tool enforcer").
 
 ---
 

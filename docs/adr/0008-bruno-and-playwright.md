@@ -15,7 +15,7 @@ Each API needs readable documentation for each route. The documentation must als
 - Each web part has an `e2e/` folder with `@playwright/test` and `@axe-core/playwright`. The `_phase:e2e` script builds the app, starts it, and runs the suite.
 - Playwright runs Chromium on each PR. The nightly run adds Firefox and WebKit.
 - The Rush command `e2e` runs both. `verify` includes `e2e`. The Stop hook and CI run `e2e` for impacted parts.
-- Two gates in `check-gates.ts` enforce the coverage:
+- Two gates in `scripts/gates/check-gates.mjs` enforce the coverage:
   - `bruno-coverage`: each route in the OpenAPI output has a `.bru` request with an assertion.
   - `playwright-coverage`: each page has a spec with `page.goto` and an axe check.
 - Secrets never appear in a Bruno environment file. A request reads them with `{{process.env.X}}`.

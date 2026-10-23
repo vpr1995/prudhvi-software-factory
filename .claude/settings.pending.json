@@ -27,8 +27,6 @@
       "Edit(/common/git-hooks/**)",
       "Edit(/common/autoinstallers/**)",
       "Edit(**/rush.json)",
-      "Edit(/scripts/check-gates.ts)",
-      "Edit(/scripts/classify-risk.ts)",
       "Edit(**/REVIEW.md)",
       "Edit(/platform/infra/**)",
       "Edit(**/rush-project.json)",

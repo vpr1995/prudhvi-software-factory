@@ -43,8 +43,6 @@ A gate file controls quality, security, or release. Agents must not edit a gate 
 | `common/git-hooks/**` | Git hook scripts. |
 | `common/autoinstallers/**` | Tool versions for hooks and CI. |
 | `rush.json` | Rush project list and tool versions. |
-| `scripts/check-gates.ts` | Gate integrity check. |
-| `scripts/classify-risk.ts` | Risk tier classifier. |
 | `**/REVIEW.md` | Review rules for the AI reviewer. This covers the root, project and platform files. |
 | `platform/infra/**` | Shared AWS resources for every project. |
 | `**/rush-project.json` | Per-project Rush build settings and cache rules. |
@@ -61,7 +59,7 @@ A gate file controls quality, security, or release. Agents must not edit a gate 
 | `**/pnpm-lock.yaml` | Dependency lockfile. Use `rush add -p <pkg>`, then a human commits the change. |
 | `**/package-lock.json` | Dependency lockfile. Use `rush add -p <pkg>`, then a human commits the change. |
 | `**/yarn.lock` | Dependency lockfile. Use `rush add -p <pkg>`, then a human commits the change. |
-| `scripts/gates/**` | Gate scripts: the shared gate list, anti-skip scanner, coverage gates and hook logic. |
+| `scripts/gates/**` | Gate scripts: the shared gate list, anti-skip scanner, coverage gates, check-gates, classify-risk and hook logic. |
 | `scripts/security/**` | Security scan scripts that git hooks and CI call. |
 | `scripts/git/**` | Git hook helper scripts. |
 | `.lintstagedrc.cjs` | Pre-commit check list. |

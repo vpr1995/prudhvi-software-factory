@@ -56,14 +56,6 @@
       "why": "Rush project list and tool versions."
     },
     {
-      "glob": "scripts/check-gates.ts",
-      "why": "Gate integrity check."
-    },
-    {
-      "glob": "scripts/classify-risk.ts",
-      "why": "Risk tier classifier."
-    },
-    {
       "glob": "**/REVIEW.md",
       "why": "Review rules for the AI reviewer (plan section 6). docs/standards/gates.md lists it as human-reviewed, not hook-blocked: see the open gaps."
     },
@@ -129,7 +121,7 @@
     },
     {
       "glob": "scripts/gates/**",
-      "why": "Gate scripts: the shared gate list, anti-skip scanner, coverage gates and hook logic. Editing them weakens every gate."
+      "why": "Gate scripts: the shared gate list, anti-skip scanner, coverage gates, check-gates, classify-risk and hook logic. Editing them weakens every gate."
     },
     {
       "glob": "scripts/security/**",

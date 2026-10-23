@@ -2,7 +2,7 @@
 
 Each pull request has one risk tier: `risk:low`, `risk:medium`, or `risk:high`. The tier sets the number of human approvals.
 
-The `risk-classify.yml` workflow runs `scripts/classify-risk.ts` on each PR. The script uses path rules and a Claude classifier. It sets the label.
+The `risk-classify.yml` workflow runs `scripts/gates/classify-risk.mjs` on each PR. The script uses path rules and a Claude classifier. It sets the label.
 
 ## 1. Tiers and approvals
 
@@ -59,7 +59,7 @@ This degraded rule is a known gap. Record the change in a new ADR when the secon
 ## 4. How the label is set
 
 1. `risk-classify.yml` runs on each PR event.
-2. `scripts/classify-risk.ts` checks the changed paths against section 2.
+2. `scripts/gates/classify-risk.mjs` checks the changed paths against section 2.
 3. The script asks the classifier for a second opinion on the change.
 4. The workflow sets one label: `risk:low`, `risk:medium`, or `risk:high`.
 5. The ruleset reads the label and requires the number of approvals in section 1.
