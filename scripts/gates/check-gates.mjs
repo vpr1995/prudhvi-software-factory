@@ -2,9 +2,16 @@
 //   - gate-files: lists the gate files that the PR changes and sets `riskHigh`. It reports only.
 //     CODEOWNERS and the human review decide.
 //   - pr-size: counts the changed lines. Warns above 400. Fails above 1000 without the `large-pr` label.
+//   - disable-count: counts the markers that switch a check off (lint, type, security and cdk-nag). A net
+//     increase fails without the `lint-exception` label.
+//   - test-deletion: a deleted test file or fewer test cases in a test file fails without the
+//     `test-removal` label. A rename is a move.
 // Later parts add more checks. Each check gives `{ name, status, summary, ... }`, and `status` is
 // `pass`, `warn` or `fail`.
+import { collectDiff } from './lib/diff-source.mjs';
+import { collectMarkers, judgeMarkers, LINT_EXCEPTION_LABEL } from './lib/disable-count.mjs';
 import { range as gateRange } from './lib/gate-integrity.mjs';
+import { antiSkipSettings } from './lib/gate-list.mjs';
 import { repositoryRoot } from './lib/git-state.mjs';
 import {
   changedFiles,
@@ -13,9 +20,11 @@ import {
   SIZE_FAIL_LINES,
   SIZE_WARN_LINES,
 } from './lib/pr-size.mjs';
-import { resolveCommit } from './lib/revisions.mjs';
+import { git } from './lib/proc.mjs';
+import { mergeBase, resolveCommit } from './lib/revisions.mjs';
+import { findRemovals, judgeRemovals, TEST_REMOVAL_LABEL } from './lib/test-deletion.mjs';
 
-const HELP = `check-gates: check a pull request range for gate file changes and for size.
+const HELP = `check-gates: check a pull request range: gate files, size, disable markers and removed tests.
 
 Usage:
   node scripts/gates/check-gates.mjs --base <ref> --head <ref> [--labels a,b,c] [--json] [--root <dir>]
@@ -32,6 +41,10 @@ Checks:
   gate-files   lists the changed gate files and sets riskHigh. It does not fail by itself.
   pr-size      changed lines (added + deleted; lockfiles, generated code and snapshots do not count).
                Above ${String(SIZE_WARN_LINES)}: warning. Above ${String(SIZE_FAIL_LINES)}: fail, unless the label large-pr is set.
+  disable-count  markers that switch a check off (lint, type, security and cdk-nag comments and calls),
+               added minus removed. A net increase fails, unless the label ${LINT_EXCEPTION_LABEL} is set.
+  test-deletion  a deleted test file, or fewer test cases in a test file, fails, unless the label
+               ${TEST_REMOVAL_LABEL} is set. A rename that git detects is a move.
 
 Exit code: 0 no check failed, 1 a check failed, 2 bad usage or a check that could not run.
 `;
@@ -101,6 +114,9 @@ export function parseLabels(text) {
  * @property {string} base - Base commit id.
  * @property {string} head - Head commit id.
  * @property {readonly string[]} labels - Labels of the PR.
+ * @property {string} start - Start of the range: the merge base of `base` and `head`.
+ * @property {import('./lib/diff-parse.mjs').DiffFile[]} files - The changed files with their lines (rename detection on).
+ * @property {(file: string) => string | null} readOld - Reads a file as it was at `start`.
  */
 
 /**
@@ -147,6 +163,47 @@ export function prSizeCheck(context) {
 }
 
 /**
+ * Check 3: the disable markers that the PR adds and removes.
+ *
+ * @param {CheckContext} context - The repo, the range and the PR labels.
+ * @returns {CheckResult} The result.
+ */
+export function disableCountCheck(context) {
+  const markers = collectMarkers(context.files, antiSkipSettings().ignorePaths);
+  const judged = judgeMarkers(markers, context.labels);
+  return {
+    name: 'disable-count',
+    status: judged.status,
+    summary: judged.summary,
+    details: {
+      added: markers.added,
+      removed: markers.removed,
+      net: markers.added.length - markers.removed.length,
+    },
+  };
+}
+
+/**
+ * Check 4: the tests that the PR removes.
+ *
+ * @param {CheckContext} context - The repo, the range and the PR labels.
+ * @returns {CheckResult} The result.
+ */
+export function testDeletionCheck(context) {
+  const found = findRemovals(context.files, context.readOld);
+  const judged = judgeRemovals(found.removals, context.labels);
+  return {
+    name: 'test-deletion',
+    status: judged.status,
+    summary:
+      found.removals.length === 0 && found.moves.length > 0
+        ? `${judged.summary} (${String(found.moves.length)} test file${found.moves.length === 1 ? '' : 's'} moved with no loss)`
+        : judged.summary,
+    details: { removals: found.removals, moves: found.moves },
+  };
+}
+
+/**
  * Runs all checks.
  *
  * @param {{ root: string, base: string, head: string, labels?: readonly string[] }} input - The repo, the range and the PR labels.
@@ -154,14 +211,28 @@ export function prSizeCheck(context) {
  *   cannot run never looks like a pass.
  */
 export function runChecks(input) {
+  const base = resolveCommit(input.root, input.base);
+  const head = resolveCommit(input.root, input.head);
+  const start = mergeBase(input.root, base, head);
   const context = {
     root: input.root,
-    base: resolveCommit(input.root, input.base),
-    head: resolveCommit(input.root, input.head),
+    base,
+    head,
     labels: input.labels ?? [],
+    start,
+    files: collectDiff({ root: input.root, range: `${start}..${head}` }).files,
+    readOld: (file) => {
+      const shown = git(input.root, ['show', `${start}:${file}`]);
+      return shown.status === 0 ? shown.stdout : null;
+    },
   };
   const gateFiles = gateFilesCheck(context);
-  const checks = [gateFiles, prSizeCheck(context)];
+  const checks = [
+    gateFiles,
+    prSizeCheck(context),
+    disableCountCheck(context),
+    testDeletionCheck(context),
+  ];
   return {
     checks,
     riskHigh: gateFiles.details?.['riskHigh'] === true,

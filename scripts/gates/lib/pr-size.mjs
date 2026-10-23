@@ -2,7 +2,8 @@
 // the count with two limits. Lockfiles, generated code and snapshots do not count, because a human
 // does not review them line by line.
 import { matchesGlob } from './glob.mjs';
-import { git, gitOrThrow } from './proc.mjs';
+import { gitOrThrow } from './proc.mjs';
+import { mergeBase } from './revisions.mjs';
 
 /** Above this number of changed lines the check warns. */
 export const SIZE_WARN_LINES = 400;
@@ -84,15 +85,7 @@ export function parseNumstat(output) {
  * @returns {ChangedFile[]} Changed files. It throws when git fails.
  */
 export function changedFiles(root, base, head) {
-  let from = base;
-  const merge = git(root, [...GIT_FLAGS, 'merge-base', base, head]);
-  if (merge.status === 0 && merge.stdout.trim() !== '') {
-    from = merge.stdout.trim();
-  } else if (merge.status !== 1) {
-    throw new Error(
-      `git merge-base ${base} ${head} failed (exit ${String(merge.status)}): ${merge.stderr.trim().slice(0, 300)}`,
-    );
-  }
+  const from = mergeBase(root, base, head);
   const result = gitOrThrow(root, [
     ...GIT_FLAGS,
     'diff',

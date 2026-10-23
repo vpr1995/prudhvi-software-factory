@@ -26,3 +26,25 @@ export function resolveCommit(root, revision) {
   }
   return found.stdout.trim();
 }
+
+/**
+ * Finds the start of a PR range: the merge base of `base` and `head`, so commits that only `base`
+ * has are not counted. Two histories with no common commit start at `base`.
+ *
+ * @param {string} root - Repo root.
+ * @param {string} base - Base commit.
+ * @param {string} head - Head commit.
+ * @returns {string} The commit id of the start. It throws when git fails.
+ */
+export function mergeBase(root, base, head) {
+  const merge = git(root, ['--no-optional-locks', 'merge-base', base, head]);
+  if (merge.status === 0 && merge.stdout.trim() !== '') {
+    return merge.stdout.trim();
+  }
+  if (merge.status !== 1) {
+    throw new Error(
+      `git merge-base ${base} ${head} failed (exit ${String(merge.status)}): ${merge.stderr.trim().slice(0, 300)}`,
+    );
+  }
+  return base;
+}
