@@ -168,6 +168,11 @@ The agent Bash guard reads the text of a command. It does not run the command. A
 - Pruned build folders, such as `dist`, are not scanned for untracked gate files.
 - `git branch -u` changes the push base. A `hooksPath` in the `HOME` git config can turn git hooks off.
 
+The local gate runner (section 4.3.1) has these limits:
+
+- `GATES_BASE` and `.claude/state/gates-base` are not protected (backlog `bl-gates-base-guard`).
+- Audits run only nightly, so a new dependency with a known CVE passes the push until the nightly audit.
+
 The gate integrity check, CODEOWNERS, and CI are the real controls. The Bash guard is a fast check. It does not replace them.
 
 ## 4. Checks by stage
@@ -197,16 +202,88 @@ The Stop hook runs these checks on the session diff. It blocks the stop when a c
 
 ### 4.3 Commit and push time
 
-| Hook                          | Check                                                                                                                                             | Blocks when                                 |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `pre-commit`                  | `lint-staged`, Prettier, ESLint with `--max-warnings 0`, gitleaks on staged files, gate-file warning, large-file check, conflict markers, `.env*` | Any step fails.                             |
-| `commit-msg`                  | commitlint                                                                                                                                        | Commit message is not Conventional Commits. |
-| `pre-push`                    | `rush change --verify`, impacted build and test, typecheck, `audit-ci`, license check, Opengrep, Checkov when infra changed                       | Any step fails.                             |
-| `post-checkout`, `post-merge` | Lockfile changed                                                                                                                                  | Never blocks. Prints `rush install`.        |
+| Hook                          | Check                                                                                                                                                                                                                                                     | Blocks when                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `pre-commit`                  | `.env` file block, conflict markers, the 1 MB limit and gitleaks on staged changes. Then `node scripts/gates/anti-skip.mjs --staged`. Then a warning for staged gate files (`scripts/gates/gate-file-notice.mjs`). Then lint-staged: Prettier and ESLint. | Any step fails. The gate-file warning never blocks. |
+| `commit-msg`                  | commitlint                                                                                                                                                                                                                                                | Commit message is not Conventional Commits.         |
+| `pre-push`                    | Local gate runner `scripts/gates/local-gates.sh`. The steps are in section 4.3.1.                                                                                                                                                                         | Any step fails. A push rule in section 4.3.1 fails. |
+| `post-checkout`, `post-merge` | Lockfile changed                                                                                                                                                                                                                                          | Never blocks. Prints `rush install`.                |
+
+Markdown is not in lint-staged. A Markdown format error shows at push.
 
 Git hooks install on `rush install`. See `docs/onboarding.md`.
 
+### 4.3.1 Local gate runner (`rush gates`)
+
+Two callers run the local gate runner, `scripts/gates/local-gates.sh`:
+
+- `node common/scripts/install-run-rush.js gates`. This is the Rush global command `gates`.
+- `common/git-hooks/pre-push`.
+
+Each step prints `gates: RUN`, `gates: PASS`, `gates: FAIL`, or `gates: SKIP <step> (<reason>)`. The runner stops at the first failure.
+
+**Steps.** The steps run in this order.
+
+| Step | Check                                                                          | Runs when                                                                                                                                                                 |
+| ---- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a    | `rush change --verify --no-fetch`                                              | Every run. SKIP only when no `origin` remote exists.                                                                                                                      |
+| b    | Node license check (`rush license-check`), from `scripts/gates/dep-checks.mjs` | `common/config/rush/pnpm-lock.yaml`, `tooling/license-allowlist.json` or `scripts/security/license-check.sh` changed since the base.                                      |
+| b    | Python and Go license checks                                                   | Run in the `_phase:lint` of `rush verify` when `uv.lock`, `go.mod` or `go.sum` changed. The runner runs them directly only when `tooling/license-allowlist.json` changed. |
+| b    | Audits: `rush audit`, pip-audit and govulncheck                                | Run only with `--audit-only` or `GATES_FULL=1`. Otherwise the runner prints a `gates: SKIP audits` line. See the audit text below.                                        |
+| c    | Opengrep on changed files (`scripts/security/opengrep-changed.sh`)             | Changed files. JS and TS rules only. Python and Go rules are backlog item `bl-opengrep-py-go`.                                                                            |
+| d    | Anti-skip scan (`scripts/gates/anti-skip.mjs --range <base>...HEAD`)           | Every run.                                                                                                                                                                |
+| e    | Gate check (`scripts/gates/check-gates.mjs`)                                   | Every run. Checks pr-size, disable-count, gate-files, test-deletion and test-location.                                                                                    |
+| f    | Gate script tests (`scripts/gates/test-impacted.mjs --base <base>`)            | Tests impacted by the change. All tests with `GATES_FULL=1`.                                                                                                              |
+| g    | Gate lint (`eslint --max-warnings 0 scripts/gates`)                            | Every run.                                                                                                                                                                |
+| h    | Prettier check (`scripts/gates/prettier-check.mjs`)                            | Changed files since the base: the lint-staged types and Markdown. All tracked files with `GATES_FULL=1`. A missing binary fails.                                          |
+| i    | `rush verify --impacted-by git:<base>`                                         | Impacted projects. The full `rush verify` runs when the base is the root commit or with `GATES_FULL=1`.                                                                   |
+| j    | cdk synth (`scripts/gates/synth-changed.mjs`)                                  | Each CDK app that changed (see below). All apps with `GATES_FULL=1`.                                                                                                      |
+| k    | Bruno coverage and Playwright coverage                                         | Last step. See section 8.                                                                                                                                                 |
+
+Step e reads its labels from the `GATE_LABELS` variable, because no PR exists locally.
+
+Step j runs a real offline `cdk synth` for every environment of each CDK app that changed. A change to any of these paths triggers it: the `bin/` folder, the `lib/` folder, `cdk.json`, `package.json` or the CDK `tsconfig` file of the app, `src/` (project apps), `packages/cdk-constructs/src/**` and `package.json`, and the Rush lock. The output goes to a temp directory. The step uses no AWS credentials.
+
+**Base commit.** The script `scripts/gates/gates-base.mjs` picks the base commit. It uses the first source that applies, in this order:
+
+1. The `GATES_BASE` environment variable.
+2. The merge base of `origin/main` and `HEAD`.
+3. The merge base of the upstream branch and `HEAD`.
+4. `.claude/state/gates-base`.
+5. The root commit.
+
+The runner prints `gates: base <sha> (<source>: <detail>)`. A bad value fails the run. The script does not try the next source.
+
+**Full run.** `GATES_FULL=1` runs every check. No check skips. Set it for a manual full run:
+
+```
+GATES_FULL=1 node common/scripts/install-run-rush.js gates
+```
+
+**Audits.** Audits do not run in a normal run. Run them with `bash scripts/gates/local-gates.sh --audit-only`, or with `GATES_FULL=1`. The planned nightly CI job calls `--audit-only` (owner decision, 2026-10-23).
+
+**Push rules.** The `pre-push` hook applies these rules:
+
+- Every pushed ref must be the checked-out commit. Otherwise the push fails with `push the checked-out commit only (git push origin HEAD:main)`.
+- Tracked files must have no uncommitted change.
+- A ref delete is allowed.
+- Push one commit at a time. check-gates counts all unpushed commits as one PR. The pr-size limit is 1000 lines.
+
+**Remote.** The `origin` remote is a local bare repository at `/Users/PrudhviGenie/Desktop/Dev/projects-monorepo.git`. The `repository.url` in `rush.json` is that path. `git push origin HEAD:main` runs the pre-push hook. `origin/main` moves only when the gates pass. A GitHub URL replaces this remote later. Run `git remote set-url origin <url>`.
+
+**Not installed.** The owner decided not to install these tools. They do not run locally:
+
+- TruffleHog: gitleaks covers secrets.
+- OSV-Scanner: audit-ci, pip-audit and govulncheck cover dependencies, nightly.
+- Checkov and cfn-lint: cdk-nag runs at `cdk synth`.
+- njsscan: `eslint-plugin-security` and Opengrep cover it.
+- dependency-cruiser: ESLint boundaries cover it.
+
+They are planned for the CI workflows (section 4.4).
+
 ### 4.4 Pull request time (required CI checks)
+
+Planned. CI is not set up yet. The local runner covers these checks where section 4.3.1 says so.
 
 | Workflow            | Checks                                                                                                                                                                                                                                                                                                                 |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -221,12 +298,16 @@ The `test-location` check of `check-gates` fails when a unit test file is outsid
 
 ### 4.5 Scheduled checks
 
+Planned. CI is not set up yet. The local runner covers these checks where section 4.3.1 says so.
+
 | Workflow        | Check                                                                                                               |
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `nightly.yml`   | Stryker mutation tests, nightly review of old code, reviewer evals in `evals/reviewer/`, outdated and audit report. |
 | `scorecard.yml` | OpenSSF Scorecard and SHA pin check, weekly.                                                                        |
 
 ### 4.6 Release time
+
+Planned. CI is not set up yet. The local runner covers these checks where section 4.3.1 says so.
 
 | Workflow       | Check                                                                                                              |
 | -------------- | ------------------------------------------------------------------------------------------------------------------ |
