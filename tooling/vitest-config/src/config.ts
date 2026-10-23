@@ -17,6 +17,11 @@ export type CreateVitestConfigOptions = {
   readonly setupFiles?: readonly string[];
   /** Extra globs excluded from coverage, for example generated code. */
   readonly coverageExclude?: readonly string[];
+  /**
+   * Time limit for each test, in milliseconds. Use it only for slow tests, for example CDK synth.
+   * When you do not set it, Vitest uses its default (5000 ms).
+   */
+  readonly testTimeout?: number;
 };
 
 const isContinuousIntegration = process.env['CI'] === 'true';
@@ -28,12 +33,14 @@ const isContinuousIntegration = process.env['CI'] === 'true';
  * @returns A Vitest config with v8 coverage and lcov output in `coverage/`.
  */
 export function createVitestConfig(options: CreateVitestConfigOptions = {}): ViteUserConfig {
-  const { environment = 'node', setupFiles = [], coverageExclude = [] } = options;
+  const { environment = 'node', setupFiles = [], coverageExclude = [], testTimeout } = options;
 
   return defineConfig({
     test: {
       environment,
       setupFiles: [...setupFiles],
+      // Only a project that sets the option gets a time limit. The others keep the Vitest default.
+      ...(testTimeout === undefined ? {} : { testTimeout }),
       // Tests live in the `test/` folder at the project root. A test elsewhere never runs, and the
       // `test-location` check of scripts/gates/check-gates.mjs fails on it.
       include: ['test/**/*.test.{ts,tsx,js,jsx}'],

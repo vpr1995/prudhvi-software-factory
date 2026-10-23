@@ -56,6 +56,17 @@ describe('createVitestConfig', () => {
     expect(config.test?.coverage?.exclude).toContain('src/generated/**');
   });
 
+  it('sets the test timeout when a project asks for one', () => {
+    expect(createVitestConfig({ testTimeout: 30_000 }).test?.testTimeout).toBe(30_000);
+  });
+
+  it('keeps the Vitest default test timeout when the option is not set', () => {
+    const test = createVitestConfig().test;
+
+    expect(test?.testTimeout).toBeUndefined();
+    expect(test).not.toHaveProperty('testTimeout');
+  });
+
   it('adds the junit reporter only in continuous integration', async () => {
     expect(createVitestConfig().test?.reporters).toContain('default');
     vi.stubEnv('CI', 'true');
