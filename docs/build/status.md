@@ -159,6 +159,7 @@ Fix these as the work continues. Tracker ids are in brackets.
 14. [`bl-envs`] Owner (2026-10-22), after Wave 3: bring a short plan first, no edits before the owner agrees. Goal: fewer environments for a personal project, for example `local` (the app runs on the Mac, `localhost:3000`, and can use cloud resources such as Cognito and DynamoDB tables) and `prod` (deployed). Environments must be plug and play: adding an environment is one config file and no code change. Today the code has `dev`, `staging` and `prod`.
 15. `dependency-cruiser` is not installed and no command runs it. Wire it in the CI chunk.
 16. `test-location` and the other check-gates checks run only in CI (not built yet). Decide if pre-push runs `test-location`.
+17. [`p-national-parks`] Owner (2026-10-22): first real project, after all local gates work. `projects/national-parks-tracker`: an interactive single page app with a map of the USA (OpenStreetMap) and a marker for each US national park. Each park shows what the park is and when the owner visited it (about half visited now). No backend: the owner edits a JSON file, and the next deploy shows the change. Bring a short plan first (data source for the park list, map library, hosting, who can see the page).
 
 ## 5. How to start Wave 3
 
