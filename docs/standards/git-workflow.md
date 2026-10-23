@@ -10,11 +10,11 @@ This document sets the rules for branches, commits, hooks, and pull requests.
 - The `<type>` is one of the types in section 2.
 - The `<short-kebab>` part uses lowercase words and hyphens. Keep it short.
 
-| Good | Bad | Why |
-|---|---|---|
-| `feat/order-export` | `Feature/OrderExport` | Use a type and lowercase kebab-case. |
-| `fix/null-user-email` | `fix_user` | Use hyphens, not underscores. |
-| `chore/bump-rush` | `my-branch` | The branch needs a type. |
+| Good                  | Bad                   | Why                                  |
+| --------------------- | --------------------- | ------------------------------------ |
+| `feat/order-export`   | `Feature/OrderExport` | Use a type and lowercase kebab-case. |
+| `fix/null-user-email` | `fix_user`            | Use hyphens, not underscores.        |
+| `chore/bump-rush`     | `my-branch`           | The branch needs a type.             |
 
 CI checks the branch name.
 
@@ -34,19 +34,19 @@ Format:
 
 Allowed types:
 
-| Type | Use for |
-|---|---|
-| `feat` | A new behavior. |
-| `fix` | A bug fix. |
-| `docs` | Documentation only. |
-| `style` | Formatting only. No logic change. |
+| Type       | Use for                                |
+| ---------- | -------------------------------------- |
+| `feat`     | A new behavior.                        |
+| `fix`      | A bug fix.                             |
+| `docs`     | Documentation only.                    |
+| `style`    | Formatting only. No logic change.      |
 | `refactor` | A code change with no behavior change. |
-| `perf` | A performance change. |
-| `test` | Tests only. |
-| `build` | Build or dependency change. |
-| `ci` | CI workflow change. |
-| `chore` | Other maintenance. |
-| `revert` | Reverts an earlier commit. |
+| `perf`     | A performance change.                  |
+| `test`     | Tests only.                            |
+| `build`    | Build or dependency change.            |
+| `ci`       | CI workflow change.                    |
+| `chore`    | Other maintenance.                     |
+| `revert`   | Reverts an earlier commit.             |
 
 The scope is the Rush project name or the project name. Examples: `sample`, `cdk-constructs`, `shared-logger`.
 
@@ -70,13 +70,13 @@ The `Co-Authored-By` footer stays in the message. Do not remove it.
 
 Git hooks install on `rush install`. Each hook calls a Rush command. CI runs the same checks.
 
-| Hook | Runs | Blocks when |
-|---|---|---|
-| `pre-commit` | lint-staged: Prettier, ESLint with `--max-warnings 0` on staged files, gitleaks on staged files, gate-file warning, large-file check (over 1 MB), merge-conflict markers, `.env*` files | Any step fails. |
-| `prepare-commit-msg` | Adds the branch ticket ID to the message, if one exists. | Never blocks. |
-| `commit-msg` | commitlint with the type list and scope rule | The message format is wrong. |
-| `pre-push` | `rush change --verify`, impacted build and tests, `rush typecheck`, `audit-ci`, license check, Opengrep on changed files, Checkov when infra changed | Any step fails. |
-| `post-checkout`, `post-merge` | Prints `run rush install` when the lockfile changed. | Never blocks. |
+| Hook                          | Runs                                                                                                                                                                                    | Blocks when                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `pre-commit`                  | lint-staged: Prettier, ESLint with `--max-warnings 0` on staged files, gitleaks on staged files, gate-file warning, large-file check (over 1 MB), merge-conflict markers, `.env*` files | Any step fails.              |
+| `prepare-commit-msg`          | Adds the branch ticket ID to the message, if one exists.                                                                                                                                | Never blocks.                |
+| `commit-msg`                  | commitlint with the type list and scope rule                                                                                                                                            | The message format is wrong. |
+| `pre-push`                    | `rush change --verify`, impacted build and tests, `rush typecheck`, `audit-ci`, license check, Opengrep on changed files, Checkov when infra changed                                    | Any step fails.              |
+| `post-checkout`, `post-merge` | Prints `run rush install` when the lockfile changed.                                                                                                                                    | Never blocks.                |
 
 Hooks install only on `rush install`. If a hook is missing, run `node common/scripts/install-run-rush.js install`.
 
@@ -117,10 +117,10 @@ Hooks come from `common/git-hooks/`. That folder is a gate file.
 
 These operations are blocked for agents. A human does them.
 
-| Operation | Why |
-|---|---|
-| Force push to any branch | Rewrites shared history. |
+| Operation                           | Why                          |
+| ----------------------------------- | ---------------------------- |
+| Force push to any branch            | Rewrites shared history.     |
 | Delete `main` or a protected branch | Removes the release history. |
-| `git reset --hard` on `main` | Loses local work. |
-| Merge a PR with failing checks | Breaks the gate. |
-| Change a branch ruleset | Changes the gate. |
+| `git reset --hard` on `main`        | Loses local work.            |
+| Merge a PR with failing checks      | Breaks the gate.             |
+| Change a branch ruleset             | Changes the gate.            |

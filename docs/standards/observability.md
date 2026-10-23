@@ -29,13 +29,13 @@ flowchart LR
 
 `@vprprudhvi/shared-telemetry` (`packages/telemetry`, planned) is the only package that imports the OpenTelemetry SDK (`@opentelemetry/sdk-*`, exporters, instrumentations). App code gets the API types from the re-exports of this package.
 
-| Export | Use |
-|---|---|
-| `initTelemetry({ serviceName })` | Start the SDK once, at process start. Sets W3C `tracecontext` and `baggage` propagators, the OTLP exporter, and the resource attributes `service.name`, `service.version`, `deployment.environment`, and `cloud.*`. |
-| `withSpan(name, fn, attributes?)` | Run `fn` in a new span. It records an exception and sets the error status when `fn` throws. It ends the span. |
-| `getTraceContext()` | Return `{ traceId, spanId, traceFlags }` of the active span. |
-| `wrapLambdaHandler(handler)` | Wrap a Lambda handler (planned). It extracts `traceparent` and `tracestate` from `event.headers` with `propagation.extract`. It runs the handler in that context. It sets `traceparent` in the response headers. It calls `forceFlush` before it returns. |
-| `@vprprudhvi/shared-telemetry/browser`: `initBrowserTelemetry()` | Browser entry (planned). It registers the `tracecontext` propagator and fetch instrumentation. It has no span exporter. Call it only when a client component calls the API. |
+| Export                                                           | Use                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `initTelemetry({ serviceName })`                                 | Start the SDK once, at process start. Sets W3C `tracecontext` and `baggage` propagators, the OTLP exporter, and the resource attributes `service.name`, `service.version`, `deployment.environment`, and `cloud.*`.                                       |
+| `withSpan(name, fn, attributes?)`                                | Run `fn` in a new span. It records an exception and sets the error status when `fn` throws. It ends the span.                                                                                                                                             |
+| `getTraceContext()`                                              | Return `{ traceId, spanId, traceFlags }` of the active span.                                                                                                                                                                                              |
+| `wrapLambdaHandler(handler)`                                     | Wrap a Lambda handler (planned). It extracts `traceparent` and `tracestate` from `event.headers` with `propagation.extract`. It runs the handler in that context. It sets `traceparent` in the response headers. It calls `forceFlush` before it returns. |
+| `@vprprudhvi/shared-telemetry/browser`: `initBrowserTelemetry()` | Browser entry (planned). It registers the `tracecontext` propagator and fetch instrumentation. It has no span exporter. Call it only when a client component calls the API.                                                                               |
 
 Rules:
 
@@ -53,15 +53,15 @@ Python uses `opentelemetry-sdk` and `opentelemetry-instrumentation-*` (for Lambd
 
 Each log line is one JSON object. TypeScript, Python, and Go use the same field names. No library emits all of these names by default. Each language needs mapping code (see below).
 
-| Field | Content |
-|---|---|
-| `trace_id` | 32 hex characters. The id of the active trace. |
-| `span_id` | 16 hex characters. The id of the active span. |
-| `trace_flags` | 2 hex characters. `01` means sampled. |
-| `service.name` | The service name from `initTelemetry`. |
-| `level` | A string: `debug`, `info`, `warn`, or `error`. Not a number. |
-| `msg` | A short fixed message. No variable data in the text. |
-| `time` | An ISO 8601 time stamp. |
+| Field          | Content                                                      |
+| -------------- | ------------------------------------------------------------ |
+| `trace_id`     | 32 hex characters. The id of the active trace.               |
+| `span_id`      | 16 hex characters. The id of the active span.                |
+| `trace_flags`  | 2 hex characters. `01` means sampled.                        |
+| `service.name` | The service name from `initTelemetry`.                       |
+| `level`        | A string: `debug`, `info`, `warn`, or `error`. Not a number. |
+| `msg`          | A short fixed message. No variable data in the text.         |
+| `time`         | An ISO 8601 time stamp.                                      |
 
 - TypeScript: `shared-logger` (pino) adds the trace fields with an OpenTelemetry mixin. It sets `messageKey` to `msg`, writes `level` as a label, uses `isoTime` for `time`, and adds `service.name` as a base field.
 - Python: each api-py part has a custom Powertools formatter. The formatter reads the active span (`trace.get_current_span()`) and writes `trace_id`, `span_id`, and `trace_flags`. It renames `message` to `msg`, `timestamp` to `time`, and `service` to `service.name`. It writes `level` in lower case. The default Powertools names (`message`, `timestamp`, `service`, `xray_trace_id`) and the `otel*` names of `opentelemetry-instrumentation-logging` do not meet this table.
@@ -93,10 +93,10 @@ Each log line is one JSON object. TypeScript, Python, and Go use the same field 
 
 ## 7. Sampling
 
-| Environment | Sampling |
-|---|---|
-| Non-prod | 100% |
-| Prod | 10%, parent-based head sampling |
+| Environment | Sampling                        |
+| ----------- | ------------------------------- |
+| Non-prod    | 100%                            |
+| Prod        | 10%, parent-based head sampling |
 
 - The sampler is parent-based. A child span follows the decision of its parent. The head sampler decides before an error occurs.
 - Error traces are not always kept. The ADOT collector in a Lambda layer runs in one execution environment. It does not see all spans of one trace. It cannot tail sample. To keep all error traces, a central collector must tail sample. That design is open and a human owns it (owner: `@vprprudhvi`).
@@ -111,13 +111,13 @@ Each log line is one JSON object. TypeScript, Python, and Go use the same field 
 - If the browser calls the API on another origin, the CORS config allows the `traceparent` and `tracestate` request headers and exposes the `traceparent` response header.
 - Environment variables:
 
-| Variable | Value |
-|---|---|
-| `OTEL_SERVICE_NAME` | The service name of the part. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | The collector endpoint. In the layer: `http://localhost:4318`. |
-| `OTEL_PROPAGATORS` | `tracecontext,baggage,xray` |
-| `OTEL_TRACES_SAMPLER` | `parentbased_traceidratio` |
-| `OTEL_TRACES_SAMPLER_ARG` | `1.0` in non-prod. `0.1` in prod. The construct reads the value from the environment config. |
+| Variable                      | Value                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------- |
+| `OTEL_SERVICE_NAME`           | The service name of the part.                                                                |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | The collector endpoint. In the layer: `http://localhost:4318`.                               |
+| `OTEL_PROPAGATORS`            | `tracecontext,baggage,xray`                                                                  |
+| `OTEL_TRACES_SAMPLER`         | `parentbased_traceidratio`                                                                   |
+| `OTEL_TRACES_SAMPLER_ARG`     | `1.0` in non-prod. `0.1` in prod. The construct reads the value from the environment config. |
 
 ## 9. Local tracing with Jaeger
 
@@ -143,19 +143,19 @@ fields @timestamp, service.name, level, msg
 
 Each rule has an enforcer. An enforcer marked "(planned)" is not active.
 
-| Gate | Rule | Enforcer |
-|---|---|---|
-| Lint | No `console`. | `no-console` in `tooling/eslint-config`. |
-| Lint | No direct `@opentelemetry/*` SDK import outside `packages/telemetry`. | `no-restricted-imports` in `tooling/eslint-config` (planned). |
-| Opengrep | A logger call has a structured object. | Rule in `tooling/opengrep` (planned). |
-| Opengrep | No PII key in a span attribute. | Rule in `tooling/opengrep` (planned). |
-| Test, TypeScript API | An incoming `traceparent` continues: the response and the log line have the same trace id. | Vitest test that calls the Lambda handler (wrapped with `wrapLambdaHandler`) with a fake HTTP API v2 event, in each api part (planned). |
-| Test, web (browser fetch) | A browser call to the API carries `traceparent`. Applies only when a client component calls the API. | Playwright spec, in each web part (planned). |
-| Test, web (server fetch) | The `lib/<resource>-client.ts` request carries `traceparent` when a span is active. | Vitest test of the lib client with a fake server, in each web part (planned). |
-| Test, Bruno | The response has a `traceparent` header. | `assert` block in the `.bru` request (planned). |
-| Test, Python | The log record has the trace id. | pytest, in each api-py part (planned). |
-| Test, Go | The log record has the trace id. | `go test`, in each api-go part (planned). |
-| CDK | Each Lambda has the ADOT layer and active tracing. | `Template.fromStack` assertion in `shared-cdk-constructs` and each infra test (planned). |
+| Gate                      | Rule                                                                                                 | Enforcer                                                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint                      | No `console`.                                                                                        | `no-console` in `tooling/eslint-config`.                                                                                                |
+| Lint                      | No direct `@opentelemetry/*` SDK import outside `packages/telemetry`.                                | `no-restricted-imports` in `tooling/eslint-config` (planned).                                                                           |
+| Opengrep                  | A logger call has a structured object.                                                               | Rule in `tooling/opengrep` (planned).                                                                                                   |
+| Opengrep                  | No PII key in a span attribute.                                                                      | Rule in `tooling/opengrep` (planned).                                                                                                   |
+| Test, TypeScript API      | An incoming `traceparent` continues: the response and the log line have the same trace id.           | Vitest test that calls the Lambda handler (wrapped with `wrapLambdaHandler`) with a fake HTTP API v2 event, in each api part (planned). |
+| Test, web (browser fetch) | A browser call to the API carries `traceparent`. Applies only when a client component calls the API. | Playwright spec, in each web part (planned).                                                                                            |
+| Test, web (server fetch)  | The `lib/<resource>-client.ts` request carries `traceparent` when a span is active.                  | Vitest test of the lib client with a fake server, in each web part (planned).                                                           |
+| Test, Bruno               | The response has a `traceparent` header.                                                             | `assert` block in the `.bru` request (planned).                                                                                         |
+| Test, Python              | The log record has the trace id.                                                                     | pytest, in each api-py part (planned).                                                                                                  |
+| Test, Go                  | The log record has the trace id.                                                                     | `go test`, in each api-go part (planned).                                                                                               |
+| CDK                       | Each Lambda has the ADOT layer and active tracing.                                                   | `Template.fromStack` assertion in `shared-cdk-constructs` and each infra test (planned).                                                |
 
 ## 12. Links
 

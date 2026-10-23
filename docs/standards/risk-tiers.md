@@ -6,11 +6,11 @@ The `risk-classify.yml` workflow runs `scripts/gates/classify-risk.mjs` on each 
 
 ## 1. Tiers and approvals
 
-| Tier | Label | Human approvals | Typical changes |
-|---|---|---|---|
-| Low | `risk:low` | 0 | Docs, copy, tests only. Additive change behind a flag. |
-| Medium | `risk:medium` | 1 | A normal code change in one project, with no high-tier path. |
-| High | `risk:high` | 2 | A high-tier path (section 2), a new dependency, or a gate file. |
+| Tier   | Label         | Human approvals | Typical changes                                                 |
+| ------ | ------------- | --------------- | --------------------------------------------------------------- |
+| Low    | `risk:low`    | 0               | Docs, copy, tests only. Additive change behind a flag.          |
+| Medium | `risk:medium` | 1               | A normal code change in one project, with no high-tier path.    |
+| High   | `risk:high`   | 2               | A high-tier path (section 2), a new dependency, or a gate file. |
 
 Single-maintainer rule: see section 3.
 
@@ -18,17 +18,17 @@ Single-maintainer rule: see section 3.
 
 A PR that changes any path below is `risk:high`.
 
-| Path or change | Why |
-|---|---|
-| Authentication and authorization code | Access control. |
-| Billing code | Money. |
-| `platform/**` | Shared AWS resources (Cognito user pool, hosted zone, certificate, SSM parameters). Always human. |
-| `projects/*/bin/**` and `projects/*/lib/**` | Cloud resources and IAM for one project. |
-| `packages/cdk-constructs/**` | Shared infrastructure. Every project uses it. |
-| `packages/**` | Shared code. A change has a wide effect. |
-| New dependency, or a change to `common/config/rush/pnpm-lock.yaml` | Supply chain. |
-| `.github/**` | CI and release controls. |
-| Gate files in `docs/standards/gates.md`, section 2.1 | Controls for all other changes. |
+| Path or change                                                     | Why                                                                                               |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Authentication and authorization code                              | Access control.                                                                                   |
+| Billing code                                                       | Money.                                                                                            |
+| `platform/**`                                                      | Shared AWS resources (Cognito user pool, hosted zone, certificate, SSM parameters). Always human. |
+| `projects/*/bin/**` and `projects/*/lib/**`                        | Cloud resources and IAM for one project.                                                          |
+| `packages/cdk-constructs/**`                                       | Shared infrastructure. Every project uses it.                                                     |
+| `packages/**`                                                      | Shared code. A change has a wide effect.                                                          |
+| New dependency, or a change to `common/config/rush/pnpm-lock.yaml` | Supply chain.                                                                                     |
+| `.github/**`                                                       | CI and release controls.                                                                          |
+| Gate files in `docs/standards/gates.md`, section 2.1               | Controls for all other changes.                                                                   |
 
 Changes to the human-reviewed documents in `docs/standards/gates.md`, section 2.2, are at least `risk:medium`. They need a CODEOWNERS approval.
 

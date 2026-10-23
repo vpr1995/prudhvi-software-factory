@@ -889,9 +889,7 @@ export function getDiscount(order: Order): number {
 ```ts
 import { err, ok, type Result } from '@vprprudhvi/shared-result';
 
-export async function getUser(
-  userId: string,
-): Promise<Result<UserProfile, UserNotFoundError>> {
+export async function getUser(userId: string): Promise<Result<UserProfile, UserNotFoundError>> {
   const row = await userRepository.findById(userId);
   if (row === undefined) {
     return err(new UserNotFoundError(userId));
@@ -1036,10 +1034,14 @@ import { db } from '../adapters/db.js';
 
 ```tsx
 // web/components/add-to-cart-button.tsx
-"use client";
+'use client';
 
 export function AddToCartButton(props: AddToCartButtonProps): React.JSX.Element {
-  return <button type="button" onClick={props.onAdd}>Add</button>;
+  return (
+    <button type="button" onClick={props.onAdd}>
+      Add
+    </button>
+  );
 }
 ```
 
@@ -1047,7 +1049,7 @@ export function AddToCartButton(props: AddToCartButtonProps): React.JSX.Element 
 
 ```tsx
 // web/app/orders/page.tsx
-"use client";
+'use client';
 
 export default function OrdersPage(): React.JSX.Element {
   return <OrderList />;
@@ -1191,11 +1193,11 @@ export function calculateTax(orderTotal: number): number {
 **Good:**
 
 ```ts
-app.withTypeProvider<ZodTypeProvider>().post(
-  '/v1/orders',
-  { schema: { body: CreateOrderSchema } },
-  async (request) => createOrder(request.body),
-);
+app
+  .withTypeProvider<ZodTypeProvider>()
+  .post('/v1/orders', { schema: { body: CreateOrderSchema } }, async (request) =>
+    createOrder(request.body),
+  );
 ```
 
 **Bad:**
