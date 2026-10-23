@@ -166,6 +166,10 @@ Fix these as the work continues. Tracker ids are in brackets.
     - Make a missing `opengrep` binary fail. Today `opengrep-changed.sh` exits 0 when the binary is missing.
     - Fix the false match of `monorepo.no-logging-secret-fields`: the regex matches `tokenCount` in `packages/logger/test/logger.test.ts:228`. The gate fails when that file changes. Narrow the regex (for example `token` only at the end of a key), with rule tests that still catch `accessToken`, `clientSecret` and `password`.
 19. [`bl-nightly-audit`] Owner (2026-10-23): build the nightly audit (`rush audit`, pip-audit, govulncheck) with CI. Until then, `rush gates` does not run audits. It prints a SKIP line, and the audit-only entry point runs them by hand.
+20. [`bl-gate-test-load`] The gate tests flake under heavy machine load (load average about 10). In the full suite, a hook step ran past the 120 s limit in `scripts/gates/lib/proc.mjs`, and `gate-integrity-hooks.test.js:206` failed with status 2. The file passed alone (17 of 17). Options: fewer test files at the same time, or a longer `proc.mjs` limit in tests only.
+21. [`bl-spawn-timeouts`] `scripts/gates/test-impacted.mjs` and the `scripts/gates/lib/*.mjs` modules that tests call in-process use `spawnSync` with no timeout. The test harness `exec` has a 180 s timeout (c0af0e7), but these calls do not.
+22. [`bl-md-lint-staged`] Owner (2026-10-23): Markdown is not in `.lintstagedrc.cjs`. A Markdown edit passes pre-commit and fails the prettier step at push. Kept as is by owner decision.
+23. [`bl-gates-base-guard`] `GATES_BASE` and `.claude/state/gates-base` move the base for every diff check, and no gate protects them. Add the state file to `gate-files.json` (with the `gates.md` docs-sync change), or drop that source now that `origin` exists.
 
 ## 5. How to start Wave 3
 
