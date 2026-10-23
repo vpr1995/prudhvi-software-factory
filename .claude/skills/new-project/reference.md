@@ -12,9 +12,9 @@ Starting points. Match the real names in `tooling/` and in `projects/sample`. Al
 - `src/api/server.ts`: `buildServer()` with `fastify-type-provider-zod`, the error handler, and the health route. Does not call `listen`.
 - Telemetry lines in this section apply only when `packages/telemetry` exists (`docs/standards/observability.md`, section 2). If it does not, skip them and list them as open items. Do not create a stub.
 - `src/api/lambda.ts`: the Lambda entry. Calls `initTelemetry({ serviceName: '<name>-api' })` from `@vprprudhvi/shared-telemetry` first, before the app is created. Then loads the app with `await import('./server.js')`. Wraps `buildServer()` with `@fastify/aws-lambda` (`awsLambdaFastify`). Exports `handler`. Wrap `handler` with `wrapLambdaHandler` when it exists (planned).
-- `src/api/lambda.test.ts`: calls `handler` with a fake HTTP API v2 event that has a `traceparent` header. Asserts the response has a `traceparent` header with the same trace id.
+- `test/api/lambda.test.ts`: calls `handler` with a fake HTTP API v2 event that has a `traceparent` header. Asserts the response has a `traceparent` header with the same trace id.
 - `src/api/routes/health/get-health.ts`: `GET /v1/health`, response `HealthSchema`.
-- `src/api/routes/health/get-health.test.ts`: `app.inject({ method: 'GET', url: '/v1/health' })`, asserts 200 and body.
+- `test/api/routes/health/get-health.test.ts`: `app.inject({ method: 'GET', url: '/v1/health' })`, asserts 200 and body.
 
 ## api-py (`src/api-py/`)
 - `pyproject.toml` (gate): ruff rules `E,F,W,I,N,UP,B,S,BLE,C4,SIM,PT,RET,ARG,PL,RUF,ANN,D`; `[tool.mypy] strict = true`; pytest `--cov-fail-under=80`; ruff `extend-exclude = ["src/*/generated"]`.

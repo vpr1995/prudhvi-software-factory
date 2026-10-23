@@ -13,14 +13,14 @@ Rules: `packages/*` never import from `projects/*`. Shared packages publish (`sh
 
 1. Ask the user what the package does and why it must be shared. Wait for the answer. If only one project needs it, stop. Suggest a project folder instead.
 2. Check the name: `ls packages/<pkg> 2>/dev/null` must print nothing.
-3. Create the folders: `mkdir -p packages/<pkg>/src`.
+3. Create the folders: `mkdir -p packages/<pkg>/src packages/<pkg>/test`.
 4. Write `packages/<pkg>/package.json` to the handoff folder (step 7). It has `_phase:*` scripts, so it counts as a gate change:
    - `name`: `@vprprudhvi/shared-<pkg>`, `version`: `0.0.0`, `type`: `module`.
    - `main`: `dist/index.js`, `types`: `dist/index.d.ts`.
    - `scripts`: `_phase:build`, `_phase:lint`, `_phase:typecheck`, `_phase:test`. The build runs `tsc -b`. The test runs `vitest run --coverage`.
    - No dependencies yet. Add them later with `rush add`, run by a human (step 9).
 5. Write `packages/<pkg>/src/index.ts`. This is the one allowed index file, at the package root.
-6. Write tests next to the source: `src/<name>.test.ts`.
+6. Write tests in `test/`. The path mirrors `src/`: `test/<name>.test.ts`. See `docs/standards/testing.md`, section 1.
 7. Write each gate file to the handoff folder `.claude/state/handoff/<pkg>/`. Use the Write tool. Use the `.txt` suffix on each file. Name each file `NN-<target path with / replaced by __>.txt`. The first line of each file is `TARGET: <path>`. The list is in "Handoff files" below.
    - `01-rush-json-entry.txt`: this entry, to add in the `projects` array of `rush.json`:
      `{ "packageName": "@vprprudhvi/shared-<pkg>", "projectFolder": "packages/<pkg>", "shouldPublish": true, "tags": ["shared"] }`

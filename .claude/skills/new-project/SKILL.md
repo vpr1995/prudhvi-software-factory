@@ -17,9 +17,9 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - `ls projects/<name> 2>/dev/null` must print nothing.
    - `grep -c '"@vprprudhvi/<name>"' rush.json` must print 0.
 3. Create the folders for the chosen parts. Do not create `bin/` or `lib/` yet. Wave 3 adds the CDK app (see `docs/guides/infra.md`) and the human reviews it.
-   - `mkdir -p projects/<name>/{src/contracts,scripts,config}`
-   - web: `mkdir -p projects/<name>/web/{app,components,lib,e2e,test}`
-   - api: `mkdir -p projects/<name>/src/api/{routes,domain,adapters}`
+   - `mkdir -p projects/<name>/{src/contracts,scripts,config,test/contracts}`
+   - web: `mkdir -p projects/<name>/web/{app,components,lib,e2e} projects/<name>/test/web`
+   - api: `mkdir -p projects/<name>/src/api/{routes,domain,adapters} projects/<name>/test/api`
    - api-py: `mkdir -p projects/<name>/src/api-py/{src,tests,scripts}`
    - api-go: `mkdir -p projects/<name>/src/api-go/{cmd,internal,scripts}`
    - any api part: `mkdir -p projects/<name>/bruno/{environments,health}`

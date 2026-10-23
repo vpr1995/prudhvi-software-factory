@@ -31,7 +31,7 @@ Rules:
    - Cognito app client: one per project. Browser clients do not generate a secret.
    - Grant access with `grantRead`, `grantWrite`, or similar. Do not write `*` in actions or resources.
 7. Read the env from `projects/<name>/lib/config/<env>.ts`. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
-8. Write `<kebab>.test.ts` next to the construct:
+8. Write the test at `projects/<name>/test/infra/constructs/<kebab>.test.ts`. The path mirrors `lib/constructs/<kebab>.ts`. See `docs/standards/testing.md`, section 1:
    - Create a stack: `new Stack(new App())`. cdk-nag 3 has no aspect. Run `new AwsSolutionsChecks().validateScope(stack)` and read `report.violations`.
    - Use `Template.fromStack(stack)` to assert resources, encryption, removal policy, runtime, log retention, and grants.
    - Assert that each Lambda has the ADOT layer and `TracingConfig` mode `Active`.

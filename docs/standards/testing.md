@@ -8,8 +8,21 @@ This document sets the test rules for all projects and packages.
 - Each new behavior has a test. Each bug fix has a test that fails before the fix.
 - Do not skip, delete, or weaken a test to make a check pass.
 - Do not lower a coverage threshold.
-- Test files sit next to the source file. The name is `<file>.test.ts` or `<file>.test.tsx`.
+- Unit test files sit in a `test/` folder at the root of the package or project. The path under `test/` mirrors the source path. The name is `<file>.test.ts` or `<file>.test.tsx`.
+- The `test-location` check in `check-gates` fails a unit test file outside `test/`. Vitest runs only `test/**`.
 - End-to-end tests sit in `e2e/` and use the name `*.spec.ts`.
+
+| Source file | Unit test file |
+|---|---|
+| `packages/<pkg>/src/a/b.ts` | `packages/<pkg>/test/a/b.test.ts` |
+| `platform/infra/lib/x.ts` | `platform/infra/test/x.test.ts` |
+| `projects/<name>/src/contracts/x.ts` | `projects/<name>/test/contracts/x.test.ts` |
+| `projects/<name>/src/api/routes/x.ts` | `projects/<name>/test/api/routes/x.test.ts` |
+| `projects/<name>/web/components/x.tsx` | `projects/<name>/test/web/components/x.test.tsx` |
+| `projects/<name>/lib/x.ts` | `projects/<name>/test/infra/x.test.ts` |
+| `projects/<name>/bin/app.ts` | `projects/<name>/test/infra/bin/app.test.ts` |
+
+The web test setup file is `projects/<name>/test/web/setup.ts`. Python and Go tests keep their own locations.
 
 ## 2. Coverage gates
 

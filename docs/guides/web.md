@@ -25,7 +25,7 @@ Part: `projects/<name>/web`. Package: `@vprprudhvi/<name>` (one package for the 
 
 ## Tests
 
-- Component tests: Testing Library, next to each component. Query by role and name.
+- Component tests: Testing Library, in `test/web/components/`. The test path mirrors the component path. Query by role and name. The setup file is `test/web/setup.ts`.
 - Each `app/**/page.tsx` route has a Playwright spec that calls `page.goto('<route>')` with the literal route and runs an axe check. The `playwright-coverage` gate fails without it.
 - Run `rush e2e --only @vprprudhvi/<name>`. The e2e phase runs Bruno for each API part, then builds the web app, starts `next start`, and runs Playwright.
 - Rules: `docs/standards/testing.md`, sections 3.2, 10, 11.

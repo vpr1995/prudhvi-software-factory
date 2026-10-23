@@ -277,13 +277,13 @@ src/domain/get_user.ts
 
 ### A.11 Test files
 
-**Rule:** Place each unit test next to its source file as `<file>.test.ts` or `<file>.test.tsx`. Place end-to-end tests in `e2e/*.spec.ts`.
+**Rule:** Place each unit test in a `test/` folder at the root of the package or project. The path under `test/` mirrors the source path, and the name is `<file>.test.ts` or `<file>.test.tsx`. Place end-to-end tests in `e2e/*.spec.ts`. See [testing.md](testing.md), section 1.
 
 **Good:**
 
 ```text
 src/domain/get-user.ts
-src/domain/get-user.test.ts
+test/domain/get-user.test.ts
 web/e2e/order-page.spec.ts
 ```
 
@@ -291,10 +291,11 @@ web/e2e/order-page.spec.ts
 
 ```text
 src/domain/getUser.ts
+src/domain/get-user.test.ts
 src/domain/__tests__/getUser.js
 ```
 
-**Enforcer:** The vitest `include` glob in `tooling/vitest-config`, and `scripts/gates/check-gates.mjs`.
+**Enforcer:** The `test-location` check in `check-gates` (`scripts/gates/check-gates.mjs`), and the vitest `include` glob `test/**` in `tooling/vitest-config`.
 
 ### A.12 Environment variables
 

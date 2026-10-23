@@ -18,7 +18,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - A package serves at least two projects. If only one project needs it, put the code in that project.
 - Each package has one `index.ts` at the package root. No other barrel files.
 - Each package builds to `dist` with `tsc -b`. `main` is `dist/index.js` and `types` is `dist/index.d.ts`.
-- Each package has tests next to the source. Coverage gates apply.
+- Each package has unit tests in `test/` at the package root. The path under `test/` mirrors `src/`. Coverage gates apply. See [testing.md](../docs/standards/testing.md), section 1.
 - Shared packages publish (`shouldPublish: true` in `rush.json`). Do not set `"private": true`.
 - Each change needs a Rush change file. Run `rush change --bulk --bump-type patch --message "<what changed>"`. Then run `rush change --verify`.
 - Only `packages/telemetry` (planned) imports the OpenTelemetry SDK. Only `packages/logger` (planned) configures the logger. See [observability.md](../docs/standards/observability.md).

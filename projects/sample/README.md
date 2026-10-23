@@ -16,6 +16,7 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
 | `bruno/` | One Bruno collection. It documents and tests every API route. The same collection runs against the three APIs. |
 | `scripts/` | Helpers for the phases: `phase.mjs` (runs a phase for every part), `emit-openapi.mjs` (writes the OpenAPI document), `e2e.mjs` (starts an API and runs Bruno). |
 | `config/` | The Rush settings (`rush-project.json`): which folders are build outputs. |
+| `test/` | The unit tests. The path under `test/` mirrors the source path. `test/web/setup.ts` sets up the web tests. |
 | `dist/` | Build output. It is not in git. `dist/openapi.json` is the OpenAPI 3.1 document that the build emits from `src/contracts`. |
 | `bin/`, `lib/` | The CDK app and stacks. They do not exist yet. Wave 3 adds them. |
 
@@ -24,7 +25,7 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
 - `tsconfig.json`: type check of `src/` and the config files.
 - `tsconfig.build.json`: build of `src/contracts` and `src/api` to `dist/`.
 - `eslint.config.js`: one ESLint config. `web/**` gets the Next.js rules. The other folders get the Node.js rules.
-- `vitest.config.ts`: one Vitest config with two projects. `node` runs `src/**`. `web` runs `web/**` in jsdom.
+- `vitest.config.ts`: one Vitest config with two projects. `node` runs `test/api/**` and `test/contracts/**`. `web` runs `test/web/**` in jsdom.
 - `playwright.config.ts`: Playwright for `web/e2e`.
 
 ## Imports
