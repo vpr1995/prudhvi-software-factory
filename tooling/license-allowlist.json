@@ -9,7 +9,9 @@
     "0BSD",
     "BlueOak-1.0.0",
     "CC0-1.0",
-    "Unlicense"
+    "Unlicense",
+    "MIT-0",
+    "PSF-2.0"
   ],
   "tooling": [
     "MPL-2.0",
@@ -37,11 +39,24 @@
       "decided": "2026-10-22",
       "reason": "spdx-exceptions (license-parsing data package, transitive dependency of lint tooling via tooling/eslint-config)."
     },
+    "MIT-0 (runtime)": {
+      "decided": "2026-10-22",
+      "reason": "Allowed for runtime dependencies, approved by the repo owner. MIT-0 is MIT without the attribution duty. It is used by aws-lambda-powertools (api-py), which reports 'MIT License; MIT No Attribution License (MIT-0)'."
+    },
+    "PSF-2.0 (runtime)": {
+      "decided": "2026-10-22",
+      "reason": "Allowed for runtime dependencies, approved by the repo owner. PSF-2.0 is a permissive license. It is used by typing_extensions (api-py, via aws-lambda-powertools and pydantic)."
+    },
     "caniuse-lite@1": {
       "decided": "2026-10-22",
       "expires": "2027-10-22",
       "reason": "Named runtime exception, approved by the repo owner. CC-BY-4.0 browser-support data (no code). Transitive production dependency of next (via browserslist) in every Next.js web part. Attribution only. Only major version 1 is excluded; a new major needs a new review."
+    },
+    "certifi@2026": {
+      "decided": "2026-10-22",
+      "expires": "2027-10-22",
+      "reason": "Named runtime exception, approved by the repo owner. MPL-2.0 license of the certifi CA bundle, a transitive production dependency of the Python api (api-py). The file-level copyleft of MPL-2.0 covers only the certifi files, which the project does not change. Only major version 2026 is excluded (certifi uses year-based versions); a new major needs a new review."
     }
   },
-  "excludePackages": ["caniuse-lite@1"]
+  "excludePackages": ["caniuse-lite@1", "certifi@2026"]
 }

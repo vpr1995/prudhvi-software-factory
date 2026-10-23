@@ -32,6 +32,16 @@ const PHASES = {
     { part: 'typescript and web (eslint)', command: 'eslint --max-warnings 0 .' },
     { part: 'python (src/api-py)', directory: 'src/api-py', command: 'bash scripts/lint.sh' },
     { part: 'go (src/api-go)', directory: 'src/api-go', command: 'bash scripts/lint.sh' },
+    {
+      part: 'python licenses (src/api-py)',
+      directory: 'src/api-py',
+      command: 'bash scripts/license-check.sh',
+    },
+    {
+      part: 'go licenses (src/api-go)',
+      directory: 'src/api-go',
+      command: 'bash scripts/license-check.sh',
+    },
   ],
   typecheck: [
     { part: 'typescript (src, vitest config)', command: 'tsc -p tsconfig.json --noEmit' },

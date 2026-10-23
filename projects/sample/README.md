@@ -43,7 +43,7 @@ Rush runs each phase through the `_phase:*` script of `package.json`. Each scrip
 | Phase | TypeScript and web | Python | Go |
 |---|---|---|---|
 | `build` | `tsc` builds `dist/`, then `dist/openapi.json`. `next build` builds `web/.next`. | `compileall` | `go build` writes `dist/api-go/sample-api` |
-| `lint` | `eslint --max-warnings 0` | `ruff`, `bandit` | `gofumpt`, `golangci-lint` |
+| `lint` | `eslint --max-warnings 0` | `ruff`, `bandit`, then `pip-licenses` against the license allowlist | `gofumpt`, `golangci-lint`, then `go-licenses` against the license allowlist |
 | `typecheck` | `tsc --noEmit`, `next typegen` and `tsc` for `web` | `mypy --strict` | `go vet`, `go build` |
 | `test` | `vitest run --coverage` (lines, statements, functions 80, branches 75) | drift check, then `pytest` (80) | drift check, then `go test -race` (80) |
 | `e2e` | Bruno against the TypeScript API. Playwright and axe against the web app. | Bruno against the Python API | Bruno against the Go API |

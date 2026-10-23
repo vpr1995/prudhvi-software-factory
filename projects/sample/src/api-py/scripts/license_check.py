@@ -7,7 +7,8 @@ The policy is the same as scripts/security/license-check.sh for JavaScript:
 
 ``pip-licenses`` reports the license text from the package metadata, not an SPDX id.
 This script maps the known texts to SPDX ids and fails on any text it does not know.
-An entry of ``excludePackages`` (``name@version``) skips one package.
+An entry of ``excludePackages`` skips one package. It is ``name@version`` or ``name@major``,
+as in the JavaScript check.
 """
 
 import json
@@ -112,7 +113,8 @@ def find_violations(
     messages = []
     for package in packages:
         name, version, text = package["Name"], package["Version"], package["License"]
-        if f"{normalize_name(name)}@{version}".lower() in excluded:
+        key = f"{normalize_name(name)}@"
+        if {f"{key}{version}".lower(), f"{key}{version.split('.')[0]}".lower()} & excluded:
             continue
         if name.startswith("sample-api-py"):
             continue
