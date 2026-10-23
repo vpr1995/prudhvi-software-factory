@@ -57,20 +57,36 @@ export function toHookInput(value) {
 }
 
 /**
- * Runs a program and returns text output.
+ * The longest time that one child process of a test can run. The slowest normal call (a full
+ * stop-gate.sh run) took about 16 s in a full gate suite run, so this limit is more than 10 times
+ * that. A stalled child then fails its test, and the suite does not hang.
+ */
+export const EXEC_TIMEOUT_MS = 180_000;
+
+/**
+ * Runs a program and returns text output. It throws when the program runs longer than the timeout,
+ * so a stalled child cannot pass a test that only checks for a non-zero status.
  *
  * @param {string} program - Program.
  * @param {string[]} args - Arguments.
- * @param {{ cwd?: string, input?: string, env?: Record<string, string> }} [options] - Options.
+ * @param {{ cwd?: string, input?: string, env?: Record<string, string>, timeout?: number }} [options] - Options. Default timeout: EXEC_TIMEOUT_MS.
  * @returns {{ status: number, stdout: string, stderr: string }} Result.
  */
 export function exec(program, args, options = {}) {
+  const timeout = options.timeout ?? EXEC_TIMEOUT_MS;
   const result = spawnSync(program, args, {
     cwd: options.cwd,
     input: options.input,
     encoding: 'utf8',
     env: environmentWith(options.env),
+    timeout,
+    killSignal: 'SIGKILL',
   });
+  if (/** @type {NodeJS.ErrnoException | undefined} */ (result.error)?.code === 'ETIMEDOUT') {
+    throw new Error(
+      `exec: ${[program, ...args].join(' ')} timed out after ${timeout} ms\n${result.stderr ?? ''}`,
+    );
+  }
   return { status: result.status ?? -1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }
 
@@ -114,8 +130,8 @@ export function makeRepository(extraFiles = {}) {
  *
  * @param {string} name - Hook name without `.sh`.
  * @param {Record<string, unknown> | string | null} payload - JSON for stdin (a string is sent as is, null sends nothing).
- * @param {{ root: string, args?: string[], env?: Record<string, string> }} options - The repo root and extras.
- * @returns {{ status: number, stdout: string, stderr: string }} Result.
+ * @param {{ root: string, args?: string[], env?: Record<string, string>, timeout?: number }} options - The repo root and extras. Default timeout: EXEC_TIMEOUT_MS.
+ * @returns {{ status: number, stdout: string, stderr: string }} Result. It throws on a timeout.
  */
 export function callHook(name, payload, options) {
   const input =
@@ -128,6 +144,7 @@ export function callHook(name, payload, options) {
     cwd: options.root,
     input,
     env: { CLAUDE_PROJECT_DIR: options.root, ...options.env },
+    timeout: options.timeout,
   });
 }
 
