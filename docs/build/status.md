@@ -62,6 +62,8 @@ Phase ids: `plan`, `w1`, `w2`, `w3`, `w4`.
 - One agent with many serial tasks is slow. Split the tasks when the files do not overlap.
 - Keep review rounds bounded. Give skeptics a fixed list of pass criteria, not an open bug hunt.
 - Run the anti-skip scan over the full range before a pause. It found a `# noqa` comment that an agent added.
+- The root `.gitignore` ignores every `lib/` folder. A new source folder named `lib` needs an un-ignore line. Before a commit, run `git status --short --untracked-files=all <folder>` and `git check-ignore -v` on new folders. Verify passes on files that git does not track.
+- Work in small chunks: one agent builds one chunk, the orchestrator re-runs the check and commits, then sends the next chunk.
 
 ## 3. What is done
 
