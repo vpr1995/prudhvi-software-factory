@@ -29,8 +29,9 @@ function bru(method, url, body = 'assert {\n  res.status: eq 200\n}\n') {
 }
 
 const API_FILES = {
-  'projects/p/api/package.json': '{"name":"@t/p-api"}\n',
-  'projects/p/contracts/dist/openapi.json': OPENAPI,
+  'projects/p/package.json': '{"name":"@vprprudhvi/p"}\n',
+  'projects/p/src/api/lambda.ts': 'export const handler = 1;\n',
+  'projects/p/dist/openapi.json': OPENAPI,
   'projects/p/bruno/bruno.json': '{"name":"p"}\n',
   'projects/p/bruno/environments/local.bru': 'vars {\n  baseUrl: http://localhost:3000\n}\n',
   'projects/p/bruno/health/get.bru': bru('get', '{{baseUrl}}/v1/health'),
@@ -66,7 +67,7 @@ describe('bruno-coverage', () => {
     assert.equal(result.status, 1);
     assert.match(
       result.stderr,
-      /projects\/p\/contracts\/dist\/openapi\.json:1: no \.bru file .* POST \/v1\/notes/,
+      /projects\/p\/dist\/openapi\.json:1: no \.bru file .* POST \/v1\/notes/,
     );
   });
 
@@ -117,19 +118,20 @@ describe('bruno-coverage', () => {
   });
 
   it('fails with a hint when the OpenAPI document is missing', () => {
-    repository.git('rm', '-q', '-f', 'projects/p/contracts/dist/openapi.json');
+    repository.git('rm', '-q', '-f', 'projects/p/dist/openapi.json');
     const result = run();
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /Build the contracts first/);
+    assert.match(result.stderr, /Build the project first/);
   });
 
   it('skips projects with no api part', () => {
-    repository.write('projects/web-only/web/package.json', '{}\n');
+    repository.write('projects/web-only/package.json', '{}\n');
+    repository.write('projects/web-only/web/app/page.tsx', 'export default 1;\n');
     assert.match(run().stdout, /1 project\(s\) checked/);
   });
 
   it('fails when the contracts declare no routes', () => {
-    repository.write('projects/p/contracts/dist/openapi.json', '{"openapi":"3.1.0","paths":{}}\n');
+    repository.write('projects/p/dist/openapi.json', '{"openapi":"3.1.0","paths":{}}\n');
     const result = run();
     assert.equal(result.status, 1);
     assert.match(result.stderr, /declare no routes/);
@@ -178,6 +180,42 @@ describe('bruno-coverage', () => {
     assert.match(result.stderr, /ignores "notes"/);
   });
 
+  it('reads the routes from the project dist/openapi.json, not from a contracts folder', () => {
+    repository.git('rm', '-q', '-f', 'projects/p/dist/openapi.json');
+    repository.write('projects/p/src/contracts/dist/openapi.json', OPENAPI);
+    const result = run();
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /projects\/p\/dist\/openapi\.json:1: no dist\/openapi\.json found/);
+    assert.match(result.stderr, /build --to @vprprudhvi\/p\b/);
+  });
+
+  for (const [part, manifest] of [
+    ['api-py', 'pyproject.toml'],
+    ['api-go', 'go.mod'],
+  ]) {
+    it(`checks a project whose only API part is src/${part}`, () => {
+      repository.git('rm', '-q', '-r', '-f', 'projects/p/src/api');
+      repository.write(`projects/p/src/${part}/${manifest}`, 'x\n');
+      assert.match(run().stdout, /pass \(1 project\(s\) checked\)/);
+      repository.git('rm', '-q', '-f', 'projects/p/bruno/notes/create.bru');
+      assert.equal(run().status, 1);
+    });
+  }
+
+  it('does not count a project that has only contracts or only a CDK app', () => {
+    repository.write('projects/c/package.json', '{}\n');
+    repository.write('projects/c/src/contracts/index.ts', 'export {};\n');
+    repository.write('projects/i/package.json', '{}\n');
+    repository.write('projects/i/lib/stack.ts', 'export {};\n');
+    assert.match(run().stdout, /pass \(1 project\(s\) checked\)/);
+  });
+
+  it('ignores a folder in the old layout (no package.json at the project folder)', () => {
+    repository.write('projects/old/api/package.json', '{}\n');
+    repository.write('projects/old/contracts/dist/openapi.json', OPENAPI);
+    assert.match(run().stdout, /pass \(1 project\(s\) checked\)/);
+  });
+
   it('shows help and rejects bad arguments', () => {
     const help = exec('node', [BRUNO, '--help']);
     assert.equal(help.status, 0);
@@ -190,15 +228,14 @@ const SPEC = (route, axe = true) =>
   `import { expect, test } from '@playwright/test';\nimport AxeBuilder from '@axe-core/playwright';\n\ntest('${route}', async ({ page }) => {\n  await page.goto('${route}');\n${axe ? '  const results = await new AxeBuilder({ page }).analyze();\n  expect(results.violations).toEqual([]);\n' : ''}});\n`;
 
 const WEB_FILES = {
-  'projects/p/web/package.json': '{"name":"@t/p-web"}\n',
-  'projects/p/web/src/app/page.tsx': 'export default function Page() { return null; }\n',
-  'projects/p/web/src/app/notes/page.tsx': 'export default function Page() { return null; }\n',
-  'projects/p/web/src/app/notes/[id]/page.tsx': 'export default function Page() { return null; }\n',
-  'projects/p/web/src/app/(marketing)/about/page.tsx':
+  'projects/p/package.json': '{"name":"@vprprudhvi/p"}\n',
+  'projects/p/web/app/page.tsx': 'export default function Page() { return null; }\n',
+  'projects/p/web/app/notes/page.tsx': 'export default function Page() { return null; }\n',
+  'projects/p/web/app/notes/[id]/page.tsx': 'export default function Page() { return null; }\n',
+  'projects/p/web/app/(marketing)/about/page.tsx':
     'export default function Page() { return null; }\n',
-  'projects/p/web/src/app/_private/page.tsx': 'export default function Page() { return null; }\n',
-  'projects/p/web/src/app/@modal/login/page.tsx':
-    'export default function Page() { return null; }\n',
+  'projects/p/web/app/_private/page.tsx': 'export default function Page() { return null; }\n',
+  'projects/p/web/app/@modal/login/page.tsx': 'export default function Page() { return null; }\n',
   'projects/p/web/e2e/home.spec.ts': SPEC('/'),
   'projects/p/web/e2e/notes.spec.ts': `${SPEC('/notes')}\ntest('detail', async ({ page }) => {\n  await page.goto(\`/notes/\${1}?x=1\`);\n  const results = await new AxeBuilder({ page }).analyze();\n  expect(results.violations).toEqual([]);\n});\n`,
   'projects/p/web/e2e/about.spec.ts': SPEC('/about'),
@@ -223,14 +260,14 @@ describe('playwright-coverage', () => {
 
   it('fails for a page with no spec', () => {
     repository.write(
-      'projects/p/web/src/app/settings/page.tsx',
+      'projects/p/web/app/settings/page.tsx',
       'export default function Page() { return null; }\n',
     );
     const result = run();
     assert.equal(result.status, 1);
     assert.match(
       result.stderr,
-      /projects\/p\/web\/src\/app\/settings\/page\.tsx:1: no Playwright spec calls page\.goto\('\/settings'\)/,
+      /projects\/p\/web\/app\/settings\/page\.tsx:1: no Playwright spec calls page\.goto\('\/settings'\)/,
     );
   });
 
@@ -277,7 +314,7 @@ describe('playwright-coverage', () => {
 
   it('matches catch-all routes', () => {
     repository.write(
-      'projects/p/web/src/app/docs/[...slug]/page.tsx',
+      'projects/p/web/app/docs/[...slug]/page.tsx',
       'export default function Page() { return null; }\n',
     );
     assert.equal(run().status, 1);
@@ -325,10 +362,46 @@ describe('playwright-coverage', () => {
   });
 
   it('fails when the web part has no page route at all', () => {
-    repository.git('rm', '-q', '-r', '-f', 'projects/p/web/src/app');
+    repository.git('rm', '-q', '-r', '-f', 'projects/p/web/app');
     const result = run();
     assert.equal(result.status, 1);
     assert.match(result.stderr, /no page route/);
+  });
+
+  it('still scans pages in web/src/app', () => {
+    repository.write(
+      'projects/p/web/src/app/settings/page.tsx',
+      'export default function Page() { return null; }\n',
+    );
+    const result = run();
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /web\/src\/app\/settings\/page\.tsx:1: no Playwright spec/);
+  });
+
+  it('checks a project that has a web folder, and fails when web/e2e is missing', () => {
+    repository.write('projects/q/package.json', '{}\n');
+    repository.write(
+      'projects/q/web/app/page.tsx',
+      'export default function Page() { return null; }\n',
+    );
+    const result = run();
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /projects\/q\/web\/e2e:1: the web part has no e2e folder/);
+  });
+
+  it('does not count a project with no web folder', () => {
+    repository.write('projects/api-only/package.json', '{}\n');
+    repository.write('projects/api-only/src/api/lambda.ts', 'export {};\n');
+    assert.match(run().stdout, /pass \(1 web project\(s\) checked\)/);
+  });
+
+  it('ignores a folder in the old layout (web/package.json, no package.json at the project folder)', () => {
+    repository.write('projects/old/web/package.json', '{}\n');
+    repository.write(
+      'projects/old/web/app/page.tsx',
+      'export default function Page() { return null; }\n',
+    );
+    assert.match(run().stdout, /pass \(1 web project\(s\) checked\)/);
   });
 
   it('shows help and rejects bad arguments', () => {

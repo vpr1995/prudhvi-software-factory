@@ -85,7 +85,7 @@ describe('gate integrity in the hooks', () => {
       repository.write('.gitignore', 'common/temp/\n.claude/state/\nnode_modules/\npytest.toml\n');
       commit('ignore pytest.toml');
       repository.write('.github/workflows/new.yml', 'name: x\n');
-      repository.write('projects/x/api-py/pytest.toml', '[pytest]\n');
+      repository.write('projects/x/src/api-py/pytest.toml', '[pytest]\n');
       repository.write(
         PACKAGE,
         `${JSON.stringify({ name: '@t/a', version: '1.0.0', scripts: { '_phase:test': 'vitest --version', build: 'tsc' } }, null, 2)}\n`,
@@ -94,7 +94,7 @@ describe('gate integrity in the hooks', () => {
       assert.equal(result.status, 2, result.stdout);
       for (const name of [
         '.github/workflows/new.yml',
-        'projects/x/api-py/pytest.toml',
+        'projects/x/src/api-py/pytest.toml',
         PACKAGE,
         '_phase:test changed',
       ]) {

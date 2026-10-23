@@ -40,7 +40,7 @@ describe('gate-integrity', () => {
       [GATE]: GATE_TEXT,
       '.claude/hooks/guard-bash.sh': '#!/usr/bin/env bash\n',
       'tooling/eslint-config/index.js': 'export default [];\n',
-      'projects/x/api-py/pyproject.toml': '[tool.pytest]\n',
+      'projects/x/src/api-py/pyproject.toml': '[tool.pytest]\n',
       'src/app.mjs': 'export const b = 2;\n',
       [PACKAGE]: PACKAGE_TEXT,
     });
@@ -244,33 +244,33 @@ describe('gate-integrity', () => {
     it('reports a gitignored pytest.toml that no git command lists', () => {
       repository.write('.gitignore', 'common/temp/\n.claude/state/\nnode_modules/\npytest.toml\n');
       commit('ignore pytest.toml');
-      repository.write('projects/x/api-py/pytest.toml', '[pytest]\naddopts = ""\n');
+      repository.write('projects/x/src/api-py/pytest.toml', '[pytest]\naddopts = ""\n');
       assert.equal(repository.git('status', '--porcelain').trim(), '', 'git must not list it');
       assert.equal(
-        repository.git('check-ignore', 'projects/x/api-py/pytest.toml').trim(),
-        'projects/x/api-py/pytest.toml',
+        repository.git('check-ignore', 'projects/x/src/api-py/pytest.toml').trim(),
+        'projects/x/src/api-py/pytest.toml',
       );
       assert.deepEqual(
         reported().map((change) => [change.file, change.change]),
-        [['projects/x/api-py/pytest.toml', 'new']],
+        [['projects/x/src/api-py/pytest.toml', 'new']],
       );
     });
 
     it('reports a file that .git/info/exclude hides', () => {
       fs.appendFileSync(path.join(repository.root, '.git/info/exclude'), 'ruff.toml\n');
-      repository.write('projects/x/api-py/ruff.toml', 'select = []\n');
+      repository.write('projects/x/src/api-py/ruff.toml', 'select = []\n');
       assert.equal(repository.git('status', '--porcelain').trim(), '');
-      assert.deepEqual(files(reported()), ['projects/x/api-py/ruff.toml']);
+      assert.deepEqual(files(reported()), ['projects/x/src/api-py/ruff.toml']);
     });
 
     it('reports a new .gitignore, a new pytest.toml and a new scripts/*.py (gate globs)', () => {
       repository.write('projects/x/.gitignore', '*\n');
       repository.write('projects/x/pytest.toml', '[pytest]\n');
-      repository.write('projects/x/api-py/scripts/test.py', 'print(1)\n');
+      repository.write('projects/x/src/api-py/scripts/test.py', 'print(1)\n');
       assert.deepEqual(files(reported()), [
         'projects/x/.gitignore',
-        'projects/x/api-py/scripts/test.py',
         'projects/x/pytest.toml',
+        'projects/x/src/api-py/scripts/test.py',
       ]);
     });
 

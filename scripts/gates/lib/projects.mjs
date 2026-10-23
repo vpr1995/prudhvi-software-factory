@@ -1,12 +1,70 @@
 import path from 'node:path';
 
-import { exists, readText } from './fs-io.mjs';
+import { exists, listDirectory, pathKind, readText } from './fs-io.mjs';
 
 /** @typedef {{ name: string, folder: string }} RushProject */
 
 const MANIFESTS = ['package.json', 'pyproject.toml', 'go.mod'];
-const INFRA_FOLDER = /^(projects\/[^/]+\/infra|platform\/infra)(?:\/|$)/;
+const PROJECT_INFRA = /^(projects\/[^/]+)\/(?:(?:bin|lib)\/|cdk\.json$)/;
+const PLATFORM_INFRA = /^(platform\/infra)(?:\/|$)/;
 const FULL_VERIFY_PATHS = [/^rush\.json$/, /^common\/config\/rush\//, /^common\/autoinstallers\//];
+
+/**
+ * The parts of a project and the folders that mark each one (from the project folder).
+ * A project is `projects/<name>/package.json`. The `infra` part is the CDK app: `bin` or `lib`.
+ */
+export const PROJECT_PARTS = Object.freeze({
+  contracts: ['src/contracts'],
+  api: ['src/api'],
+  'api-py': ['src/api-py'],
+  'api-go': ['src/api-go'],
+  web: ['web'],
+  infra: ['bin', 'lib'],
+});
+
+/**
+ * Lists the projects: the folders under `projects/` that have a package.json.
+ *
+ * @param {string} root - Repo root.
+ * @returns {string[]} Project folder names, sorted.
+ */
+export function listProjects(root) {
+  return listDirectory(path.join(root, 'projects'))
+    .filter((entry) => entry.isDirectory)
+    .map((entry) => entry.name)
+    .filter((name) => exists(path.join(root, 'projects', name, 'package.json')))
+    .sort();
+}
+
+/**
+ * Detects the parts of a project by folder.
+ *
+ * @param {string} root - Repo root.
+ * @param {string} project - Project folder name under projects/.
+ * @returns {string[]} Part names (keys of PROJECT_PARTS) that the project has. Empty when it is not a project.
+ */
+export function projectParts(root, project) {
+  const base = path.join(root, 'projects', project);
+  if (!exists(path.join(base, 'package.json'))) {
+    return [];
+  }
+  return Object.entries(PROJECT_PARTS)
+    .filter(([, folders]) => folders.some((folder) => pathKind(path.join(base, folder)) === 'dir'))
+    .map(([part]) => part);
+}
+
+/**
+ * Lists the projects that have at least one of the given parts.
+ *
+ * @param {string} root - Repo root.
+ * @param {string[]} parts - Part names.
+ * @returns {string[]} Project folder names.
+ */
+export function projectsWithParts(root, parts) {
+  return listProjects(root).filter((name) =>
+    projectParts(root, name).some((part) => parts.includes(part)),
+  );
+}
 
 /**
  * Finds the end of a string literal.
@@ -123,7 +181,7 @@ export function impactOf(root, changedPaths) {
     if (owner !== null) {
       names.add(owner.name);
     }
-    const infraMatch = INFRA_FOLDER.exec(changed);
+    const infraMatch = PROJECT_INFRA.exec(changed) ?? PLATFORM_INFRA.exec(changed);
     if (infraMatch !== null) {
       infra.add(infraMatch[1] ?? '');
     }

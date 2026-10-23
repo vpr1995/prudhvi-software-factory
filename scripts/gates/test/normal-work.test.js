@@ -18,7 +18,7 @@ const COMMANDS = [
   'git commit -m "feat(api): add route"',
   'git commit -m "fix(web): handle #12" -m "body text"',
   'git add -A',
-  'git add projects/sample-fullstack/api/src/routes/notes.ts',
+  'git add projects/sample/src/api/routes/notes.ts',
   'git status',
   'git status --short',
   'git diff',
@@ -42,17 +42,17 @@ const COMMANDS = [
   `${RUSH} install`,
   `${RUSH} update`,
   // project tools
-  'cd projects/sample-fullstack/api && npx vitest run',
-  'cd projects/sample-fullstack/api && npx vitest run --coverage',
-  'cd projects/sample-fullstack/api-go && go test ./...',
-  'cd projects/sample-fullstack/api-go && go vet ./... && go build ./...',
-  'cd projects/sample-fullstack/api-py && uv run pytest',
-  'cd projects/sample-fullstack/api-py && uv run --locked mypy',
-  'cd projects/sample-fullstack/bruno && bru run --env local',
-  'bru run projects/sample-fullstack/bruno --env local',
-  'npx eslint --max-warnings 0 projects/sample-fullstack/api/src',
-  'npx prettier --check projects/sample-fullstack/api/src',
-  'node --test projects/sample-fullstack/contracts/test',
+  'cd projects/sample && npx vitest run',
+  'cd projects/sample && npx vitest run --coverage',
+  'cd projects/sample/src/api-go && go test ./...',
+  'cd projects/sample/src/api-go && go vet ./... && go build ./...',
+  'cd projects/sample/src/api-py && uv run pytest',
+  'cd projects/sample/src/api-py && uv run --locked mypy',
+  'cd projects/sample/bruno && bru run --env local',
+  'bru run projects/sample/bruno --env local',
+  'npx eslint --max-warnings 0 projects/sample/src/api',
+  'npx prettier --check projects/sample/src/api',
+  'node --test projects/sample/src/contracts/test',
   'gh pr create --fill',
   'gh pr view 1',
   // the verify skill
@@ -75,54 +75,48 @@ const COMMANDS = [
 ];
 
 const SOURCE_FILES = [
+  ['projects/sample/src/api/routes/notes.ts', "export const notes = (): string[] => ['a'];\n"],
   [
-    'projects/sample-fullstack/api/src/routes/notes.ts',
-    "export const notes = (): string[] => ['a'];\n",
-  ],
-  [
-    'projects/sample-fullstack/api/src/routes/notes.test.ts',
+    'projects/sample/src/api/routes/notes.test.ts',
     "import { notes } from './notes';\n\nit('lists notes', () => {\n  expect(notes()).toEqual(['a']);\n});\n",
   ],
   [
-    'projects/sample-fullstack/web/src/home.test.tsx',
+    'projects/sample/web/test/home.test.tsx',
     "it('renders the heading', () => {\n  render(<Home />);\n  screen.getByRole('heading', { name: 'Notes' });\n});\n",
   ],
   [
-    'projects/sample-fullstack/api-go/internal/xmlread/read.go',
+    'projects/sample/src/api-go/internal/xmlread/read.go',
     'package xmlread\n\nfunc skipElement(dec *xml.Decoder) error {\n\treturn dec.Skip()\n}\n',
   ],
   [
-    'projects/sample-fullstack/api/src/repo/page.test.ts',
+    'projects/sample/src/api/repo/page.test.ts',
     "it('pages', () => {\n  const rows = db.find().skip(10).limit(5);\n  expect(rows).toBeDefined();\n});\n",
   ],
   [
-    'projects/sample-fullstack/api-py/tests/test_notes.py',
+    'projects/sample/src/api-py/tests/test_notes.py',
     'def test_notes():\n    assert notes() == ["a"]\n',
   ],
   ['scripts/tools/deploy.sh', 'set +e\necho deploy\n'],
   // Division after ++ or an identifier, and a folder named temp, are normal code.
   [
-    'projects/sample-fullstack/api/src/math.ts',
+    'projects/sample/src/api/math.ts',
     'export const half = (i: number): number => {\n  let n = i;\n  const a = n++ / 2;\n  const b = n-- / 2;\n  return a + b; // a/b\n};\n',
   ],
   [
-    'projects/sample-fullstack/web/src/app/temp/page.tsx',
+    'projects/sample/web/app/temp/page.tsx',
     'export default function Page(): string {\n  const temp = 20;\n  const average = temp / 2;\n  return String(average);\n}\n',
   ],
   [
-    'projects/sample-fullstack/api-go/internal/temp/convert.go',
+    'projects/sample/src/api-go/internal/temp/convert.go',
     'package temp\n\nfunc Celsius(temp float64) float64 {\n\treturn (temp - 32) / 1.8\n}\n',
   ],
+  ['projects/sample/src/api-go/internal/app/app_linux.go', '//go:build linux\n\npackage app\n'],
   [
-    'projects/sample-fullstack/api-go/internal/app/app_linux.go',
-    '//go:build linux\n\npackage app\n',
-  ],
-  [
-    'projects/sample-fullstack/api-py/tests/conftest.py',
+    'projects/sample/src/api-py/tests/conftest.py',
     'import pytest\n\n\n@pytest.fixture\ndef client():\n    return object()\n\n\ndef pytest_configure(config):\n    config.addinivalue_line("markers", "slow: slow test")\n',
   ],
   [
-    'projects/sample-fullstack/api-py/src/sample_api/proc.py',
+    'projects/sample/src/api-py/src/sample_api/proc.py',
     'def ok(result):\n    return result.exitstatus == 0\n',
   ],
   [
@@ -175,20 +169,17 @@ describe('normal work corpus', () => {
 
   it('anti-skip control: the same scan does flag a real skip, so the check above can fail', () => {
     repository.write(
-      'projects/sample-fullstack/api/src/control.test.ts',
+      'projects/sample/src/api/control.test.ts',
       `it${'.skip'}('x', () => {\n  expect(1).toBe(1);\n});\n`,
     );
     const result = exec('node', [CLI, '--root', repository.root, '--base', 'HEAD']);
     assert.notEqual(result.status, 0, `${result.stdout}${result.stderr}`);
     assert.match(`${result.stdout}${result.stderr}`, /test-skip-or-focus/);
-    fs.rmSync(path.join(repository.root, 'projects/sample-fullstack/api/src/control.test.ts'));
+    fs.rmSync(path.join(repository.root, 'projects/sample/src/api/control.test.ts'));
   });
 
   it('gate-integrity sees no gate change after a normal commit, with tool and cache folders on disk', () => {
-    repository.write(
-      'projects/sample-fullstack/api/src/routes/health.ts',
-      'export const ok = 1;\n',
-    );
+    repository.write('projects/sample/src/api/routes/health.ts', 'export const ok = 1;\n');
     repository.git('add', '-A');
     assert.equal(
       exec('git', ['commit', '-q', '-m', 'feat(api): add route'], { cwd: repository.root }).status,
@@ -203,10 +194,10 @@ describe('normal work corpus', () => {
       '.pytest_cache/.gitignore',
       '.ruff_cache/.gitignore',
       '.venv/lib/python3.12/site-packages/argcomplete/scripts/a.py',
-      'projects/sample-fullstack/api-py/.venv/pyvenv.cfg',
-      'projects/sample-fullstack/api/dist/index.js',
-      'projects/sample-fullstack/api/rush-logs/api._phase_build.log',
-      'projects/sample-fullstack/api/cdk.out/manifest.json',
+      'projects/sample/src/api-py/.venv/pyvenv.cfg',
+      'projects/sample/dist/api/index.js',
+      'projects/sample/rush-logs/api._phase_build.log',
+      'projects/sample/cdk.out/manifest.json',
       'common/temp/pnpm-lock.yaml',
     ]) {
       repository.write(file, 'x\n');

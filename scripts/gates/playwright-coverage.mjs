@@ -8,7 +8,8 @@ const HELP = `playwright-coverage: fail when a web page route has no Playwright 
 Usage:
   node scripts/gates/playwright-coverage.mjs [--project <name>] [--root <dir>]
 
-For each projects/<name>/web, every app/**/page.(tsx|jsx|ts|js) (or src/app/**) is a route.
+For each projects/<name>/ (a folder with a package.json) that has a web folder, every
+web/app/**/page.(tsx|jsx|ts|js) (or web/src/app/**) is a route.
 Route groups (group), parallel slots @slot and private folders _x are not routes. [id] matches one
 segment, [...x] one or more, [[...x]] zero or more. Each route needs a spec in web/e2e/**/*.spec.*
 that calls page.goto('<route>') (a literal string or a template with a \${} part) and, in the same

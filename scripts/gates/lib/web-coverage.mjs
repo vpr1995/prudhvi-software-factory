@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { exists, listDirectory, readText } from './fs-io.mjs';
+import { projectsWithParts } from './projects.mjs';
 import { stripComments } from './source-text.mjs';
 
 const PAGE_FILE = /^page\.(?:tsx|jsx|ts|js)$/;
@@ -275,7 +276,7 @@ export function checkWebProject(root, project) {
   const routes = findPageRoutes(root, webFolder);
   if (routes.length === 0) {
     return [
-      `projects/${project}/web:1: the web part has no page route (app/**/page.tsx or src/app/**/page.tsx), so the gate has nothing to check. Add a page, or remove the web part.`,
+      `projects/${project}/web:1: the web part has no page route (web/app/**/page.tsx or web/src/app/**/page.tsx), so the gate has nothing to check. Add a page, or remove the web part.`,
     ];
   }
   const messages = [];
@@ -306,8 +307,5 @@ export function checkWebProject(root, project) {
  * @returns {string[]} Project folder names under projects/.
  */
 export function projectsWithWeb(root) {
-  return listDirectory(path.join(root, 'projects'))
-    .filter((entry) => entry.isDirectory)
-    .map((entry) => entry.name)
-    .filter((name) => exists(path.join(root, 'projects', name, 'web', 'package.json')));
+  return projectsWithParts(root, ['web']);
 }

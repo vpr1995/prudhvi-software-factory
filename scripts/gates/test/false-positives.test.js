@@ -38,7 +38,7 @@ describe('anti-skip false positives', () => {
   describe('go-test-skip', () => {
     it('allows (*xml.Decoder).Skip() in Go source that is not a test', () => {
       allowed(
-        'projects/x/api-go/internal/p/parse.go',
+        'projects/x/src/api-go/internal/p/parse.go',
         'package p\n\nfunc read(dec *xml.Decoder) error {\n\tif err := dec.Skip(); err != nil {\n\t\treturn err\n\t}\n\treturn nil\n}\n',
       );
     });
@@ -46,7 +46,7 @@ describe('anti-skip false positives', () => {
     it('still flags a skip in a Go test file', () => {
       flagged(
         'go-test-skip',
-        'projects/x/api-go/internal/p/parse_test.go',
+        'projects/x/src/api-go/internal/p/parse_test.go',
         `package p\n\nfunc TestA(t *testing.T) {\n\tt${join('.Sk', 'ip')}("later")\n}\n`,
       );
     });
@@ -103,7 +103,7 @@ describe('anti-skip false positives', () => {
     ]) {
       it(`counts ${label} as an assertion`, () => {
         allowed(
-          'projects/x/web/src/a.test.tsx',
+          'projects/x/web/test/a.test.tsx',
           `it('renders', async () => {\n  render(<A />);\n  ${body}\n});\n`,
         );
       });
@@ -112,7 +112,7 @@ describe('anti-skip false positives', () => {
     it('still flags a test that only renders', () => {
       flagged(
         'test-without-assertion',
-        'projects/x/web/src/b.test.tsx',
+        'projects/x/web/test/b.test.tsx',
         "it('renders', () => {\n  render(<A />);\n});\n",
       );
     });
@@ -120,7 +120,7 @@ describe('anti-skip false positives', () => {
     it('still flags a test that only uses queryBy (it does not throw)', () => {
       flagged(
         'test-without-assertion',
-        'projects/x/web/src/c.test.tsx',
+        'projects/x/web/test/c.test.tsx',
         "it('renders', () => {\n  render(<A />);\n  screen.queryByRole('heading');\n});\n",
       );
     });
@@ -129,11 +129,11 @@ describe('anti-skip false positives', () => {
   describe('shell-exit-zero for set +e', () => {
     it('allows set +e in a script that is not a phase script', () => {
       allowed('scripts/tools/deploy.sh', 'set +e\nrun\n');
-      allowed('projects/p/api/scripts/generate.sh', 'set +e\nrun\n');
+      allowed('projects/p/scripts/generate.sh', 'set +e\nrun\n');
     });
 
     it('flags set +e in the phase scripts, in package.json phase commands and in git hooks', () => {
-      flagged('shell-exit-zero', 'projects/p/api/scripts/test.sh', 'set +e\nrun_tests\n');
+      flagged('shell-exit-zero', 'projects/p/scripts/test.sh', 'set +e\nrun_tests\n');
     });
 
     for (const name of ['lint', 'security', 'check-coverage', 'license-check']) {
@@ -172,7 +172,7 @@ describe('guard-bash false positives', () => {
 
   beforeEach(() => {
     repository = makeRepository({
-      'projects/x/api-py/pyproject.toml': '[tool.pytest]\n',
+      'projects/x/src/api-py/pyproject.toml': '[tool.pytest]\n',
       'scripts/gates/lib/stop-run.mjs': 'export const a = 1;\n',
       'packages/a/src/a.ts': 'export const a = 1;\n',
       'packages/a/src/b.ts': 'export const b = 1;\n',
@@ -242,7 +242,7 @@ describe('guard-bash false positives', () => {
 
   describe('inline code that only names a gate path', () => {
     it('allows reading and importing a gate path', () => {
-      allowed(`python3 -c "print(open('projects/x/api-py/pyproject.toml').read())"`);
+      allowed(`python3 -c "print(open('projects/x/src/api-py/pyproject.toml').read())"`);
       allowed(
         `node -e "import('./scripts/gates/lib/stop-run.mjs').then(m=>console.log(Object.keys(m)))"`,
       );

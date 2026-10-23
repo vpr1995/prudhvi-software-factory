@@ -289,20 +289,30 @@ export function runGo(directory, file) {
   return { ...vet, note: notes.join('; ') };
 }
 
+const SHELL_CONTROL = /[;|&]/;
+
 /**
- * Builds the tsc arguments for a project from its `_phase:typecheck` script.
+ * Builds the tsc arguments for a project. A given tsconfig (a part folder such as web) wins.
+ * Else the arguments come from the `_phase:typecheck` script when that script is one plain
+ * `tsc` command (a chain of commands is not a tsc command line), else from tsconfig.json.
  *
  * @param {string} directory - Project folder.
+ * @param {string} [tsconfig] - tsconfig path from the project folder, for example `web/tsconfig.json`.
  * @returns {string[] | null} Arguments for tsc, or null when the project has no tsconfig.
  */
-function tscArguments(directory) {
+function tscArguments(directory, tsconfig) {
+  if (tsconfig !== undefined) {
+    return exists(path.join(directory, tsconfig)) ? ['-p', tsconfig, '--noEmit'] : null;
+  }
   const manifest = readJson(path.join(directory, 'package.json'));
   const script =
     manifest !== null && typeof manifest === 'object'
       ? manifest.scripts?.['_phase:typecheck']
       : undefined;
   const fromScript =
-    typeof script === 'string' ? /^tsc\s+(.*)$/.exec(script.trim())?.[1]?.split(/\s+/) : undefined;
+    typeof script === 'string' && !SHELL_CONTROL.test(script)
+      ? /^tsc\s+(.*)$/.exec(script.trim())?.[1]?.split(/\s+/)
+      : undefined;
   const usable =
     fromScript !== undefined && !fromScript.some((word) => word === '-b' || word === '--build');
   if (usable) {
@@ -312,14 +322,29 @@ function tscArguments(directory) {
 }
 
 /**
- * Runs `tsc --noEmit` for a TypeScript project (incremental).
+ * Lists the tsconfig files of a project that the edit hooks check: the root one, and the one in
+ * the `web` part folder (the web part has no package.json of its own).
+ *
+ * @param {string} directory - Project folder (has package.json).
+ * @returns {string[]} Paths from the project folder.
+ */
+export function projectTsconfigs(directory) {
+  return ['tsconfig.json', 'web/tsconfig.json'].filter((file) =>
+    exists(path.join(directory, file)),
+  );
+}
+
+/**
+ * Runs `tsc --noEmit` for a TypeScript project (incremental). The compiler comes from the project
+ * folder, also when the tsconfig is in a part folder.
  *
  * @param {string} directory - Project folder.
+ * @param {string} [tsconfig] - tsconfig path from the project folder, for example `web/tsconfig.json`.
  * @returns {ToolResult} Result. `failed` means type errors.
  */
-export function runTsc(directory) {
+export function runTsc(directory, tsconfig) {
   const binary = localBinary(directory, 'tsc');
-  const base = tscArguments(directory);
+  const base = tscArguments(directory, tsconfig);
   if (binary === null || base === null) {
     return {
       ran: false,
@@ -328,7 +353,11 @@ export function runTsc(directory) {
       note: 'tsc or tsconfig.json is missing in the project, typecheck skipped',
     };
   }
-  const cache = path.join(directory, 'node_modules', '.cache', 'claude-typecheck.tsbuildinfo');
+  const cacheName =
+    tsconfig === undefined
+      ? 'claude-typecheck'
+      : `claude-typecheck-${path.dirname(tsconfig).replaceAll(/[^\w-]/g, '_')}`;
+  const cache = path.join(directory, 'node_modules', '.cache', `${cacheName}.tsbuildinfo`);
   const options = { cwd: directory, timeoutMs: TOOL_TIMEOUT_MS };
   let result = run(binary, [...base, '--incremental', '--tsBuildInfoFile', cache], options);
   if (result.status !== 0 && /error TS[56]\d{3}/.test(result.stdout)) {

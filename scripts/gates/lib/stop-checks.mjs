@@ -11,6 +11,7 @@ import {
   runEslint,
   runTsc,
   localBinary,
+  projectTsconfigs,
   shouldSkipFile,
 } from './project-tools.mjs';
 import { findManifestDirectory, loadRushProjects, ownerProject } from './projects.mjs';
@@ -189,6 +190,28 @@ function projectFolders(root, changed) {
 }
 
 /**
+ * Runs tsc for each tsconfig of the changed projects: the root one and the web part one.
+ *
+ * @param {string} root - Repo root.
+ * @param {string[]} typed - Changed TypeScript files that still exist.
+ * @returns {Check[]} One check for each tsconfig.
+ */
+function typecheckChecks(root, typed) {
+  return [...projectFolders(root, typed)].flatMap(([directory, label]) => {
+    const configs = projectTsconfigs(directory);
+    return (configs.length === 0 ? [undefined] : configs).map((tsconfig) => {
+      const isRoot = tsconfig === undefined || tsconfig === 'tsconfig.json';
+      const result = runTsc(directory, isRoot ? undefined : tsconfig);
+      return {
+        name: `typecheck: ${label}${isRoot ? '' : ` (${tsconfig})`}`,
+        status: result.note !== '' ? 'skip' : result.failed ? 'fail' : 'pass',
+        detail: result.note === '' ? result.output : result.note,
+      };
+    });
+  });
+}
+
+/**
  * The fast checks for a subagent stop: ESLint on changed script files and tsc per changed project.
  *
  * @param {string} root - Repo root.
@@ -201,21 +224,13 @@ export function fastChecks(root, files) {
     .map((file) => ({ file, result: runEslint(root, file) }))
     .filter((entry) => entry.result.failed && entry.result.note === '')
     .map((entry) => `${entry.file}:\n${entry.result.output}`);
-  const checks = [
+  const typed = files.filter((file) => TYPESCRIPT_FILE.test(file) && !shouldSkipFile(file));
+  return /** @type {Check[]} */ ([
     {
       name: 'eslint (changed files)',
       status: lintFailures.length === 0 ? 'pass' : 'fail',
       detail: clipLines(lintFailures.join('\n'), LINT_LINES),
     },
-  ];
-  const typed = files.filter((file) => TYPESCRIPT_FILE.test(file) && !shouldSkipFile(file));
-  for (const [directory, label] of projectFolders(root, typed)) {
-    const result = runTsc(directory);
-    checks.push({
-      name: `typecheck: ${label}`,
-      status: result.note !== '' ? 'skip' : result.failed ? 'fail' : 'pass',
-      detail: result.note === '' ? result.output : result.note,
-    });
-  }
-  return /** @type {Check[]} */ (checks);
+    ...typecheckChecks(root, typed),
+  ]);
 }

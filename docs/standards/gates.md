@@ -119,7 +119,7 @@ Agents may propose edits to these paths. Each change is `risk:high`. A human app
 |---|---|
 | `platform/**` (except `platform/infra/**`, see section 2.1) | Shared AWS resources (Cognito user pool, hosted zone, certificate, SSM parameters). Every project depends on them. |
 | `packages/**` | Shared code. A change has a wide effect. |
-| `projects/*/infra/**` | Cloud resources and IAM for one project. |
+| `projects/*/bin/**` and `projects/*/lib/**` | The CDK app of one project: cloud resources and IAM. |
 
 ### 2.4 Handoff folder
 
@@ -317,7 +317,7 @@ Use `docs/runbooks/rollback.md`.
 
 | Gate | What it checks | Where it runs | Blocks when |
 |---|---|---|---|
-| `bruno-coverage` | Each route in the `<project>-contracts` OpenAPI output has a `.bru` request with the same method and path, and at least one assertion. | `check-gates`, `ci.yml` | A route has no such request. |
-| `playwright-coverage` | Each `app/**/page.tsx` route has a spec with `page.goto` and an axe check. A web part needs an `e2e/` folder. | `check-gates`, `ci.yml` | A page has no such spec, or the folder is missing. |
+| `bruno-coverage` | Each route in `projects/<name>/dist/openapi.json` has a `.bru` request in `projects/<name>/bruno` with the same method and path, and at least one assertion. | `check-gates`, `ci.yml` | A route has no such request. |
+| `playwright-coverage` | Each `projects/<name>/web/app/**/page.tsx` route has a spec in `web/e2e` with `page.goto` and an axe check. A project with a `web/` folder needs a `web/e2e/` folder. | `check-gates`, `ci.yml` | A page has no such spec, or the folder is missing. |
 | Anti-skip (e2e) | No `test.skip`, `test.fixme`, `test.fail`, `test.only`, `skip-request`, or a `.bru` request with no assertion, in the diff. | Stop hook, CI | The diff adds one of these patterns. |
 | `rush e2e` | Bruno collection and Playwright suite run against a started server. | Stop hook, `ci.yml`, merge queue | A request or a spec fails. |

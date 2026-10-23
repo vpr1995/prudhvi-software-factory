@@ -8,8 +8,8 @@ const HELP = `bruno-coverage: fail when an API route has no Bruno request, or a 
 Usage:
   node scripts/gates/bruno-coverage.mjs [--project <name>] [--root <dir>]
 
-For each projects/<name>/ that has an api, api-py or api-go part, the routes come from
-projects/<name>/contracts/dist/openapi.json (build the contracts first), or from contracts/routes.json.
+For each projects/<name>/ (a folder with a package.json) that has a src/api, src/api-py or
+src/api-go folder, the routes come from projects/<name>/dist/openapi.json (build the project first).
 Every method and path needs a .bru file in projects/<name>/bruno with the same method and path
 (:id, {id} and {{id}} count as the same parameter) and at least one assert entry or test.
 

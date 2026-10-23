@@ -21,6 +21,9 @@ function writeStub(file, name, body) {
   fs.writeFileSync(file, script, { mode: 0o755 });
 }
 
+const TSC_STUB =
+  'if [ -f "$TEMP/tsc-mode" ] && [ "$(cat "$TEMP/tsc-mode")" = fail ]; then echo "src/a.ts(1,1): error TS2322: stub type error"; exit 2; fi\nif [ -f "$TEMP/tsc-mode" ] && [ "$(cat "$TEMP/tsc-mode")" = option ] && echo "$*" | grep -q -- --incremental; then echo "error TS5055: stub option error"; exit 1; fi\nexit 0';
+
 describe('post-edit and typecheck-project', () => {
   let repository;
   let temporary;
@@ -30,9 +33,10 @@ describe('post-edit and typecheck-project', () => {
       prettier: 'common/autoinstallers/rush-lint-staged/node_modules/.bin/prettier',
       eslint: 'tooling/eslint-config/node_modules/.bin/eslint',
       tsc: 'packages/a/node_modules/.bin/tsc',
+      projectTsc: 'projects/p/node_modules/.bin/tsc',
     };
     const file = path.join(repository.root, files[tool]);
-    writeStub(file, tool, body);
+    writeStub(file, tool === 'projectTsc' ? 'tsc' : tool, body);
     const relative = path.relative(path.dirname(file), temporary);
     fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('__TEMP__', relative));
   };
@@ -59,10 +63,7 @@ describe('post-edit and typecheck-project', () => {
       'eslint',
       'if [ -f "$TEMP/eslint-mode" ]; then MODE="$(cat "$TEMP/eslint-mode")"; else MODE=0; fi\nif [ "$MODE" = 1 ]; then echo "src/a.ts:1:1 error stub-rule broke"; exit 1; fi\nexit "$MODE"',
     );
-    install(
-      'tsc',
-      'if [ -f "$TEMP/tsc-mode" ] && [ "$(cat "$TEMP/tsc-mode")" = fail ]; then echo "src/a.ts(1,1): error TS2322: stub type error"; exit 2; fi\nif [ -f "$TEMP/tsc-mode" ] && [ "$(cat "$TEMP/tsc-mode")" = option ] && echo "$*" | grep -q -- --incremental; then echo "error TS5055: stub option error"; exit 1; fi\nexit 0',
-    );
+    install('tsc', TSC_STUB);
   });
 
   afterEach(() => repository.remove());
@@ -204,6 +205,62 @@ describe('post-edit and typecheck-project', () => {
         calls()[0],
         /^tsc -p tsconfig\.build\.json --noEmit --pretty false --incremental/,
       );
+    });
+
+    describe('in a single-package project (one package.json, web is a folder)', () => {
+      beforeEach(() => {
+        repository.write('projects/p/package.json', '{"name":"@vprprudhvi/p"}\n');
+        repository.write('projects/p/tsconfig.json', '{}\n');
+        repository.write('projects/p/web/tsconfig.json', '{}\n');
+        repository.write('projects/p/src/api/a.ts', 'export const a = 1;\n');
+        repository.write('projects/p/web/app/page.tsx', 'export default 1;\n');
+        install('projectTsc', TSC_STUB);
+      });
+
+      it('typechecks a src file with the root tsconfig.json', () => {
+        const result = edit('typecheck-project', 'projects/p/src/api/a.ts');
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(
+          calls()[0],
+          /^tsc -p tsconfig\.json --noEmit --incremental --tsBuildInfoFile .*claude-typecheck\.tsbuildinfo$/,
+        );
+      });
+
+      it('typechecks a web file with web/tsconfig.json and the project compiler', () => {
+        const result = edit('typecheck-project', 'projects/p/web/app/page.tsx');
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(
+          calls()[0],
+          /^tsc -p web\/tsconfig\.json --noEmit --incremental --tsBuildInfoFile .*claude-typecheck-web\.tsbuildinfo$/,
+        );
+      });
+
+      it('reports a web type error with the project name', () => {
+        fs.writeFileSync(path.join(temporary, 'tsc-mode'), 'fail');
+        const result = edit('typecheck-project', 'projects/p/web/app/page.tsx');
+        assert.equal(result.status, 2);
+        assert.match(result.stderr, /typecheck failed in projects\/p/);
+      });
+
+      it('does not use a chain of commands in _phase:typecheck as tsc arguments', () => {
+        repository.write(
+          'projects/p/package.json',
+          JSON.stringify({
+            name: '@vprprudhvi/p',
+            scripts: {
+              '_phase:typecheck':
+                'tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit',
+            },
+          }),
+        );
+        const result = edit('typecheck-project', 'projects/p/src/api/a.ts');
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(
+          calls()[0],
+          /^tsc -p tsconfig\.json --noEmit --incremental --tsBuildInfoFile /,
+        );
+        assert.doesNotMatch(calls()[0], /&&|web\/tsconfig/);
+      });
     });
 
     it('skips with a notice when tsc is not installed in the project', () => {

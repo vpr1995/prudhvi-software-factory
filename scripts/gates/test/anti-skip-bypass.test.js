@@ -198,16 +198,11 @@ describe('anti-skip bypass cases', () => {
     ],
     [
       'a shell script that hides a failure with exit 0',
-      'projects/p/api/scripts/check.sh',
+      'projects/p/scripts/check.sh',
       'run_tests || exit 0\n',
       'shell-exit-zero',
     ],
-    [
-      'set +e in a script',
-      'projects/p/api/scripts/check.sh',
-      'set +e\nrun_tests\n',
-      'shell-exit-zero',
-    ],
+    ['set +e in a script', 'projects/p/scripts/check.sh', 'set +e\nrun_tests\n', 'shell-exit-zero'],
     [
       'a workflow step with continue-on-error',
       '.github/workflows/extra.yml',

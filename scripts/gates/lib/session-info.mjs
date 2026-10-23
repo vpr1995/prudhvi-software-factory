@@ -5,7 +5,13 @@ import { gateEntries } from './gate-list.mjs';
 import { currentBranch, headSha, rushInstalled, statePaths } from './git-state.mjs';
 import { which } from './proc.mjs';
 
-const RISK_HIGH_PATHS = [/^platform\//, /^packages\//, /^projects\/[^/]+\/infra\//, /^\.github\//];
+const RISK_HIGH_PATHS = [
+  /^platform\//,
+  /^packages\//,
+  /^projects\/[^/]+\/(?:bin|lib)\//,
+  /^projects\/[^/]+\/cdk\.json$/,
+  /^\.github\//,
+];
 const RISK_LOW_PATHS = [
   /^docs\//,
   /\.md$/,

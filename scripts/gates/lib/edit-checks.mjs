@@ -163,7 +163,11 @@ export function typecheckEditedFile(root, file) {
   const name = path.relative(root, manifest.directory) || '.';
   let result = null;
   if (TYPESCRIPT_EXTENSIONS.has(extension) && manifest.marker === 'package.json') {
-    result = runTsc(manifest.directory);
+    // The web part has no package.json: a web file uses web/tsconfig.json with the project compiler.
+    const webFolder = `${path.join(manifest.directory, 'web')}${path.sep}`;
+    result = file.absolute.startsWith(webFolder)
+      ? runTsc(manifest.directory, 'web/tsconfig.json')
+      : runTsc(manifest.directory);
   } else if (extension === '.py' && manifest.marker === 'pyproject.toml') {
     result = runMypy(manifest.directory);
   } else if (extension === '.go' && manifest.marker === 'go.mod') {

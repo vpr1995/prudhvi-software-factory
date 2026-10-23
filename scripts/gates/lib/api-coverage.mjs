@@ -1,6 +1,7 @@
 import path from 'node:path';
 
-import { exists, listDirectory, readJson, readText } from './fs-io.mjs';
+import { listDirectory, readJson, readText } from './fs-io.mjs';
+import { projectsWithParts } from './projects.mjs';
 import { brunoHasAssertion } from './source-text.mjs';
 
 const API_PARTS = ['api', 'api-py', 'api-go'];
@@ -41,22 +42,19 @@ export function normalizePath(value) {
 }
 
 /**
- * Reads the routes of a project from its OpenAPI document.
+ * Reads the routes of a project from its OpenAPI document (`projects/<name>/dist/openapi.json`).
  *
- * @param {string} contractsFolder - Absolute contracts folder.
- * @param {string} relativeFolder - The same folder from the repo root.
+ * @param {string} root - Repo root.
+ * @param {string} project - Project folder name under projects/.
  * @returns {{ routes: Route[], error: string }} Routes, or an error message for the report.
  */
-export function readRoutes(contractsFolder, relativeFolder) {
-  const openapi = path.join(contractsFolder, 'dist', 'openapi.json');
-  const manifest = path.join(contractsFolder, 'routes.json');
-  const file = exists(openapi) ? openapi : manifest;
-  const shown = `${relativeFolder}/${path.relative(contractsFolder, file)}`;
-  const document = readJson(file);
+export function readRoutes(root, project) {
+  const shown = `projects/${project}/dist/openapi.json`;
+  const document = readJson(path.join(root, shown));
   if (document === null || typeof document !== 'object') {
     return {
       routes: [],
-      error: `${relativeFolder}:1: no dist/openapi.json (or routes.json) found. Build the contracts first: node common/scripts/install-run-rush.js build --to <contracts package>.`,
+      error: `${shown}:1: no dist/openapi.json found. Build the project first: node common/scripts/install-run-rush.js build --to @vprprudhvi/${project}.`,
     };
   }
   const paths =
@@ -153,10 +151,7 @@ function pathsMatch(requestPath, routePath) {
  */
 export function checkBrunoProject(root, project) {
   const base = path.join(root, 'projects', project);
-  const { routes, error } = readRoutes(
-    path.join(base, 'contracts'),
-    `projects/${project}/contracts`,
-  );
+  const { routes, error } = readRoutes(root, project);
   if (error !== '') {
     return [error];
   }
@@ -175,7 +170,7 @@ export function checkBrunoProject(root, project) {
     .filter((request) => request !== null);
   if (routes.length === 0) {
     messages.push(
-      `projects/${project}/contracts:1: the contracts declare no routes, but the project has an API part. Add the routes to the contracts, or remove the API part.`,
+      `projects/${project}/dist/openapi.json:1: the contracts declare no routes, but the project has an API part. Add the routes to src/contracts, or remove the API part.`,
     );
   }
   for (const route of routes) {
@@ -208,15 +203,5 @@ export function checkBrunoProject(root, project) {
  * @returns {string[]} Project folder names under projects/.
  */
 export function projectsWithApi(root) {
-  return listDirectory(path.join(root, 'projects'))
-    .filter((entry) => entry.isDirectory)
-    .map((entry) => entry.name)
-    .filter((name) =>
-      API_PARTS.some(
-        (part) =>
-          exists(path.join(root, 'projects', name, part, 'package.json')) ||
-          exists(path.join(root, 'projects', name, part, 'pyproject.toml')) ||
-          exists(path.join(root, 'projects', name, part, 'go.mod')),
-      ),
-    );
+  return projectsWithParts(root, API_PARTS);
 }

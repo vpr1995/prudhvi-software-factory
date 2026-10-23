@@ -124,12 +124,12 @@ describe('session-start and prompt-context', () => {
 
   it('guesses a low tier for docs and tests only', () => {
     assert.match(
-      tier({ 'docs/a.md': 'x\n', 'projects/p/api/src/a.test.ts': 'x\n' }),
+      tier({ 'docs/a.md': 'x\n', 'projects/p/src/api/a.test.ts': 'x\n' }),
       /low \(only docs and tests changed\)/,
     );
   });
 
   it('guesses a medium tier for project source', () => {
-    assert.match(tier({ 'projects/p/api/src/a.ts': 'x\n' }), /medium/);
+    assert.match(tier({ 'projects/p/src/api/a.ts': 'x\n' }), /medium/);
   });
 });
