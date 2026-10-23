@@ -49,3 +49,44 @@ export function text(
     .min(1, emptyMessage)
     .max(max, `Use at most ${String(max)} characters.`);
 }
+
+/**
+ * A list with at most `max` items.
+ *
+ * @param item - The schema of one item.
+ * @param max - The largest number of items.
+ * @param noun - What the items are, for the message, for example `photos`.
+ * @returns The schema.
+ */
+export function list<Item extends z.ZodType>(
+  item: Item,
+  max: number,
+  noun: string,
+): z.ZodArray<Item> {
+  return z
+    .array(item, { error: `Write the ${noun} as a list in square brackets [ ].` })
+    .max(max, `Use at most ${String(max)} ${noun}.`);
+}
+
+/**
+ * Finds the items of a list that are the same as an item before them.
+ *
+ * @param items - The items.
+ * @param keyOf - Gives the value that must be unique.
+ * @returns The index of each repeated item.
+ */
+export function findRepeats<Item>(
+  items: readonly Item[],
+  keyOf: (item: Item) => string,
+): readonly number[] {
+  const seen = new Set<string>();
+  const repeats: number[] = [];
+  for (const [index, item] of items.entries()) {
+    const key = keyOf(item);
+    if (seen.has(key)) {
+      repeats.push(index);
+    }
+    seen.add(key);
+  }
+  return repeats;
+}

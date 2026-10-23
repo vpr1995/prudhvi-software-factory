@@ -1,0 +1,61 @@
+{
+  "zion": {
+    "trips": [{ "start": "2023-05-12", "end": "2023-05-15" }],
+    "rating": 5,
+    "liked": "Golden light on the canyon walls every evening.\nThe shuttle made the busy days easy.",
+    "did": "Hiked Angels Landing at sunrise and waded the Narrows to Wall Street.",
+    "placesToGo": ["Observation Point", "Kolob Canyons"],
+    "photos": [
+      {
+        "src": "/photos/zion/narrows.jpg",
+        "alt": "Hikers wading in the Virgin River between tall red walls",
+        "caption": "The Narrows, day two"
+      },
+      {
+        "src": "/photos/zion/angels-landing.jpg",
+        "alt": "View down the canyon from the top of Angels Landing"
+      }
+    ]
+  },
+  "yosemite": {
+    "trips": [
+      { "start": "2018-06-02", "end": "2018-06-05" },
+      { "start": "2025-08-01", "end": "2025-08-03" },
+      { "start": "2021-09-20" }
+    ]
+  },
+  "acadia": {
+    "trips": [{ "start": "2019-10" }],
+    "rating": 3,
+    "liked": "Lobster rolls in Bar Harbor."
+  },
+  "denali": {
+    "trips": [{ "start": "2022-07-08", "end": "2022-07-11" }],
+    "rating": 4,
+    "photos": [
+      {
+        "src": "/photos/denali/missing-photo.jpg",
+        "alt": "Denali above the clouds",
+        "caption": "This file is missing on purpose"
+      }
+    ]
+  },
+  "hawaii-volcanoes": {
+    "trips": [{ "start": "2023-06-30", "end": "2023-07-02" }],
+    "rating": 5,
+    "did": "Walked the Kīlauea Iki crater floor."
+  },
+  "virgin-islands": {
+    "trips": [{ "start": "2022-12-30", "end": "2023-01-02" }],
+    "rating": 2
+  },
+  "arches": {
+    "trips": [{ "start": "2020-03-14" }],
+    "rating": 4,
+    "placesToGo": ["Fiery Furnace"]
+  },
+  "great-smoky-mountains": {
+    "trips": [{ "start": "2024-07-04" }],
+    "rating": 4
+  }
+}
