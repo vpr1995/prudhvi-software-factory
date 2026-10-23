@@ -119,7 +119,7 @@ Proof at the pause:
 | One sample project, `projects/sample`, with every part. It replaces `sample-fullstack` and `sample-api-only`. | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
 | AWS region: `us-east-1` only. One wildcard certificate serves CloudFront and the HTTP API. | Wave 3 |
 | CDK bundles the Lambda code at synth with the CDK constructs: `NodejsFunction` (TS), `GoFunction` (`@aws-cdk/aws-lambda-go-alpha`), `PythonFunction` (`@aws-cdk/aws-lambda-python-alpha`). No custom bundler. Shared constructs: `TracedNodeFunction`, `TracedGoFunction`, `TracedPythonFunction`. Unit tests turn bundling off. Supersedes the `Code.fromAsset` decision. | Wave 3, owner 2026-10-22 |
-| API gateway: HTTP API. No catch-all route (`{proxy+}`, `$default`). Each path and method from the Zod OpenAPI spec is its own route (`addRoutes`), with the JWT authorizer unless the spec marks it public. The Lambda validates input with the contracts. | Wave 3, owner 2026-10-22 |
+| API gateway: HTTP API. No catch-all route (`{proxy+}`, `$default`). Each route (method + path) is written by hand in the project CDK stack. A route has the JWT authorizer unless the stack marks it public. Routes are not built from the OpenAPI spec. The Zod contracts and `dist/openapi.json` stay (Python and Go codegen). | Wave 3, owner 2026-10-22 |
 | No Swagger UI and no docs Lambda. The Zod OpenAPI spec (`dist/openapi.json`) and the Bruno collection are the API documentation. | Wave 3, owner 2026-10-22 |
 | Python 3.14 everywhere: Lambda runtime, `.python-version`, mypy, ruff. | Wave 3, owner 2026-10-22 |
 | Alpha CDK packages pinned to the `aws-cdk-lib` version (`2.273.0-alpha.0`). `PythonFunction` needs Docker for a real synth. Unit tests skip bundling. | Wave 3 |
