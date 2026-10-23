@@ -1,0 +1,6 @@
+# Config of oapi-codegen. The input is the OpenAPI document in dist/openapi.json.
+package: gen
+generate:
+  models: true
+output-options:
+  skip-prune: true

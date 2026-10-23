@@ -33,7 +33,7 @@ export const CASES = [
   },
   {
     name: 'default export in a Next.js page',
-    file: 'projects/sample/web/src/app/page.tsx',
+    file: 'projects/sample/web/app/page.tsx',
     code: '/** Home page. */\nexport default function Page(): null {\n  return null;\n}\n',
     expect: [],
   },
@@ -129,7 +129,7 @@ export const CASES = [
   },
   {
     name: 'process.env outside config.ts',
-    file: 'projects/sample/api/src/routes/user.ts',
+    file: 'projects/sample/src/api/routes/user.ts',
     code:
       DECLARE_PROCESS +
       '/** Reads the key. */\nexport const readKey = (): string | undefined => process.env["KEY"];\n',
@@ -137,7 +137,7 @@ export const CASES = [
   },
   {
     name: 'process.env in config.ts',
-    file: 'projects/sample/api/src/config.ts',
+    file: 'projects/sample/src/api/config.ts',
     code: DECLARE_PROCESS + 'export const KEY = process.env["KEY"];\n',
     expect: [],
   },
@@ -196,6 +196,18 @@ export const CASES = [
     expect: [],
   },
   {
+    name: 'barrel at the contracts entry of a project',
+    file: 'projects/sample/src/contracts/index.ts',
+    code: "export { ORDER } from './order.js';\n",
+    expect: [],
+  },
+  {
+    name: 'barrel in another contracts file',
+    file: 'projects/sample/src/contracts/reexport.ts',
+    code: "export { ORDER } from './order.js';\n",
+    expect: ['no-restricted-syntax'],
+  },
+  {
     name: 'commented-out code',
     file: 'packages/sample/src/commented.ts',
     code: '// const total = compute(1, 2);\nexport const VALUE = 1;\n',
@@ -239,7 +251,7 @@ export const CASES = [
   },
   {
     name: 'zod schema name',
-    file: 'projects/sample/contracts/src/shape.ts',
+    file: 'projects/sample/src/contracts/shape.ts',
     code: "import { z } from 'zod';\n\n/** Order. */\nexport const orderShape = z.object({ id: z.string() });\n",
     expect: ['local/zod-schema-naming'],
   },
@@ -258,44 +270,44 @@ export const CASES = [
   // React and Next.js
   {
     name: 'dangerouslySetInnerHTML',
-    file: 'projects/sample/web/src/components/raw.tsx',
+    file: 'projects/sample/web/components/raw.tsx',
     code: 'export function Raw({ html }: { readonly html: string }): React.JSX.Element {\n  return <div dangerouslySetInnerHTML={{ __html: html }} />;\n}\n',
     expect: ['react/no-danger'],
   },
   {
     name: 'img without alt',
-    file: 'projects/sample/web/src/components/image.tsx',
+    file: 'projects/sample/web/components/image.tsx',
     code: 'export function Image(): React.JSX.Element {\n  return <img src="/a.png" />;\n}\n',
     expect: ['jsx-a11y/alt-text'],
   },
   {
     name: 'hook called conditionally',
-    file: 'projects/sample/web/src/components/hook.tsx',
+    file: 'projects/sample/web/components/hook.tsx',
     code: "import { useState } from 'react';\n\nexport function Counter({ isShown }: { readonly isShown: boolean }): number | null {\n  if (!isShown) {\n    return null;\n  }\n  const [count] = useState(0);\n  return count;\n}\n",
     expect: ['react-hooks/rules-of-hooks'],
   },
   // CDK
   {
     name: 'hard-coded account id',
-    file: 'projects/sample/infra/src/stacks/account.ts',
+    file: 'projects/sample/lib/stacks/account.ts',
     code: "export const ACCOUNT = '123456789012';\n",
     expect: ['no-restricted-syntax'],
   },
   {
     name: 'RemovalPolicy.DESTROY',
-    file: 'projects/sample/infra/src/stacks/destroy.ts',
+    file: 'projects/sample/lib/stacks/destroy.ts',
     code: 'declare const RemovalPolicy: { readonly DESTROY: string };\n\nexport const POLICY = RemovalPolicy.DESTROY;\n',
     expect: ['no-restricted-syntax'],
   },
   {
     name: 'RemovalPolicy.DESTROY in dev config',
-    file: 'projects/sample/infra/src/config/dev.ts',
+    file: 'projects/sample/lib/config/dev.ts',
     code: 'declare const RemovalPolicy: { readonly DESTROY: string };\n\nexport const POLICY = RemovalPolicy.DESTROY;\n',
     expect: [],
   },
   {
     name: 'construct id not PascalCase',
-    file: 'projects/sample/infra/src/stacks/ids.ts',
+    file: 'projects/sample/lib/stacks/ids.ts',
     code: "export class Thing {\n  public constructor(_scope: unknown, _id: string) {}\n}\n\nexport const make = (): Thing => new Thing(this, 'assets-bucket');\n",
     expect: ['no-restricted-syntax'],
   },

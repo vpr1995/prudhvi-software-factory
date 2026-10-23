@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/rush-project.schema.json",
+  "operationSettings": [
+    // Turbopack writes symlinks into web/.next/node_modules. Rush cannot put symlinks in the build
+    // cache, and it exits with code 1 when it tries. So the build phase is not cached. It also builds
+    // the Next.js app.
+    {
+      "operationName": "_phase:build",
+      "outputFolderNames": ["dist", "web/.next"],
+      "disableBuildCacheForOperation": true
+    },
+    {
+      "operationName": "_phase:test",
+      "outputFolderNames": ["coverage", "src/api-py/coverage", "src/api-go/coverage"]
+    },
+    { "operationName": "_phase:e2e", "disableBuildCacheForOperation": true }
+  ]
+}

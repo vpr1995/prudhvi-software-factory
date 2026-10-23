@@ -23,7 +23,8 @@ export const SHARED_SYNTAX_RULES = [
 ];
 
 export const CONFIG_FILES = ['**/config.{ts,js}', '**/*.config.*'];
-export const INDEX_FILES = ['**/src/index.{ts,tsx,js}'];
+// The entry of a package, and the entry of the contracts of a project (src/contracts/index.ts).
+export const INDEX_FILES = ['**/src/index.{ts,tsx,js}', '**/src/contracts/index.{ts,tsx,js}'];
 
 /**
  * Builds config blocks for `no-restricted-syntax`.

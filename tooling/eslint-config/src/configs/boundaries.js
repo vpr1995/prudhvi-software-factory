@@ -15,22 +15,29 @@ const REPO_ROOT = new URL('../../../../', import.meta.url).pathname;
 
 // Order matters: the first matching descriptor wins, so specific api folders come before `api`.
 const ELEMENTS = [
-  { type: 'contracts', pattern: 'projects/*/contracts', capture: ['project'], partialMatch: false },
+  {
+    type: 'contracts',
+    pattern: 'projects/*/src/contracts',
+    capture: ['project'],
+    partialMatch: false,
+  },
   {
     type: 'api-domain',
-    pattern: 'projects/*/api/src/domain',
+    pattern: 'projects/*/src/api/domain',
     capture: ['project'],
     partialMatch: false,
   },
   {
     type: 'api-adapters',
-    pattern: 'projects/*/api/src/adapters',
+    pattern: 'projects/*/src/api/adapters',
     capture: ['project'],
     partialMatch: false,
   },
-  { type: 'api', pattern: 'projects/*/api', capture: ['project'], partialMatch: false },
+  { type: 'api', pattern: 'projects/*/src/api', capture: ['project'], partialMatch: false },
   { type: 'web', pattern: 'projects/*/web', capture: ['project'], partialMatch: false },
-  { type: 'infra', pattern: 'projects/*/infra', capture: ['project'], partialMatch: false },
+  // The CDK app of a project: bin/ holds the app, lib/ holds the stacks and constructs.
+  { type: 'infra', pattern: 'projects/*/bin', capture: ['project'], partialMatch: false },
+  { type: 'infra', pattern: 'projects/*/lib', capture: ['project'], partialMatch: false },
   { type: 'platform-infra', pattern: 'platform/infra', partialMatch: false },
   { type: 'shared', pattern: 'packages/*', capture: ['package'], partialMatch: false },
   { type: 'tooling', pattern: 'tooling/*', capture: ['tool'], partialMatch: false },
@@ -139,8 +146,8 @@ function createPolicies() {
 }
 
 /**
- * Creates the boundaries config. Element types come from the path: `projects/<name>/(contracts|web|api|infra)`,
- * `platform/infra`, `packages/*` and `tooling/*`.
+ * Creates the boundaries config. Element types come from the path: `projects/<name>/src/(contracts|api)`,
+ * `projects/<name>/web`, `projects/<name>/(bin|lib)`, `platform/infra`, `packages/*` and `tooling/*`.
  *
  * @param {{ rootPath?: string }} [options] - `rootPath` is the repo root. It defaults to this repo.
  * @returns {import('eslint').Linter.Config[]} Config blocks.

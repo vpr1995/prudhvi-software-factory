@@ -27,7 +27,7 @@ export function scope(directories, configs) {
 
 /**
  * Builds the root config. It picks the shared configs by path:
- * web gets `next`, api gets `node`, infra and platform get `node` + `cdk`, and boundaries apply everywhere.
+ * web gets `next`, src and scripts get `node`, bin, lib and platform get `node` + `cdk`, and boundaries apply everywhere.
  *
  * @param {{ rootPath: string, ignores?: string[] }} options - `rootPath` is the repo root.
  * @returns {import('eslint').Linter.Config[]} A flat config array.
@@ -38,9 +38,19 @@ export function createRootConfig({ rootPath, ignores = [] }) {
     ...base,
     ...test,
     ...scope(['projects/*/web/**'], next),
-    ...scope(['projects/*/api/**', 'packages/**', 'tooling/**', 'scripts/**', '*.{js,mjs}'], node),
     ...scope(
-      ['projects/*/infra/**', 'platform/**', 'packages/cdk-constructs/**'],
+      [
+        'projects/*/src/**',
+        'projects/*/scripts/**',
+        'packages/**',
+        'tooling/**',
+        'scripts/**',
+        '*.{js,mjs}',
+      ],
+      node,
+    ),
+    ...scope(
+      ['projects/*/bin/**', 'projects/*/lib/**', 'platform/**', 'packages/cdk-constructs/**'],
       [...node, ...cdk],
     ),
     ...scope(['projects/**', 'platform/**', 'packages/**', 'tooling/**'], boundaries({ rootPath })),

@@ -43,13 +43,13 @@ module.exports = {
       severity: 'error',
       comment: 'web must not import api code.',
       from: { path: '^projects/[^/]+/web/' },
-      to: { path: '^projects/[^/]+/api(-py|-go)?/' },
+      to: { path: '^projects/[^/]+/src/api(-py|-go)?/' },
     },
     {
       name: 'api-not-web',
       severity: 'error',
       comment: 'api must not import web code.',
-      from: { path: '^projects/[^/]+/api/' },
+      from: { path: '^projects/[^/]+/src/api/' },
       to: { path: '^projects/[^/]+/web/' },
     },
     {
@@ -57,23 +57,27 @@ module.exports = {
       severity: 'error',
       comment:
         'contracts may import only zod. No imports from web, api, infra, packages or platform.',
-      from: { path: '^projects/[^/]+/contracts/' },
-      to: { path: '^(projects/[^/]+/(web|api|infra)|packages|platform|tooling)/' },
+      from: { path: '^projects/[^/]+/src/contracts/' },
+      to: {
+        path: '^(projects/[^/]+/(web|src/api|bin|lib)|packages|platform|tooling)/',
+      },
     },
     {
       name: 'api-domain-is-pure',
       severity: 'error',
       comment: 'api domain code must not import adapters.',
-      from: { path: '^projects/[^/]+/api/src/domain/' },
-      to: { path: '^projects/[^/]+/api/src/adapters/' },
+      from: { path: '^projects/[^/]+/src/api/domain/' },
+      to: { path: '^projects/[^/]+/src/api/adapters/' },
     },
     {
       name: 'infra-only-contracts-and-cdk-constructs',
       severity: 'error',
       comment:
-        'infra may import its own contracts and packages/cdk-constructs. Never web, api or platform/infra.',
-      from: { path: '^projects/[^/]+/infra/' },
-      to: { path: '^(projects/[^/]+/(web|api)/|platform/infra/|packages/(?!cdk-constructs/))' },
+        'infra (bin and lib) may import its own contracts and packages/cdk-constructs. Never web, api or platform/infra.',
+      from: { path: '^projects/[^/]+/(bin|lib)/' },
+      to: {
+        path: '^(projects/[^/]+/(web|src/api)/|platform/infra/|packages/(?!cdk-constructs/))',
+      },
     },
     {
       name: 'packages-not-projects',

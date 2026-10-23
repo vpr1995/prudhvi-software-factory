@@ -1,0 +1,21 @@
+{
+  "extends": "@vprprudhvi/tooling-tsconfig/nextjs.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".next/cache/tsconfig.tsbuildinfo"
+  },
+  "include": [
+    "next-env.d.ts",
+    "*.ts",
+    "app",
+    "components",
+    "lib",
+    "e2e",
+    "test",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

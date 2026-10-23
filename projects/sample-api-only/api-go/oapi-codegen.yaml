@@ -1,6 +1,0 @@
-# Config of oapi-codegen. The input is the OpenAPI document of sample-api-only-contracts.
-package: gen
-generate:
-  models: true
-output-options:
-  skip-prune: true
