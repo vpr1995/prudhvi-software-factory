@@ -17,6 +17,18 @@ Agent entry point for this Rush monorepo (TypeScript, Python, Go, AWS CDK). This
 11. Each API route has a Bruno request with docs and assertions. Each web page has a Playwright spec with an axe check.
 12. `platform/**`, `packages/**`, `projects/*/bin/**`, and `projects/*/lib/**` are high risk. A human approves them.
 13. After 3 failed review rounds, stop and ask the human about the approach.
+14. Work only in this repository. Do not clone it, copy it, or build in a scratch copy and bring the result back. If a gate blocks you, stop and ask the human.
+15. Do not split one change into many pushes to pass a gate. Run the checks once, on the last commit of the push.
+
+## Agent roles
+
+- The main session is the orchestrator. It plans, delegates work to subagents, verifies the result, and commits. Its job ends there. Subagents write the code and the documents.
+- Choose the subagent model by task difficulty:
+  - Opus: the most complex work. For example, gate and hook logic, security, architecture, and hard bugs.
+  - Sonnet: the all-rounder. For example, normal features, tests, and reviews.
+  - Haiku: the cheapest. For large amounts of simple writing. For example, Markdown documents, data files, boilerplate, and mechanical edits.
+- Use a workflow (multi-agent script) or orchestrate step by step. Choose what fits the task.
+- The orchestrator verifies each result with real command output before it commits (rule 1).
 
 ## Routing table
 
