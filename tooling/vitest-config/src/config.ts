@@ -34,8 +34,9 @@ export function createVitestConfig(options: CreateVitestConfigOptions = {}): Vit
     test: {
       environment,
       setupFiles: [...setupFiles],
-      // `src/**` is temporary while tests move to `test/`. Remove it when the move ends.
-      include: ['test/**/*.test.{ts,tsx,js,jsx}', 'src/**/*.test.{ts,tsx,js,jsx}'],
+      // Tests live in the `test/` folder at the project root. A test elsewhere never runs, and the
+      // `test-location` check of scripts/gates/check-gates.mjs fails on it.
+      include: ['test/**/*.test.{ts,tsx,js,jsx}'],
       exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
       globals: false,
       passWithNoTests: false,

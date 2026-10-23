@@ -13,13 +13,10 @@ describe('createVitestConfig', () => {
     });
   });
 
-  it('runs tests from test/ and, for now, from src/', () => {
+  it('runs tests only from the test folder', () => {
     const config = createVitestConfig();
 
-    expect(config.test?.include).toStrictEqual([
-      'test/**/*.test.{ts,tsx,js,jsx}',
-      'src/**/*.test.{ts,tsx,js,jsx}',
-    ]);
+    expect(config.test?.include).toStrictEqual(['test/**/*.test.{ts,tsx,js,jsx}']);
   });
 
   it('measures coverage on the source folder and never on test files', () => {
