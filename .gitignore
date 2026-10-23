@@ -131,6 +131,7 @@ lib/
 !scripts/gates/lib/
 !projects/*/web/lib/
 !projects/*/lib/
+!platform/infra/lib/
 *.tsbuildinfo
 playwright-report/
 test-results/
