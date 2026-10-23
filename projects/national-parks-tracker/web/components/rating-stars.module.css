@@ -1,0 +1,11 @@
+.stars {
+  color: var(--color-star);
+  letter-spacing: 0.08em;
+  font-size: 0.95rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.large {
+  font-size: 1.4rem;
+}
