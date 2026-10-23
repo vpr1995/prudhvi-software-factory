@@ -197,7 +197,7 @@ The Stop hook runs these checks on the session diff. It blocks the stop when a c
 | Anti-skip scan                                                     | Stop blocked. The diff adds a skip, a disable, or a deleted test. Python, Go, Bruno, and Playwright patterns are listed in `docs/standards/testing.md`, section 4. |
 | Gitleaks on the diff                                               | Stop blocked.                                                                                                                                                      |
 | Opengrep on changed files                                          | Stop blocked on `ERROR` findings.                                                                                                                                  |
-| `cdk synth` and cdk-nag when `infra` changed                       | Stop blocked.                                                                                                                                                      |
+| `cdk synth` and cdk-nag for each environment of a changed CDK app  | Stop blocked.                                                                                                                                                      |
 | `rush e2e` for impacted web and api parts (Bruno, Playwright, axe) | Stop blocked.                                                                                                                                                      |
 
 ### 4.3 Commit and push time
