@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-cdk-constructs",
+      "comment": "TracedNodeFunction bundles with the esbuild that resolves from the entry, whatever the PATH of the caller is.",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-cdk-constructs"
+}

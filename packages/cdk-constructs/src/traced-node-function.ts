@@ -1,10 +1,12 @@
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { delimiter, dirname, join, resolve } from 'node:path';
 
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
 import type { BundlingOptions, ICommandHooks } from 'aws-cdk-lib/aws-lambda-nodejs';
 import type { Construct } from 'constructs';
 
+import { inheritedPath } from './config.js';
 import { findRepositoryRoot } from './repository-root.js';
 import { TracedFunctionBase } from './traced-function-base.js';
 import type { TracedFunctionBaseProps } from './traced-function-base.js';
@@ -51,7 +53,8 @@ export type TracedNodeFunctionProps = TracedFunctionBaseProps & {
    * More esbuild settings. `format` (ES module) and `sourceMap` (on) are fixed. `banner` and
    * `mainFields` have defaults for ES modules. The `commandHooks` of the caller run between the
    * steps of this construct: its `package.json` step runs first in `beforeBundling` and its
-   * clean-up step runs last in `afterBundling`.
+   * clean-up step runs last in `afterBundling`. For a local bundle, `environment` gets the folder
+   * of the esbuild of the project first in `PATH` (see `esbuildBundlingEnvironment`).
    */
   readonly bundling?: Omit<BundlingOptions, 'format' | 'sourceMap'>;
 };
@@ -84,6 +87,79 @@ export function resolveBundleRoots(
   return {
     projectRoot: projectRoot ?? repositoryRoot,
     depsLockFilePath: depsLockFilePath ?? join(repositoryRoot, RUSH_LOCK_FILE),
+  };
+}
+
+/**
+ * A file of the aws-cdk-lib `aws-lambda-nodejs` module. CDK finds esbuild with `require` from its
+ * own folder, so Node resolves `esbuild` from here the same way.
+ */
+export const CDK_NODEJS_MODULE = createRequire(import.meta.url).resolve(
+  'aws-cdk-lib/aws-lambda-nodejs',
+);
+
+/** The `esbuild` command of the esbuild package (the `bin` entry of its `package.json`). */
+export const ESBUILD_COMMAND = 'esbuild/bin/esbuild';
+
+/**
+ * Resolves a module request from a file with Node module resolution. It reads no file with a
+ * computed path.
+ *
+ * @param fromFile - The file to resolve from.
+ * @param request - The module request, for example `esbuild/package.json`.
+ * @returns The absolute path of the module, or `undefined` when it does not resolve.
+ */
+export function resolveFrom(fromFile: string, request: string): string | undefined {
+  try {
+    return createRequire(resolve(fromFile)).resolve(request);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Makes the environment of local bundling, so that each bundle runs the esbuild of the project.
+ *
+ * CDK runs `pnpm exec esbuild` (or `esbuild`) in the bundle root, the repo root folder. It has no
+ * `node_modules`, so the command comes from `PATH`, and a global esbuild of another version can
+ * run. This puts the folder of the esbuild that resolves from `entry` first in `PATH`. The other
+ * keys of `environment` stay. The rest of `PATH` is the `PATH` of `environment`, or else the
+ * `PATH` of this process. An empty `PATH` counts as unset.
+ *
+ * CDK bundles in Docker when it does not find esbuild with `require` from `cdkModule` (or on
+ * `PATH`), and it gives the same environment to the container. A `PATH` of this machine breaks
+ * the container, so this function fails instead.
+ *
+ * @param entry - The handler file.
+ * @param environment - The bundling environment of the caller.
+ * @param cdkModule - The file that CDK finds esbuild from. Defaults to `CDK_NODEJS_MODULE`.
+ * @returns The bundling environment with the new `PATH`.
+ * @throws When no esbuild resolves from `entry` or from `cdkModule`.
+ */
+export function esbuildBundlingEnvironment(
+  entry: string,
+  environment: Readonly<Record<string, string>> = {},
+  cdkModule: string = CDK_NODEJS_MODULE,
+): Record<string, string> {
+  const command = resolveFrom(entry, ESBUILD_COMMAND);
+  if (command === undefined) {
+    throw new Error(
+      `The esbuild command does not resolve from the entry ${entry}. Add esbuild to the ` +
+        'devDependencies of the project that holds the entry.',
+    );
+  }
+  // The same request as the esbuild check of CDK (`require('esbuild/package.json')`).
+  if (resolveFrom(cdkModule, 'esbuild/package.json') === undefined) {
+    throw new Error(
+      `aws-cdk-lib cannot resolve esbuild from ${cdkModule}, so CDK would bundle in Docker. ` +
+        'Install esbuild where aws-cdk-lib can resolve it, or set forceDockerBundling.',
+    );
+  }
+  const binFolder = dirname(command);
+  const rest = inheritedPath(environment) ?? inheritedPath();
+  return {
+    ...environment,
+    PATH: rest === undefined ? binFolder : `${binFolder}${delimiter}${rest}`,
   };
 }
 
@@ -154,8 +230,10 @@ export function bundlePackageJsonHooks(caller?: ICommandHooks): ICommandHooks {
  * empty `package.json` before esbuild and remove it after. They never touch a `package.json` that
  * they did not make.
  *
- * Bundling needs `esbuild` in the `node_modules` of the project that runs the CDK app. Without
- * it CDK falls back to Docker.
+ * Each bundle runs the esbuild that Node resolves from `entry`, whatever the `PATH` of the
+ * caller is (see `esbuildBundlingEnvironment`). The construct fails when no esbuild resolves from
+ * `entry`, so add esbuild to the devDependencies of the project. With `forceDockerBundling` the
+ * bundle runs in Docker, and the environment of the caller stays as it is.
  */
 export class TracedNodeFunction extends TracedFunctionBase {
   /** The Lambda function. */
@@ -167,6 +245,8 @@ export class TracedNodeFunction extends TracedFunctionBase {
    * @param props - The function settings.
    * @throws When `projectRoot` or `depsLockFilePath` is missing and this package is not at
    *   `packages/cdk-constructs` in the repo.
+   * @throws When the bundle is local and no esbuild resolves from `entry` (see
+   *   `esbuildBundlingEnvironment`).
    */
   public constructor(scope: Construct, id: string, props: TracedNodeFunctionProps) {
     super(scope, id, props);
@@ -182,6 +262,10 @@ export class TracedNodeFunction extends TracedFunctionBase {
         banner: NODE_REQUIRE_BANNER,
         mainFields: ['module', 'main'],
         ...props.bundling,
+        // Docker gets the environment of the caller as it is. A local bundle gets the esbuild PATH.
+        ...(props.bundling?.forceDockerBundling === true
+          ? {}
+          : { environment: esbuildBundlingEnvironment(props.entry, props.bundling?.environment) }),
         commandHooks: bundlePackageJsonHooks(props.bundling?.commandHooks),
         format: OutputFormat.ESM,
         sourceMap: true,
