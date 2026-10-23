@@ -83,6 +83,13 @@ module.exports = {
       },
     },
     {
+      name: 'lib-not-bin',
+      severity: 'error',
+      comment: 'The app in bin/ imports lib/. lib/ (stacks and constructs) must not import bin/.',
+      from: { path: '^projects/[^/]+/lib/' },
+      to: { path: '^projects/[^/]+/bin/' },
+    },
+    {
       name: 'no-import-of-test-files',
       severity: 'error',
       comment: 'Nothing imports a test file. Source code must not depend on test code.',

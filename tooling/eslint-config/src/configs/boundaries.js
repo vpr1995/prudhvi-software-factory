@@ -108,6 +108,33 @@ function createTestPolicies() {
 }
 
 /**
+ * Policies for the CDK app of a project. Infra may import cdk-constructs, its own contracts and
+ * its own infra. So the app (`bin/`) may import its stacks and constructs (`lib/`). The stacks and
+ * constructs must not import the app.
+ *
+ * @returns {object[]} Policies.
+ */
+function createInfraPolicies() {
+  return [
+    {
+      from: { element: { type: 'infra' } },
+      allow: {
+        to: [
+          { element: { type: 'shared', captured: { package: 'cdk-constructs' } } },
+          { element: { type: 'contracts', ...SAME_PROJECT } },
+          { element: { type: 'infra', ...SAME_PROJECT } },
+        ],
+      },
+    },
+    {
+      from: { file: { categories: 'infra-lib' } },
+      disallow: { to: { file: { categories: 'infra-bin' } } },
+      message: 'lib/ must not import bin/. The app in bin/ imports lib/, not the reverse.',
+    },
+  ];
+}
+
+/**
  * Policies for `boundaries/dependencies`. The last matching policy wins, so each source type
  * first loses every local import and then gets back only what it may import.
  *
@@ -141,15 +168,7 @@ function createPolicies() {
       [ownContracts, shared, { element: { type: 'api-domain', ...SAME_PROJECT } }],
     ),
     allow(['api-domain'], [ownContracts, shared]),
-    {
-      from: { element: { type: 'infra' } },
-      allow: {
-        to: [
-          { element: { type: 'shared', captured: { package: 'cdk-constructs' } } },
-          ownContracts,
-        ],
-      },
-    },
+    ...createInfraPolicies(),
     {
       // Infra uses contracts as types only. Runtime values must not leak into synth.
       from: { element: { type: 'infra' } },
@@ -218,6 +237,8 @@ export function boundaries({ rootPath = REPO_ROOT } = {}) {
         'boundaries/files': [
           { pattern: '**/*.test.{ts,tsx,js}', category: 'test' },
           { pattern: '**/test/**/*.{ts,tsx,js}', category: 'test' },
+          { pattern: 'projects/*/bin/**', category: 'infra-bin' },
+          { pattern: 'projects/*/lib/**', category: 'infra-lib' },
         ],
         'import/resolver': { [TYPESCRIPT_RESOLVER]: { alwaysTryTypes: true } },
       },
