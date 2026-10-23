@@ -48,7 +48,7 @@ Phase ids: `plan`, `w1`, `w2`, `w3`, `w4`.
 
 - Run Rush only through `node common/scripts/install-run-rush.js <cmd>`. The global `rush` is old.
 - Full check: `node common/scripts/install-run-rush.js verify`. For no build cache, set `RUSH_BUILD_CACHE_ENABLED=0`.
-- Gate tests: `node --test 'scripts/gates/test/*.test.js'`. This takes about 5 minutes.
+- Gate tests: `node scripts/gates/test-impacted.mjs` runs only the gate tests that the change can affect (add `--base <ref>` for a range, `--list` to see the files). Run the full suite (`--all`, about 5 minutes) only when it tells you to or before a pause.
 - Gate lint: `tooling/eslint-config/node_modules/.bin/eslint --max-warnings 0 scripts/gates`.
 - Coverage gates: `node scripts/gates/bruno-coverage.mjs` and `node scripts/gates/playwright-coverage.mjs`.
 - Anti-skip on a range: `node scripts/gates/anti-skip.mjs --range <base>...HEAD`.
@@ -143,6 +143,9 @@ Fix these as the work continues. Tracker ids are in brackets.
 7. [`fu-diffcov`] Separate task: the 90 percent diff-coverage check.
 8. `rush change --verify` cannot run until the repo has a real `origin` remote.
 9. guard-bash reads command text, so some commands get past it. See "Known limits" in [gates.md](../standards/gates.md). Gate integrity, CODEOWNERS and CI are the real controls.
+10. [`bl-dns`] Backlog (owner, 2026-10-22): the domain is in Cloudflare. Decide later to import or create a Route53 zone, then add the ACM wildcard certificate. Until then, platform writes no `dns` or `acm` parameters, and projects use the default API and CloudFront URLs.
+11. [`bl-cognito-triggers`] Backlog: Cognito trigger Lambdas create each new user in the users table.
+12. [`bl-users-table`] Backlog: one shared DynamoDB users table (single-table design) in `platform/infra`. Projects read it. They do not keep their own user tables.
 
 ## 5. How to start Wave 3
 
@@ -157,7 +160,7 @@ Wave 3 scope:
 
 | Task id | Work | Owner of files |
 |---|---|---|
-| `w3-platform` | `platform/infra`: one Cognito user pool, imported Route53 hosted zone, ACM wildcard certificate. Write the ids to SSM under `/platform/<env>/...`. | `platform/**` |
+| `w3-platform-cognito` | `platform/infra`: one Cognito user pool with Google sign-in (client id and secret in Secrets Manager `/platform/<env>/cognito/google-oauth`, created by the owner), a Cognito prefix domain, and the SSM parameters under `/platform/<env>/cognito/...`. Route53 and ACM are backlog (`bl-dns`). | `platform/**` |
 | `w3-project-infra` | `packages/cdk-constructs` (Lambda construct with the ADOT layer, tracing on, SSM read helpers) and `projects/sample/bin` + `lib` (API Gateway HTTP API, Lambda, OpenNext for web, own Cognito app client, DNS records). cdk-nag, assertion tests, snapshots. | `packages/cdk-constructs/**`, `projects/*/bin/**`, `projects/*/lib/**`, `projects/*/cdk.json` |
 | `w3-ci` | `.github/workflows`: `ci`, `sast`, `deps`, `infra`, `claude-review`, `risk-classify`, `nightly`, `release`, `rollback`, `scorecard`. Actions pinned by SHA. Least-privilege permissions. OIDC for AWS. | `.github/**` |
 | `w3-gates-scripts` | `scripts/check-gates` (reuse `scripts/gates/lib/gate-integrity.mjs`; disable count, test deletion, PR size) and `scripts/classify-risk`. No diff coverage yet. | `scripts/gates/check-gates.mjs`, `scripts/gates/classify-risk.mjs` |
