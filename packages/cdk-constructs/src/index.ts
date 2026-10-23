@@ -24,3 +24,10 @@ export {
   TracedFunction,
 } from './traced-function.js';
 export type { TracedFunctionProps } from './traced-function.js';
+export {
+  ACCESS_LOG_FIELDS,
+  CORS_ALLOW_HEADERS,
+  CORS_EXPOSE_HEADERS,
+  TracedHttpApi,
+} from './http-api.js';
+export type { HttpApiDomain, PublicRoute, TracedHttpApiProps } from './http-api.js';
