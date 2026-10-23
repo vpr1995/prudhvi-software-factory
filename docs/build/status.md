@@ -155,6 +155,9 @@ Fix these as the work continues. Tracker ids are in brackets.
 11. [`bl-cognito-triggers`] Backlog: Cognito trigger Lambdas create each new user in the users table.
 12. [`bl-users-table`] Backlog: one shared DynamoDB users table (single-table design) in `platform/infra`. Projects read it. They do not keep their own user tables.
 13. [`bl-dynamodb-standard`] Backlog standard (owner, 2026-10-22), for the end of the build: DynamoDB is the default database because of its price. Each DB item has a Zod schema. Mapper functions convert the input (contracts) to the DB item and back, and the types match on both sides. The key attributes (partition key, sort key, index keys) and their formats are defined once in the schema, so no code writes a free-form key. Write it as a standard in `docs/standards/` with an enforcer (types plus tests, or a lint rule).
+14. [`bl-envs`] Owner (2026-10-22), after Wave 3: bring a short plan first, no edits before the owner agrees. Goal: fewer environments for a personal project, for example `local` (the app runs on the Mac, `localhost:3000`, and can use cloud resources such as Cognito and DynamoDB tables) and `prod` (deployed). Environments must be plug and play: adding an environment is one config file and no code change. Today the code has `dev`, `staging` and `prod`.
+15. `dependency-cruiser` is not installed and no command runs it. Wire it in the CI chunk.
+16. `test-location` and the other check-gates checks run only in CI (not built yet). Decide if pre-push runs `test-location`.
 
 ## 5. How to start Wave 3
 
