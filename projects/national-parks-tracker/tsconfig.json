@@ -1,0 +1,7 @@
+{
+  "extends": "@vprprudhvi/tooling-tsconfig/node.json",
+  "compilerOptions": { "noEmit": true, "allowImportingTsExtensions": true },
+  "include": ["src", "test", "vitest.config.ts", "playwright.config.ts"],
+  // The web tests need the web settings (jsx, DOM). web/tsconfig.json includes them.
+  "exclude": ["test/web"]
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/rush-project.schema.json",
+  "operationSettings": [
+    // Turbopack writes symlinks into web/.next/node_modules. Rush cannot put symlinks in the build
+    // cache, and it exits with code 1 when it tries. So the build phase is not cached. web/out is
+    // the static site.
+    {
+      "operationName": "_phase:build",
+      "outputFolderNames": ["web/out", "web/.next"],
+      "disableBuildCacheForOperation": true
+    },
+    { "operationName": "_phase:test", "outputFolderNames": ["coverage"] },
+    // The e2e phase builds the site again with the fixture visits into web/out-e2e, then runs
+    // Playwright against it. Never cached.
+    { "operationName": "_phase:e2e", "disableBuildCacheForOperation": true }
+  ]
+}

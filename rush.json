@@ -76,6 +76,12 @@
       "tags": ["shared"]
     },
     {
+      "packageName": "@vprprudhvi/national-parks-tracker",
+      "projectFolder": "projects/national-parks-tracker",
+      "shouldPublish": false,
+      "tags": ["project/national-parks-tracker"]
+    },
+    {
       "packageName": "@vprprudhvi/sample",
       "projectFolder": "projects/sample",
       "shouldPublish": false,

@@ -1,0 +1,24 @@
+{
+  "extends": "@vprprudhvi/tooling-tsconfig/nextjs.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".next/cache/tsconfig.tsbuildinfo",
+    // The bundler picks the visits file at build time (turbopack.resolveAlias in next.config.ts).
+    // The type checker and the editor see the default file.
+    "paths": { "@npt/visits": ["./data/visits.json"] }
+  },
+  "include": [
+    "next-env.d.ts",
+    "*.ts",
+    "app",
+    "components",
+    "lib",
+    "e2e",
+    "../test/web",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", "out", "out-e2e"]
+}
