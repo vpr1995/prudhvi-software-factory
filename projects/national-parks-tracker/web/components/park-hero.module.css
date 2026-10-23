@@ -1,0 +1,17 @@
+.hero {
+  margin: 0;
+}
+
+/* Some credits are a long sentence. They wrap; the license link always stays visible. */
+.credit {
+  margin-top: 0.5rem;
+  max-width: 70ch;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.credit a {
+  color: inherit;
+}

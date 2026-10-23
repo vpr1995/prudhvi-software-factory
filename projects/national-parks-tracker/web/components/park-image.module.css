@@ -1,0 +1,56 @@
+.box {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-muted);
+  flex: none;
+}
+
+.thumbnail {
+  width: 88px;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+}
+
+.hero {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-large);
+}
+
+/* A wide screen gets a wider box, so the visit details show above the fold. */
+@media (min-width: 960px) {
+  .hero {
+    aspect-ratio: 21 / 9;
+  }
+}
+
+.gallery {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+}
+
+.image {
+  object-fit: cover;
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  background: linear-gradient(160deg, var(--color-surface-muted), var(--color-placeholder));
+}
+
+.icon {
+  width: 46%;
+  max-width: 120px;
+  fill: currentColor;
+  opacity: 0.55;
+}
+
+.placeholderText {
+  font-size: 0.95rem;
+}
