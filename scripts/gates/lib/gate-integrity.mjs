@@ -223,7 +223,7 @@ function phaseScripts(text) {
  * @param {string | null} after - New text (null when the file does not exist now).
  * @returns {string[]} One text for each script that was added, removed or changed.
  */
-function phaseDifferences(before, after) {
+export function phaseDifferences(before, after) {
   if (before === after) {
     return [];
   }
