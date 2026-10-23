@@ -1,4 +1,4 @@
-import { App, Duration, Stack } from 'aws-cdk-lib';
+import { App, Duration, Stack, Validations } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { Code, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
@@ -234,41 +234,54 @@ describe('TracedFunction logs and role', () => {
 describe('TracedFunction cdk-nag', () => {
   // cdk-nag 3 is a validation plugin. A plugin on the App makes synth throw on a violation, so
   // these tests call `validateScope` and read the report.
-  // Two AwsSolutions-IAM5 findings stay open. No suppression is added without the owner:
-  // - `Resource::*`: X-Ray `PutTraceSegments` and `PutTelemetryRecords` have no resource-level
-  //   permission, so CDK writes `Resource: *` for active tracing.
-  // - `Resource::<LogGroup.Arn>:*`: log stream names are dynamic, so the log write needs `:*`.
-  const openFindings = [
-    'AwsSolutions-IAM5[Resource::*]',
-    'AwsSolutions-IAM5[Resource::<LogGroup.Arn>:*]',
-  ];
+  // The construct acknowledges two AwsSolutions-IAM5 findings (owner approved 2026-10-22):
+  // X-Ray `Resource: *` and the log stream `:*`. Nothing else is acknowledged.
 
-  /** Lists the rule names of all violations, with the log group token in a fixed form. */
+  /** Lists the rule names of all violations. */
   function violationNames(stack: Stack): string[] {
-    const report = new AwsSolutionsChecks().validateScope(stack);
-    return report.violations
-      .map((violation) => violation.ruleName.replace(/<[A-Za-z0-9]+\.Arn>/, '<LogGroup.Arn>'))
-      .sort();
+    return new AwsSolutionsChecks()
+      .validateScope(stack)
+      .violations.map((violation) => violation.ruleName);
   }
 
-  it('has no AwsSolutions error other than the two open IAM5 findings', () => {
+  it('has zero AwsSolutions violations', () => {
     const { stack } = build();
 
-    expect(violationNames(stack)).toEqual(openFindings);
-  });
-
-  it('has no IAM4 finding, because the role has no managed policy', () => {
-    const { stack } = build();
-
-    expect(violationNames(stack).filter((name) => name.includes('IAM4'))).toEqual([]);
+    expect(violationNames(stack)).toEqual([]);
   });
 
   it.each([Runtime.PYTHON_3_14, Runtime.PROVIDED_AL2023])(
-    'has the same findings for the %s runtime',
+    'has zero AwsSolutions violations for the %s runtime',
     (runtime) => {
       const { stack } = build({ runtime, handler: 'bootstrap' });
 
-      expect(violationNames(stack)).toEqual(openFindings);
+      expect(violationNames(stack)).toEqual([]);
     },
   );
+
+  it('has zero violations for two functions in one stack', () => {
+    const { stack } = build();
+    new TracedFunction(stack, 'Worker', {
+      serviceName: 'worker',
+      env: 'prod',
+      code: Code.fromBucket(Bucket.fromBucketName(stack, 'WorkerCode', 'worker-code'), 'w.zip'),
+      handler: 'index.handler',
+      runtime: Runtime.NODEJS_24_X,
+    });
+
+    expect(violationNames(stack)).toEqual([]);
+  });
+
+  it('does not acknowledge more than the two IAM5 findings', () => {
+    const { stack } = build();
+    const role = stack.node.findChild('Api').node.findChild('Role');
+    const metadata = role.node.metadata.concat(role.node.findChild('DefaultPolicy').node.metadata);
+    const ids = metadata
+      .filter((entry) => entry.type === Validations.ACKNOWLEDGED_RULES_METADATA_KEY)
+      .flatMap((entry) => JSON.stringify(entry.data));
+
+    expect(ids).toHaveLength(2);
+    expect(ids.join('')).toContain('AwsSolutions-IAM5[Resource::*]');
+    expect(ids.join('')).toContain('Owner approved 2026-10-22');
+  });
 });

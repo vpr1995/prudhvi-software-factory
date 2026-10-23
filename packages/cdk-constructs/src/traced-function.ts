@@ -1,4 +1,4 @@
-import { Duration, RemovalPolicy } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack, Validations } from 'aws-cdk-lib';
 import {
   Effect,
   PolicyDocument,
@@ -16,7 +16,7 @@ import {
   Tracing,
 } from 'aws-cdk-lib/aws-lambda';
 import type { Code } from 'aws-cdk-lib/aws-lambda';
-import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
+import { CfnLogGroup, LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import type { ILogGroup } from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
@@ -196,5 +196,34 @@ export class TracedFunction extends Construct {
     });
     this.logGroup = logGroup;
     this.role = role;
+    this.acknowledgeIam5(logGroup, role);
+  }
+
+  /**
+   * Acknowledges the two AwsSolutions-IAM5 findings that this construct cannot remove. The repo
+   * owner approved both on 2026-10-22. They apply to this role only.
+   *
+   * @param logGroup - The log group of the function.
+   * @param role - The execution role of the function.
+   */
+  private acknowledgeIam5(logGroup: LogGroup, role: Role): void {
+    // cdk-nag names the finding after the logical ID of the log group, so build it from the ID.
+    const cfnLogGroup = logGroup.node.defaultChild;
+    if (!(cfnLogGroup instanceof CfnLogGroup)) {
+      throw new TypeError('The log group has no CfnLogGroup child.');
+    }
+    const logGroupLogicalId = Stack.of(this).getLogicalId(cfnLogGroup);
+    Validations.of(role).acknowledge({
+      id: `AwsSolutions-IAM5[Resource::<${logGroupLogicalId}.Arn>:*]`,
+      reason:
+        'Lambda log stream names are dynamic, so the log write needs the log group ARN with ":*". ' +
+        'The policy is limited to the log group of this function. Owner approved 2026-10-22.',
+    });
+    Validations.of(role.node.findChild('DefaultPolicy')).acknowledge({
+      id: 'AwsSolutions-IAM5[Resource::*]',
+      reason:
+        'X-Ray PutTraceSegments and PutTelemetryRecords have no resource-level permission, so CDK ' +
+        'writes "Resource: *" for active tracing. Owner approved 2026-10-22.',
+    });
   }
 }
