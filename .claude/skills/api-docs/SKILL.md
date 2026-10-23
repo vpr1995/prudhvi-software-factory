@@ -20,7 +20,7 @@ The Bruno collection is the API reference. Each `.bru` file is one route. Its `d
 1. List all routes: `grep -rh -A1 -E '^(get|post|put|patch|delete) \{' projects/<name>/bruno` shows the method and the URL line for each file.
 2. Read one route: `cat projects/<name>/bruno/<resource>/<action>.bru`.
 3. Read the `docs` block for purpose, auth, and errors. Read the `assert` block for the status and key fields.
-4. Check the path matches the OpenAPI output in `projects/<name>/contracts/dist/openapi.json` after a contracts build.
+4. Check the path matches the OpenAPI output in `projects/<name>/dist/openapi.json` after a contracts build.
 
 ## File format
 
@@ -64,7 +64,7 @@ For a path parameter, use `:name` in the URL and a `params:path` block. Keep the
 1. Create or open the `.bru` file in the resource folder.
 2. Write the `docs` block: purpose, auth, and each error code the route returns.
 3. Write at least one `assert` line. Cover the status, the error envelope `error.code` on error routes, and the key fields.
-4. Run the route: `rush e2e --only @vprprudhvi/<name>-api` (TypeScript) or the matching `-api-py` or `-api-go` package. It starts the server on a free port and runs `bru run` with `--env local --env-var baseUrl=http://localhost:<port>`.
+4. Run the route: `rush e2e --only @vprprudhvi/<name>` . The e2e phase runs each API part (TypeScript, Python, Go). It starts each server on a free port and runs `bru run` with `--env local --env-var baseUrl=http://localhost:<port>`.
 5. Paste the `bru run` summary.
 
 ## Done when

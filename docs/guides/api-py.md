@@ -1,19 +1,19 @@
 # Guide: api-py (Python)
 
-Kind: `projects/<name>/api-py`. Package: `@vprprudhvi/<name>-api-py`. Python on Lambda with `aws-lambda-powertools`. Read the root `CLAUDE.md` and `projects/CLAUDE.md` first.
+Part: `projects/<name>/src/api-py`. Package: `@vprprudhvi/<name>` (one package for the whole project). Python on Lambda with `aws-lambda-powertools`. Read the root `CLAUDE.md` and `projects/CLAUDE.md` first.
 
 ## Folder layout
 
-- `api-py/src/<package>/handler.py`: routes on the Powertools `APIGatewayHttpResolver`.
-- `api-py/src/<package>/domain/`: pure logic. No Powertools import. It returns a `Result`. Errors are values.
-- `api-py/src/<package>/generated/`: Pydantic v2 models. Generated. Never edit.
-- `api-py/tests/`: pytest files named `test_*.py`.
-- `api-py/scripts/`: `generate-models.sh` and the e2e script.
-- `api-py/pyproject.toml`: tool settings. It is a gate file.
+- `src/api-py/src/<package>/handler.py`: routes on the Powertools `APIGatewayHttpResolver`.
+- `src/api-py/src/<package>/domain/`: pure logic. No Powertools import. It returns a `Result`. Errors are values.
+- `src/api-py/src/<package>/generated/`: Pydantic v2 models. Generated. Never edit.
+- `src/api-py/tests/`: pytest files named `test_*.py`.
+- `src/api-py/scripts/`: `generate-models.sh`. The project `scripts/e2e.mjs` runs the e2e phase.
+- `src/api-py/pyproject.toml`: tool settings. It is a gate file.
 
 ## Rules
 
-- The schema source is Zod in `<project>-contracts`. Never write a model by hand.
+- The schema source is Zod in `src/contracts`. Never write a model by hand.
 - Follow PEP 8: snake_case functions, PascalCase classes, UPPER_SNAKE_CASE constants.
 - Write full type hints and Google-style docstrings. No `Any`. No bare `except`.
 - Validate the body with the generated model: `Model.model_validate(app.current_event.json_body)`. Return 400 and the envelope on `ValidationError`.

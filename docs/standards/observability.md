@@ -121,7 +121,7 @@ Each log line is one JSON object. TypeScript, Python, and Go use the same field 
 
 ## 9. Local tracing with Jaeger
 
-- A Docker Compose file starts Jaeger (planned): `docker compose -f docker-compose.otel.yml up -d`.
+- A Docker Compose file starts Jaeger: `docker compose up -d` (file `docker-compose.yml` at the repo root).
 - Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` for the web and api processes.
 - Open the Jaeger UI at `http://localhost:16686`. Search by service name or by trace id.
 - Run `rush e2e` (an alias of the wrapper command) with the collector up to see the trace from the Next.js server to the API.
@@ -162,4 +162,4 @@ Each rule has an enforcer. An enforcer marked "(planned)" is not active.
 - Decision: `docs/adr/0009-opentelemetry-tracing.md`.
 - Logging rule: `docs/standards/coding-conventions.md`, section C.4 and C.5.
 - Test rules: `docs/standards/testing.md`, section 12.
-- Per-kind wiring: `docs/guides/web.md`, `docs/guides/api.md`, `docs/guides/api-py.md`, `docs/guides/api-go.md`, `docs/guides/infra.md`.
+- Per-part wiring: `docs/guides/web.md`, `docs/guides/api.md`, `docs/guides/api-py.md`, `docs/guides/api-go.md`, `docs/guides/infra.md`.

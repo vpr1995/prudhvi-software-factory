@@ -15,14 +15,14 @@ Rules:
 
 ## Steps
 
-1. Read `projects/<name>/web/src/app/`, `components/`, `lib/`, and `e2e/`. Copy the existing style.
-2. Add the page at `projects/<name>/web/src/app/<route>/page.tsx`. Make it a Server Component.
-3. Add the data call in `projects/<name>/web/src/lib/<resource>-client.ts`. It calls the api over HTTP. It parses each response with the schema from `@vprprudhvi/<name>-contracts`, for example `XSchema.safeParse(json)`, and returns a `Result`.
-   The web must not import from `@vprprudhvi/<name>-api`.
-4. Add components in `projects/<name>/web/src/components/<kebab>.tsx`. Use named exports. Add `"use client"` only when the component needs state or browser APIs.
+1. Read `projects/<name>/web/app/`, `components/`, `lib/`, and `e2e/`. Copy the existing style.
+2. Add the page at `projects/<name>/web/app/<route>/page.tsx`. Make it a Server Component.
+3. Add the data call in `projects/<name>/web/lib/<resource>-client.ts`. It calls the api over HTTP. It parses each response with the schema from `projects/<name>/src/contracts` (a relative import), for example `XSchema.safeParse(json)`, and returns a `Result`.
+   The web must not import from `src/api`.
+4. Add components in `projects/<name>/web/components/<kebab>.tsx`. Use named exports. Add `"use client"` only when the component needs state or browser APIs.
 5. If the page needs login, use the project Cognito app client. Read its client ID and domain from the infra stack outputs or from SSM through the helper. Do not hard-code them.
 6. If the page is user-visible, read its flag from `@vprprudhvi/shared-flags`.
-7. Add telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step and report it as an open item (section 2 of that document). Call the api only through `lib/<resource>-client.ts`. Do not set the header by hand. A server fetch sends `traceparent` through the server instrumentation. A browser fetch sends it only when the client component calls `initBrowserTelemetry()` (`src/instrumentation-client.ts`). Check that `src/instrumentation.ts` registers telemetry with `@vprprudhvi/shared-telemetry`. If it does not, or the package exists but is not a dependency, stop. A new dependency needs approval. Add a Vitest test of the lib client: the request carries `traceparent` when a span is active.
+7. Add telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step and report it as an open item (section 2 of that document). Call the api only through `lib/<resource>-client.ts`. Do not set the header by hand. A server fetch sends `traceparent` through the server instrumentation. A browser fetch sends it only when the client component calls `initBrowserTelemetry()` (`web/lib/browser-api.ts`). Check that `web/instrumentation.ts` registers telemetry with `@vprprudhvi/shared-telemetry`. If it does not, or the package exists but is not a dependency, stop. A new dependency needs approval. Add a Vitest test of the lib client: the request carries `traceparent` when a span is active.
 8. Write a component test next to each component: `<kebab>.test.tsx`. Use Testing Library. Query by role and by name.
 9. Write the Playwright spec at `projects/<name>/web/e2e/<route>.spec.ts`. It must:
    - call `page.goto('<route>')` with the literal route string, so the coverage gate can match it;
@@ -41,9 +41,9 @@ Rules:
      expect(results.violations).toEqual([]);
    });
    ```
-   If `@playwright/test` or `@axe-core/playwright` is not in `web/package.json`, stop. A new dependency needs approval. After approval, write `rush add -p <pkg> --dev` (run from the web folder) to `.claude/state/handoff/<name>/NN-commands.txt`. A human runs it. It changes the lockfile, which is a gate file.
-10. Run `rush test --to @vprprudhvi/<name>-web` and paste the output.
-11. Run `rush e2e --only @vprprudhvi/<name>-web` and paste the output. It builds the app, starts `next start`, and runs Playwright.
+   If `@playwright/test` or `@axe-core/playwright` is not in the project `package.json`, stop. A new dependency needs approval. After approval, write `rush add -p <pkg> --dev` (run from `projects/<name>`) to `.claude/state/handoff/<name>/NN-commands.txt`. A human runs it. It changes the lockfile, which is a gate file.
+10. Run `rush test --to @vprprudhvi/<name>` and paste the output.
+11. Run `rush e2e --only @vprprudhvi/<name>` and paste the output. It builds the app, starts `next start`, and runs Playwright.
 12. Run the `verify` skill. Then run the `e2e-verify` skill and look at the screenshot of the new page.
 
 ## Done when
@@ -57,7 +57,7 @@ Rules:
 ## Do not
 
 - Use `"use client"` on a page or a layout.
-- Import from `@vprprudhvi/<name>-api` or another project.
+- Import from `src/api` or another project.
 - Use `dangerouslySetInnerHTML` with unescaped input.
 - Read `process.env` in a component. Use the config module.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.

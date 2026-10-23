@@ -1,6 +1,6 @@
 # Review template: api-go (Go, Lambda)
 
-Use this template with `REVIEW.md` for each change in `projects/<name>/api-go/`. Apply the rules to the changed files only. The backend runs on Lambda with `provided.al2023` and `aws-lambda-go`.
+Use this template with `REVIEW.md` for each change in `projects/<name>/src/api-go/`. Apply the rules to the changed files only. The backend runs on Lambda with `provided.al2023` and `aws-lambda-go`.
 
 ## Checks
 
@@ -13,7 +13,7 @@ Use this template with `REVIEW.md` for each change in `projects/<name>/api-go/`.
 Example of a finding:
 
 ```
-Important  projects/sample-api-only/api-go/internal/handlers/orders.go:34
+Important  projects/sample/src/api-go/internal/handlers/orders.go:34
 Body is decoded into map[string]any and the field is read by key. Input is not validated.
 Fix: decode into gen.CreateOrder with DisallowUnknownFields and check the required fields.
 ```
@@ -21,7 +21,7 @@ Fix: decode into gen.CreateOrder with DisallowUnknownFields and check the requir
 ### Generated types
 
 - Types come from `internal/gen/`. A file in `internal/gen/` is not edited.
-- The drift check in CI must pass. Report `Important` if the PR changes `internal/gen/` without a Zod change in `<project>-contracts`.
+- The drift check in CI must pass. Report `Important` if the PR changes `internal/gen/` without a Zod change in `src/contracts`.
 
 ### Error envelope
 

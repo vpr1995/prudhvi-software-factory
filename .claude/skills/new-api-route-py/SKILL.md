@@ -8,7 +8,7 @@ description: Add a route to a project Python api (api-py) that runs on Lambda wi
 Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-toplevel)/common/scripts/install-run-rush.js" "$@"; }`
 
 Rules:
-- The schema source is Zod in `projects/<name>/contracts`. Never write the Python model by hand.
+- The schema source is Zod in `projects/<name>/src/contracts`. Never write the Python model by hand.
 - Generated code is in `src/<pkg>/generated/`. Do not edit it.
 - Path is kebab-case, plural, versioned: `/v1/<resources>`.
 - Errors use the envelope `{"error": {"code", "message", "requestId"}}`. Codes are UPPER_SNAKE_CASE.
@@ -16,16 +16,16 @@ Rules:
 
 ## Steps
 
-1. Read `projects/<name>/api-py/src/<pkg>/` (handler, domain, `generated/`), `tests/`, and `projects/<name>/bruno/`. Copy their style.
-2. Add the schema in `projects/<name>/contracts/src/<resource>.ts` (`XSchema` and type `X`). Then build contracts so JSON Schema is emitted: `rush build --only @vprprudhvi/<name>-contracts`.
-3. Regenerate the models: `rush build --only @vprprudhvi/<name>-api-py`. The `_phase:build` script runs `scripts/generate-models.sh` and writes `src/<pkg>/generated/<resource>.py`. Check the new file exists.
+1. Read `projects/<name>/src/api-py/src/<pkg>/` (handler, domain, `generated/`), `tests/`, and `projects/<name>/bruno/`. Copy their style.
+2. Add the schema in `projects/<name>/src/contracts/<resource>.ts` (`XSchema` and type `X`). Then build contracts so JSON Schema is emitted: `rush build --only @vprprudhvi/<name>`.
+3. Regenerate the models: `rush build --only @vprprudhvi/<name>`. The `_phase:build` script runs `scripts/generate-models.sh` and writes `src/api-py/src/<pkg>/generated/<resource>.py`. Check the new file exists.
 4. Add the domain function in `src/<pkg>/domain/<resource>.py`. It is pure: no powertools import. It returns a `Result` from `src/<pkg>/result.py`. Each domain error is a value, not a raised exception.
 5. Add the route to `src/<pkg>/handler.py` on the `APIGatewayHttpResolver`. Validate the body with the generated model: `Model.model_validate(app.current_event.json_body)`. On `ValidationError`, return 400 with the envelope. Map each `Result` error to its status and envelope.
 6. Add telemetry. Read `docs/standards/observability.md`. If the OpenTelemetry packages do not exist for the part, skip this step and the trace test, and report them as open items (section 2 of that document). Wrap each adapter call in a span named `<domain>.<action>` with the OpenTelemetry API. Log with the Powertools logger and the custom formatter of the part. The formatter writes `trace_id`, `span_id`, `trace_flags`, `msg`, `time`, `service.name`, and a lower-case `level` (section 3 of that document). Do not use the Powertools Tracer. The ADOT layer comes from the shared Lambda construct. Do not add it by hand. See `new-cdk-construct`. If the OpenTelemetry packages are not in `pyproject.toml`, stop. A new dependency needs approval, and `uv.lock` is a gate file.
 7. Write tests in `tests/test_<resource>.py`. Call `handler(event, context)` with a fake API Gateway HTTP API v2 event. Cover success, each error path, and an invalid body. Add a test with a `traceparent` header: the log record must have the trace id.
 8. Write the Bruno request at `projects/<name>/bruno/<resource>/<action>.bru`. Use the `api-docs` skill for the format.
-9. Run `uv run pytest tests/test_<resource>.py -q` and paste the output. Then run `rush test --only @vprprudhvi/<name>-api-py`.
-10. Run `rush e2e --only @vprprudhvi/<name>-api-py` and paste the output.
+9. Run `uv run pytest tests/test_<resource>.py -q` and paste the output. Then run `rush test --only @vprprudhvi/<name>` (it runs every part, and names the part that fails).
+10. Run `rush e2e --only @vprprudhvi/<name>` and paste the output.
 11. Run the `verify` skill.
 
 ## Done when

@@ -69,7 +69,7 @@ Python tools come from `uv.lock`. Do not install ruff, mypy, pytest, or bandit g
 ## 4. Commit and push
 
 - Create a branch. Use the format `<type>/<short-kebab>`. See `docs/standards/git-workflow.md`.
-- Write a Conventional Commit message. Example: `feat(sample-api-only): add health route`.
+- Write a Conventional Commit message. Example: `feat(sample): add health route`.
 - Do not use `--no-verify`.
 - Open a PR. Fill in `.github/pull_request_template.md`.
 
@@ -78,7 +78,7 @@ Python tools come from `uv.lock`. Do not install ruff, mypy, pytest, or bandit g
 Use `rush add`. Do not use `npm` or `pnpm` directly.
 
 ```
-node common/scripts/install-run-rush.js add -p <package> --to @vprprudhvi/sample-api-only-api
+node common/scripts/install-run-rush.js add -p <package> --to @vprprudhvi/sample
 ```
 
 A new dependency needs a human approval. See `docs/standards/security.md`, section 4.
@@ -90,7 +90,7 @@ Agents write most of the code. Agents follow these files:
 | File | What it sets |
 |---|---|
 | `CLAUDE.md` | Repo conventions and a routing table to guides and skills. Read first. Nested `CLAUDE.md` files cover `projects/`, `platform/`, `packages/`, `tooling/`, `docs/`, and `.github/`. |
-| `docs/guides/*.md` | How to work in one kind: contracts, web, api, api-py, api-go, infra. |
+| `docs/guides/*.md` | How to work in one part: contracts, web, api, api-py, api-go, infra. |
 | `REVIEW.md` | Rules for the AI reviewer. |
 | `docs/standards/*.md` | Coding, testing, security, Git, gate, and risk rules. |
 | `.claude/settings.json` | Agent hooks and permissions. |

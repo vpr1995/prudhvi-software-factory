@@ -18,7 +18,7 @@ Platform facts:
 1. Read the key list. Run `ls platform/infra/src` and read the file that publishes the `/platform/` keys. Do not guess key names.
 2. Read the helper. Run `grep -n "export" packages/cdk-constructs/src/index.ts`. Use the exact export names. If no SSM helper is exported, stop and ask the human.
 3. Check the value exists (read-only): `aws ssm get-parameter --name /platform/<env>/<key> --query Parameter.Name --output text`. If AWS credentials are missing, say so. Do not skip the rest.
-4. In the project infra stack, call the helper with the env from `projects/<name>/infra/src/config/<env>.ts`. Do not hard-code a pool ID, zone ID, certificate ARN, or account ID.
+4. In the project infra stack, call the helper with the env from `projects/<name>/lib/config/<env>.ts`. Do not hard-code a pool ID, zone ID, certificate ARN, or account ID.
 5. Create only project resources: one Cognito app client on the platform user pool for this project, DNS records in the platform hosted zone under this project's subdomain, the project custom domain, and the project Lambdas. Use `new-cdk-construct` for each one.
 6. Never create a user pool, hosted zone, or wildcard certificate in a project stack.
 7. Run `Template.fromStack` tests that assert the helper's SSM path, then run the `verify` skill.

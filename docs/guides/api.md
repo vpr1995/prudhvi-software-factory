@@ -1,22 +1,22 @@
 # Guide: api (TypeScript)
 
-Kind: `projects/<name>/api`. Package: `@vprprudhvi/<name>-api`. Fastify on Lambda. Read the root `CLAUDE.md` and `projects/CLAUDE.md` first.
+Part: `projects/<name>/src/api`. Package: `@vprprudhvi/<name>` (one package for the whole project). Fastify on Lambda. Read the root `CLAUDE.md` and `projects/CLAUDE.md` first.
 
 ## Folder layout
 
-- `api/src/routes/<resource>/`: one Fastify plugin per route. It wires the schema and calls the domain.
-- `api/src/domain/`: pure logic. It returns `Result<T, E>`. It never imports `adapters/` or `fastify`.
-- `api/src/adapters/`: DB and HTTP clients. Domain code receives an adapter as a parameter.
-- `api/src/config.ts`: the only place that reads `process.env`. It parses env with Zod.
-- `api/src/server.ts`: `buildServer()`, error handler, and plugin registration.
-- `api/src/lambda.ts`: wraps `buildServer()` with `@fastify/aws-lambda`. Route code does not import Lambda types.
+- `src/api/routes/<resource>/`: one Fastify plugin per route. It wires the schema and calls the domain.
+- `src/api/domain/`: pure logic. It returns `Result<T, E>`. It never imports `adapters/` or `fastify`.
+- `src/api/adapters/`: DB and HTTP clients. Domain code receives an adapter as a parameter.
+- `src/api/config.ts`: the only place that reads `process.env`. It parses env with Zod.
+- `src/api/server.ts`: `buildServer()`, error handler, and plugin registration.
+- `src/api/lambda.ts`: wraps `buildServer()` with `@fastify/aws-lambda`. Route code does not import Lambda types.
 
 ## Rules
 
-- Validate input with the project `contracts`. Use `fastify-type-provider-zod` and `withTypeProvider<ZodTypeProvider>()`.
+- Validate input with `src/contracts` (relative import). Use `fastify-type-provider-zod` and `withTypeProvider<ZodTypeProvider>()`.
 - Errors extend `AppError` with an UPPER_SNAKE_CASE `code`. Use the one error handler in `server.ts`.
 - Use the existing auth hook for protected routes. Do not parse tokens in a route.
-- Never import `@vprprudhvi/<name>-web` or another project.
+- Never import from `web/` or another project.
 - Put new user-visible behavior behind a flag from `@vprprudhvi/shared-flags`.
 - Log only with `@vprprudhvi/shared-logger`.
 

@@ -1,6 +1,6 @@
 # Review template: infra (AWS CDK)
 
-Use this template with `REVIEW.md` for each change in `projects/<name>/infra/` or `packages/cdk-constructs/`. Apply the rules to the changed files only. Read the `cdk diff` output in the PR comment before you review.
+Use this template with `REVIEW.md` for each change in `projects/<name>/bin/`, `projects/<name>/lib/`, or `packages/cdk-constructs/`. Apply the rules to the changed files only. Read the `cdk diff` output in the PR comment before you review.
 
 ## Checks
 
@@ -14,7 +14,7 @@ Use this template with `REVIEW.md` for each change in `projects/<name>/infra/` o
 Example of a finding:
 
 ```
-Important  projects/sample-fullstack/infra/src/constructs/assets.ts:31
+Important  projects/sample/lib/constructs/assets.ts:31
 Policy action is "s3:*" on resource "*". Access is not least privilege.
 Fix: grant s3:GetObject on the bucket ARN only, or use bucket.grantRead().
 ```

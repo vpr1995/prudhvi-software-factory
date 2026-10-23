@@ -2,7 +2,7 @@
 
 This file sets the rules for AI code review in this repository. The `fresh-reviewer` agent and the `claude-review.yml` workflow read it.
 
-Read `CLAUDE.md` first. Read the kind template for each changed part: `docs/templates/REVIEW.web.md`, `REVIEW.api.md`, or `REVIEW.infra.md`.
+Read `CLAUDE.md` first. Read the part template for each changed part: `docs/templates/REVIEW.web.md`, `REVIEW.api.md`, or `REVIEW.infra.md`.
 
 Project files `projects/<name>/REVIEW.md` and `platform/REVIEW.md` add rules for their area. They do not remove rules from this file.
 
@@ -11,7 +11,7 @@ Project files `projects/<name>/REVIEW.md` and `platform/REVIEW.md` add rules for
 - Start the summary with a count. Example: `3 findings: 1 Important, 1 Nit, 1 Pre-existing.`
 - If there are no findings, write exactly: `No issues found.` Then list the files you checked.
 - Tag each finding with one severity: `Important`, `Nit`, or `Pre-existing`.
-- Give each finding a file and a line. Example: `projects/sample-api-only/api/src/routes/order/create-order.ts:42`.
+- Give each finding a file and a line. Example: `projects/sample/src/api/routes/order/create-order.ts:42`.
 - Quote the line or the expression that fails.
 - Name the bug class, not only the line. Example: "missing authorization check on a route that reads another user's data".
 - Say what fails and when. Say how to fix it in one sentence.
@@ -57,10 +57,11 @@ Check these failure types on each change.
 
 ### 6.1 Boundaries and structure
 
-- A project imports another project. Example: `projects/a/web` imports `projects/a/api`.
+- A project imports another project. Example: `projects/a/web` imports `projects/b/src/contracts`.
+- `web` imports `src/api`, or `src/api` imports `web`, inside one project.
 - `packages/*` imports from `projects/*`.
-- `contracts` imports from `web`, `api`, or `infra`.
-- Domain code under `api/src/domain/` imports Fastify or an adapter.
+- `src/contracts` imports from `web`, `src/api`, `bin`, or `lib`.
+- Domain code under `src/api/domain/` imports Fastify or an adapter.
 - A new folder or file does not follow the layout in `docs/standards/coding-conventions.md`, section D.
 
 ### 6.2 Config and environment

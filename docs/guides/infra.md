@@ -1,32 +1,51 @@
 # Guide: infra (AWS CDK)
 
-Kind: `projects/<name>/infra`. Package: `@vprprudhvi/<name>-infra`. Read the root `CLAUDE.md` and `projects/CLAUDE.md` first. Changes to `projects/*/infra/**` are high risk. A human approves them.
+Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, constructs). Package: `@vprprudhvi/<name>` (one package for the whole project). Read the root `CLAUDE.md` and `projects/CLAUDE.md` first. Changes to `projects/*/bin/**` and `projects/*/lib/**` are high risk. A human approves them.
 
 ## Folder layout
 
-- `infra/src/stacks/`: stacks. Example: `<name>-stack.ts`.
-- `infra/src/constructs/`: constructs for this project only, in kebab-case files.
-- `infra/src/config/<env>.ts`: account-neutral settings per environment. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
-- `infra/cdk.json`: gate file.
+- `bin/<name>.ts`: the CDK app entry. It creates the `App`, adds the `AwsSolutionsChecks` aspect, and adds the stacks.
+- `lib/stacks/`: stacks. Example: `<name>-stack.ts`.
+- `lib/constructs/`: constructs for this project only, in kebab-case files.
+- `lib/config/<env>.ts`: account-neutral settings per environment. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
+- `lib/nag-suppressions/<stack>.ts`: the one suppressions file for a stack (see Rules).
+- `cdk.json` (project root): gate file.
+- `bin` and `lib` use the one project `package.json`. They have no `package.json` of their own.
 - Shared constructs go in `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
+- Wave 3 creates `bin/` and `lib/`. Until then the project has no CDK app.
+
+## Bundling
+
+CDK bundles the Lambda code at synth. Do not build code in a separate deploy step.
+
+| Part | Construct | Bundling |
+|---|---|---|
+| `src/api` (TypeScript) | `NodejsFunction` | esbuild, entry `src/api/lambda.ts` |
+| `src/api-go` | `Code.fromAsset` | Local bundling: `go build` for `linux/arm64`, output file `bootstrap`. Docker fallback. |
+| `src/api-py` | `Code.fromAsset` | Local bundling: `uv` installs the locked dependencies and copies the source. Docker fallback. |
+| `web` | OpenNext construct | Local bundling runs the OpenNext build. |
+
+- Unit tests turn bundling off, so `Template.fromStack` runs without Go, `uv`, Docker, or a web build. Use the `bundling` skip context value or a test-only asset.
+- Use local bundling first. Use Docker only when the local tool is missing.
 
 ## Rules
 
+- Region is `us-east-1` only. Use one wildcard certificate (from the platform) for all project domains. Do not create a certificate in a project.
 - Compute is Lambda first. API: Fastify on Lambda (`@fastify/aws-lambda`) behind an API Gateway HTTP API. Web: Next.js through OpenNext (CloudFront, S3, Lambda). Ask the human before any container or instance compute.
 - Use PascalCase construct IDs. Set no physical names. Let CDK generate them.
-- Stateful resources: encryption at rest and `RETAIN`. Use `DESTROY` only when `config/dev.ts` sets it, never in prod.
+- Stateful resources: encryption at rest and `RETAIN`. Use `DESTROY` only when `lib/config/dev.ts` sets it, never in prod.
 - Buckets block public access. Web buckets use CloudFront Origin Access Control only.
 - Lambda: set timeout, memory, log retention, and active tracing.
 - Use a JWT authorizer on the Cognito pool for each route that needs a user.
 - Grant with `grantRead` and `grantWrite`. Never write `*` in IAM actions or resources.
 - Read platform values only through the SSM helper in `shared-cdk-constructs`. Never import `platform/infra`. See the `use-platform-resource` skill.
 - Each project makes its own Cognito app client, DNS records, and Lambdas.
-- Never add a `NagSuppressions` call. A suppression needs a human.
+- cdk-nag: meet each rule. If a rule cannot be met, add one suppression to the one suppressions file of the stack. Give a reason for each suppression. The owner approves the file. Never add a `NagSuppressions` call anywhere else.
 - Never run `cdk deploy` or `cdk destroy`. Run `cdk synth` and read-only commands.
 
 ## Tests
 
-- `Template.fromStack` assertions for resources, encryption, removal policy, runtime, log retention, and grants.
+- `Template.fromStack` assertions for resources, encryption, removal policy, runtime, log retention, and grants. Bundling is off.
 - A snapshot for each stack. Update it only for an intended change.
 - `cdk-nag` with the AwsSolutions pack. Zero errors.
 - Rules: `docs/standards/testing.md`, section 3.3.

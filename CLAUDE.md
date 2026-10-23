@@ -11,11 +11,11 @@ Agent entry point for this Rush monorepo (TypeScript, Python, Go, AWS CDK). This
 5. Never use `--no-verify`, `git push --force`, `cdk deploy`, or `cdk destroy`.
 6. One change for each PR. Keep the diff small. Each bug fix adds a test that fails before the fix.
 7. Put each new user-visible behavior behind a flag from `packages/flags` (planned). If a package marked planned does not exist, see [packages/CLAUDE.md](packages/CLAUDE.md).
-8. Contracts (Zod, one package for each project) are the single source of the API shape. Never edit generated Python or Go code.
+8. Contracts (Zod, in `src/contracts` of each project) are the single source of the API shape. Never edit generated Python or Go code.
 9. Read config only in `config.ts`. Validate input with the project's contracts.
 10. Log only with `@vprprudhvi/shared-logger` (planned). Each log line carries OpenTelemetry trace ids. Never log secrets or personal data.
 11. Each API route has a Bruno request with docs and assertions. Each web page has a Playwright spec with an axe check.
-12. `platform/**`, `packages/**`, and `projects/*/infra/**` are high risk. A human approves them.
+12. `platform/**`, `packages/**`, `projects/*/bin/**`, and `projects/*/lib/**` are high risk. A human approves them.
 13. After 3 failed review rounds, stop and ask the human about the approach.
 
 ## Routing table
@@ -42,7 +42,7 @@ Agent entry point for this Rush monorepo (TypeScript, Python, Go, AWS CDK). This
 
 ## Area guides
 
-- [projects/CLAUDE.md](projects/CLAUDE.md): project anatomy, kinds, contracts flow, import rules.
+- [projects/CLAUDE.md](projects/CLAUDE.md): project anatomy (one package for each project), contracts flow, import rules.
 - [platform/CLAUDE.md](platform/CLAUDE.md): shared AWS resources, SSM contract. High risk.
 - [packages/CLAUDE.md](packages/CLAUDE.md): shared code rules. High risk.
 - [tooling/CLAUDE.md](tooling/CLAUDE.md): gate area. Agents do not edit it.

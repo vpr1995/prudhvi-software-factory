@@ -1,22 +1,22 @@
 # new-project: file contents
 
-Starting points. Match the real names in `tooling/`. Each file below is a non-gate file unless the SKILL says otherwise.
+Starting points. Match the real names in `tooling/` and in `projects/sample`. All paths are relative to `projects/<name>/`. The project has one `package.json`. A part has no `package.json` of its own.
 
-## contracts
-- `src/health.ts`: `export const HealthSchema = z.object({ status: z.literal('ok') });` and `export type Health = z.infer<typeof HealthSchema>;`. Only Zod and types in `src/`.
-- `scripts/emit-schemas.ts` (build tooling, not runtime code): imports each file in `src/`. For each export whose name ends in `Schema`, writes `dist/schemas/<ExportName>.json` using `z.toJSONSchema(schema)`. Also writes `dist/openapi.json` with one component per schema. Python and Go generators read these files.
-- `package.json` `_phase:build`: `tsc -b && tsx scripts/emit-schemas.ts` (`tsx` is a new dependency, so it needs approval in phase B).
+## contracts (`src/contracts/`)
+- `src/contracts/health.ts`: `export const HealthSchema = z.object({ status: z.literal('ok') });` and `export type Health = z.infer<typeof HealthSchema>;`. Only Zod and types in `src/contracts/`.
+- `scripts/emit-openapi.mjs` (build tooling, not runtime code): imports each file in `src/contracts/`. For each export whose name ends in `Schema`, writes `dist/schemas/<ExportName>.json` using `z.toJSONSchema(schema)`. Also writes `dist/openapi.json` with one component per schema. Python and Go generators read these files.
+- `package.json` `_phase:build`: builds each part in order (contracts first), then runs `node scripts/emit-openapi.mjs`. Python and Go generators read `dist/openapi.json`.
 
-## api (TypeScript)
-- `src/config.ts`: the only file that reads `process.env`. Parse with Zod.
-- `src/server.ts`: `buildServer()` with `fastify-type-provider-zod`, the error handler, and the health route. Does not call `listen`.
+## api (TypeScript, `src/api/`)
+- `src/api/config.ts`: the only file that reads `process.env`. Parse with Zod.
+- `src/api/server.ts`: `buildServer()` with `fastify-type-provider-zod`, the error handler, and the health route. Does not call `listen`.
 - Telemetry lines in this section apply only when `packages/telemetry` exists (`docs/standards/observability.md`, section 2). If it does not, skip them and list them as open items. Do not create a stub.
-- `src/lambda.ts`: the Lambda entry. Calls `initTelemetry({ serviceName: '<name>-api' })` from `@vprprudhvi/shared-telemetry` first, before the app is created. Then loads the app with `await import('./server.js')`. Wraps `buildServer()` with `@fastify/aws-lambda` (`awsLambdaFastify`). Exports `handler`. Wrap `handler` with `wrapLambdaHandler` when it exists (planned).
-- `src/lambda.test.ts`: calls `handler` with a fake HTTP API v2 event that has a `traceparent` header. Asserts the response has a `traceparent` header with the same trace id.
-- `src/routes/health/get-health.ts`: `GET /v1/health`, response `HealthSchema`.
-- `src/routes/health/get-health.test.ts`: `app.inject({ method: 'GET', url: '/v1/health' })`, asserts 200 and body.
+- `src/api/lambda.ts`: the Lambda entry. Calls `initTelemetry({ serviceName: '<name>-api' })` from `@vprprudhvi/shared-telemetry` first, before the app is created. Then loads the app with `await import('./server.js')`. Wraps `buildServer()` with `@fastify/aws-lambda` (`awsLambdaFastify`). Exports `handler`. Wrap `handler` with `wrapLambdaHandler` when it exists (planned).
+- `src/api/lambda.test.ts`: calls `handler` with a fake HTTP API v2 event that has a `traceparent` header. Asserts the response has a `traceparent` header with the same trace id.
+- `src/api/routes/health/get-health.ts`: `GET /v1/health`, response `HealthSchema`.
+- `src/api/routes/health/get-health.test.ts`: `app.inject({ method: 'GET', url: '/v1/health' })`, asserts 200 and body.
 
-## api-py
+## api-py (`src/api-py/`)
 - `pyproject.toml` (gate): ruff rules `E,F,W,I,N,UP,B,S,BLE,C4,SIM,PT,RET,ARG,PL,RUF,ANN,D`; `[tool.mypy] strict = true`; pytest `--cov-fail-under=80`; ruff `extend-exclude = ["src/*/generated"]`.
 - `src/<pkg>/generated/`: generated Pydantic v2 models. Never edit by hand.
 - `src/<pkg>/handler.py`: Lambda entry. Uses `aws_lambda_powertools.event_handler.APIGatewayHttpResolver`, exports `handler(event, context)`.
@@ -27,47 +27,40 @@ Starting points. Match the real names in `tooling/`. Each file below is a non-ga
   set -euo pipefail
   out=src/<pkg>/generated
   mkdir -p "$out"
-  for f in ../contracts/dist/schemas/*.json; do
+  for f in ../../dist/schemas/*.json; do
     base=$(basename "$f" .json)
     uv run datamodel-code-generator --input "$f" --input-file-type jsonschema \
       --output "$out/${base}.py" --output-model-type pydantic_v2.BaseModel
   done
   ```
-- `package.json` (thin):
-  ```json
-  { "name": "@vprprudhvi/<name>-api-py", "version": "0.0.0", "private": true,
-    "scripts": {
-      "_phase:build": "bash scripts/generate-models.sh && uv sync --locked",
-      "_phase:lint": "uv run ruff check . && uv run ruff format --check . && uv run bandit -q -r src",
-      "_phase:typecheck": "uv run mypy --strict src",
-      "_phase:test": "uv run pytest --cov=src --cov-fail-under=80" } }
-  ```
+- Phase commands (called from the project `package.json`, section "package.json phases"): `bash scripts/generate-models.sh && uv sync --locked` (build), `uv run ruff check . && uv run ruff format --check . && uv run bandit -q -r src` (lint), `uv run mypy --strict src` (typecheck), `uv run pytest --cov=src --cov-fail-under=80` (test).
 
-## api-go
+## api-go (`src/api-go/`)
 - `.golangci.yml` (gate): enable errcheck, staticcheck, gosec, revive, govet, ineffassign, unused, gocritic, bodyclose, errorlint, exhaustive, gocyclo (max 15), nolintlint (require explanation).
 - `internal/gen/types.gen.go`: generated by oapi-codegen. First line `// Code generated by oapi-codegen. DO NOT EDIT.`
 - `cmd/<name>-api/main.go`: `lambda.Start(handle)` with `events.APIGatewayV2HTTPRequest`. Routes by `req.RouteKey`.
 - `internal/health/health.go` and `health_test.go`: table-driven test.
-- `scripts/generate-types.sh`: `oapi-codegen -generate types -package gen -o internal/gen/types.gen.go ../contracts/dist/openapi.json`
-- `package.json` (thin):
-  ```json
-  { "name": "@vprprudhvi/<name>-api-go", "version": "0.0.0", "private": true,
-    "scripts": {
-      "_phase:build": "bash scripts/generate-types.sh && go build ./...",
-      "_phase:lint": "test -z \"$(gofumpt -l .)\" && golangci-lint run",
-      "_phase:typecheck": "go vet ./...",
-      "_phase:test": "go test -race -coverprofile=cover.out ./... && go tool cover -func=cover.out | awk '/^total/ { sub(\"%\",\"\",$3); if ($3+0 < 80) { print \"coverage below 80%\"; exit 1 } }'" } }
-  ```
+- `scripts/generate-types.sh`: `oapi-codegen -generate types -package gen -o internal/gen/types.gen.go ../../dist/openapi.json`
+- Phase commands: `bash scripts/generate-types.sh && go build ./...` (build), `test -z "$(gofumpt -l .)" && golangci-lint run` (lint), `go vet ./...` (typecheck), `go test -race -coverprofile=cover.out ./...` plus a check that total coverage is at least 80 (test). Run each from `src/api-go`.
 
-## web
-- `src/app/layout.tsx`: root layout, default export allowed here. Renders children.
-- `src/app/page.tsx`: Server Component, default export. Renders the project name as `h1`.
+## web (`web/`)
+- `web/app/layout.tsx`: root layout, default export allowed here. Renders children.
+- `web/app/page.tsx`: Server Component, default export. Renders the project name as `h1`.
+- `web/lib/`: API client. It parses each response with a schema from `../src/contracts` (relative import).
+- `web/next.config.ts`: set `turbopack.root` and `outputFileTracingRoot` to the repo root, so Next can read `src/contracts`.
 
-## infra
-- `src/config/dev.ts`: env name, region, subdomain label. No account IDs.
-- `src/main.ts`: creates the `App`, adds the `AwsSolutionsChecks` aspect, adds the stack.
-- `src/stacks/<name>-stack.ts`: platform reads via SSM helper, then `AppClient`, `ProjectDomain`, and one compute construct per API or web part. Constructs come from `new-cdk-construct`.
-- `package.json` scripts: `_phase:build` = `tsc -b`, `_phase:typecheck` = `tsc --noEmit -p tsconfig.json`, `_phase:lint` = `eslint . --max-warnings 0`, `_phase:test` = `vitest run --coverage`.
+## infra (Wave 3, not created by this skill)
+- `bin/<name>.ts` is the CDK app entry. `lib/` holds stacks and constructs. Both use the one `package.json`. See `docs/guides/infra.md`.
+- Use `new-cdk-construct` when the human asks for infra.
+
+## package.json phases
+- `name`: `@vprprudhvi/<name>`. `private: true`. `type: module`.
+- `_phase:build`: contracts (`tsc -p tsconfig.build.json`), `node scripts/emit-openapi.mjs`, then the codegen and build for each chosen part. Web: `next build` in `web/`.
+- `_phase:lint`: ESLint at the project root (one config, path-scoped blocks), plus ruff and bandit for api-py, `golangci-lint` for api-go.
+- `_phase:typecheck`: `tsc --noEmit`, plus `mypy --strict` and `go vet`.
+- `_phase:test`: `vitest run --coverage` (TS lines and statements 80, functions 80, branches 75), `pytest --cov-fail-under=80`, Go coverage at least 80.
+- `_phase:e2e`: `node scripts/e2e.mjs`. It runs the Bruno collection against each API part and Playwright for web.
+- Each phase prints the part name before it runs the part, and stops at the first failure.
 
 ## REVIEW.md assembly
 Start with `# <name> review rules`. Add one `## <part>` section per part, with the text of the matching template in `docs/templates/`.
@@ -110,14 +103,13 @@ Start with `# <name> review rules`. Add one `## <part>` section per part, with t
   ```
 
 ## e2e wiring (api parts)
-- `_phase:e2e` in the api `package.json` runs `bash scripts/run-e2e.sh`.
-- `scripts/run-e2e.sh` (non-gate): picks a free port, starts the server on it in the background, waits until `/v1/health` answers, runs `npx bru run ../bruno --env local --env-var baseUrl=http://localhost:$PORT`, then stops the server and exits with the `bru` exit code.
-  - TypeScript: starts the Fastify server from `src/server.ts` with `listen`.
+- `scripts/e2e.mjs` (gate: helper script): for each API part, picks a free port, starts the server on it in the background, waits until `/v1/health` answers, runs `npx bru run bruno --env local --env-var baseUrl=http://localhost:$PORT`, then stops the server. It then runs Playwright for web. The exit code is non-zero if any step fails. It names the part in the failure message.
+  - TypeScript: starts the Fastify server from `src/api/server.ts` with `listen`.
   - api-py: starts `uvicorn` on a local adapter module that wraps the handler.
-  - api-go: builds and starts a local binary from `cmd/<name>-local`.
+  - api-go: builds and starts a local binary from `src/api-go/cmd/<name>-local`.
 - The free port comes from `node -e "const s=require('net').createServer().listen(0,()=>{console.log(s.address().port);s.close()})"`.
 
 ## playwright (web)
-- `web/playwright.config.ts` (non-gate): `testDir: 'e2e'`, `use.baseURL: 'http://localhost:3100'`, projects `chromium` only in PR, `webServer: { command: 'npx next start -p 3100', url: 'http://localhost:3100', reuseExistingServer: !process.env.CI }`, `trace: 'on-first-retry'`, `screenshot: 'only-on-failure'`.
-- `web/package.json` `_phase:e2e`: `npx next build && npx playwright test`.
+- `playwright.config.ts` (project root, gate): `testDir: 'web/e2e'`, `use.baseURL: 'http://localhost:3100'`, projects `chromium` only in PR, `webServer: { command: 'npx next start -p 3100', cwd: 'web', url: 'http://localhost:3100', reuseExistingServer: !process.env.CI }`, `trace: 'on-first-retry'`, `screenshot: 'only-on-failure'`.
 - `web/e2e/home.spec.ts`: calls `page.goto('/')`, asserts the `h1` is visible, runs `new AxeBuilder({ page }).analyze()` and expects no violations.
+

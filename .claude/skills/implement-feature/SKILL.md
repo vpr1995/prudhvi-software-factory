@@ -14,8 +14,8 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 3. Write a plan of 5 to 10 lines in chat. List the files, the tests, the flag, and the risk tier guess.
    If the plan changes a gate file, changes `platform/infra` or `packages/*`, or adds a dependency, stop and ask the human before you write code.
 4. If the change is user-visible, put it behind a flag. Add the flag name to the typed list in `packages/flags`.
-5. Write a failing test first. Run it: `rush test --to <pkg>`. Paste the failing output.
-6. Write the code. Use the matching skill for the kind of change:
+5. Write a failing test first. Run it: `rush test --only @vprprudhvi/<name>`. Paste the failing output.
+6. Write the code. Use the matching skill for the part you change:
    - `new-api-route` for an API route.
    - `new-web-page` for a page.
    - `new-cdk-construct` for an infra construct.

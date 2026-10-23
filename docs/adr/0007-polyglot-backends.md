@@ -1,6 +1,6 @@
 # ADR 0007: Allow Python and Go backends next to the TypeScript API
 
-- Status: Accepted
+- Status: Accepted. The folder layout and the package names are superseded by ADR 0010
 - Date: 2026-10-22
 
 ## Context

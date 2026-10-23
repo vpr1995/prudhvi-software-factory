@@ -1,6 +1,6 @@
 # Review template: api-py (Python, Lambda)
 
-Use this template with `REVIEW.md` for each change in `projects/<name>/api-py/`. Apply the rules to the changed files only. The backend runs on Lambda through Powertools.
+Use this template with `REVIEW.md` for each change in `projects/<name>/src/api-py/`. Apply the rules to the changed files only. The backend runs on Lambda through Powertools.
 
 ## Checks
 
@@ -14,7 +14,7 @@ Use this template with `REVIEW.md` for each change in `projects/<name>/api-py/`.
 Example of a finding:
 
 ```
-Important  projects/sample-api-only/api-py/src/sample_api/handlers/orders.py:21
+Important  projects/sample/src/api-py/src/sample_api/handlers/orders.py:21
 Body is read with json.loads and used as a dict. Input is not validated.
 Fix: parse the body with CreateOrder.model_validate_json and pass the model on.
 ```
@@ -22,7 +22,7 @@ Fix: parse the body with CreateOrder.model_validate_json and pass the model on.
 ### Generated models
 
 - Imports come from `generated/`. A file in `generated/` is not edited.
-- The drift check in CI must pass. Report `Important` if the PR changes `generated/` without a Zod change in `<project>-contracts`.
+- The drift check in CI must pass. Report `Important` if the PR changes `generated/` without a Zod change in `src/contracts`.
 
 ### Error envelope
 

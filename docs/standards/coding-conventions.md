@@ -303,7 +303,7 @@ src/domain/__tests__/getUser.js
 **Good:**
 
 ```ts
-// api/src/config.ts
+// src/api/config.ts
 const envSchema = z.object({
   SAMPLE_API_DB_URL: z.string().url(),
 });
@@ -312,7 +312,7 @@ const envSchema = z.object({
 **Bad:**
 
 ```ts
-// api/src/config.ts
+// src/api/config.ts
 const envSchema = z.object({
   DB_URL: z.string().url(),
   sampleApiDbUrl: z.string().url(),
@@ -348,7 +348,7 @@ app.get('/order_items/:id', getOrderItemRoute);
 **Good:**
 
 ```ts
-// contracts/src/order.ts
+// src/contracts/order.ts
 export const OrderSchema = z.object({
   orderId: z.string(),
   createdAt: z.string().datetime(),
@@ -358,14 +358,14 @@ export const OrderSchema = z.object({
 **Bad:**
 
 ```ts
-// contracts/src/order.ts
+// src/contracts/order.ts
 export const OrderSchema = z.object({
   order_id: z.string(),
   created_at: z.string(),
 });
 ```
 
-**Enforcer:** The Zod schemas in `contracts` and the contract tests. The field-case check is in `REVIEW.md` ("Conventions with no tool enforcer").
+**Enforcer:** The Zod schemas in `src/contracts` and the contract tests. The field-case check is in `REVIEW.md` ("Conventions with no tool enforcer").
 
 ### A.15 CDK construct IDs
 
@@ -605,13 +605,13 @@ export function calculateTax(orderTotal: number) {
 **Good:**
 
 ```ts
-import type { CreateOrder } from '@vprprudhvi/sample-fullstack-contracts';
+import type { CreateOrder } from '../contracts/index.js';
 ```
 
 **Bad:**
 
 ```ts
-import { CreateOrder } from '@vprprudhvi/sample-fullstack-contracts';
+import { CreateOrder } from '../contracts/index.js';
 ```
 
 **Enforcer:** `@typescript-eslint/consistent-type-imports`. The `verbatimModuleSyntax` option in `tooling/tsconfig` also enforces this.
@@ -671,7 +671,7 @@ import { z } from 'zod';
 
 import { createLogger } from '@vprprudhvi/shared-logger';
 
-import { CreateOrderSchema } from '@vprprudhvi/sample-fullstack-contracts';
+import { CreateOrderSchema } from '../contracts/index.js';
 
 import { calculateTax } from './calculate-tax.js';
 ```
@@ -680,7 +680,7 @@ import { calculateTax } from './calculate-tax.js';
 
 ```ts
 import { calculateTax } from './calculate-tax.js';
-import { CreateOrderSchema } from '@vprprudhvi/sample-fullstack-contracts';
+import { CreateOrderSchema } from '../contracts/index.js';
 import { z } from 'zod';
 import { readFile } from 'node:fs/promises';
 ```
@@ -944,7 +944,7 @@ throw new Error('USER_NOT_FOUND');
 **Good:**
 
 ```ts
-// contracts/src/error.ts
+// src/contracts/error.ts
 export const ErrorEnvelopeSchema = z.object({
   error: z.object({
     code: z.string(),
@@ -1002,16 +1002,16 @@ import { NodeSDK } from '@opentelemetry/sdk-node'; // only packages/telemetry im
 
 ---
 
-## D. Folder layout per kind
+## D. Folder layout per part
 
-### D.1 API source layout (`api/src/`)
+### D.1 API source layout (`src/api/`)
 
 **Rule:** Put API code in `routes/<resource>/`, `domain/`, and `adapters/`. Keep `config.ts` and `server.ts` at the top level. The `domain/` folder must not import `adapters/` or `fastify`.
 
 **Good:**
 
 ```ts
-// api/src/domain/apply-discount.ts
+// src/api/domain/apply-discount.ts
 export function applyDiscount(orderTotal: number, discountRate: number): number {
   return orderTotal * (1 - discountRate);
 }
@@ -1020,21 +1020,21 @@ export function applyDiscount(orderTotal: number, discountRate: number): number 
 **Bad:**
 
 ```ts
-// api/src/domain/apply-discount.ts
+// src/api/domain/apply-discount.ts
 import type { FastifyRequest } from 'fastify';
 import { db } from '../adapters/db.js';
 ```
 
 **Enforcer:** `eslint-plugin-boundaries`.
 
-### D.2 Web source layout (`web/src/`)
+### D.2 Web source layout (`web/`)
 
 **Rule:** Put web code in `app/`, `components/`, `features/<feature>/`, and `lib/`. Use Server Components by default. Put `"use client"` only in leaf components.
 
 **Good:**
 
 ```tsx
-// web/src/components/add-to-cart-button.tsx
+// web/components/add-to-cart-button.tsx
 "use client";
 
 export function AddToCartButton(props: AddToCartButtonProps): React.JSX.Element {
@@ -1045,7 +1045,7 @@ export function AddToCartButton(props: AddToCartButtonProps): React.JSX.Element 
 **Bad:**
 
 ```tsx
-// web/src/app/orders/page.tsx
+// web/app/orders/page.tsx
 "use client";
 
 export default function OrdersPage(): React.JSX.Element {
@@ -1055,14 +1055,14 @@ export default function OrdersPage(): React.JSX.Element {
 
 **Enforcer:** `eslint-plugin-boundaries` for the folders. The `"use client"` placement is in `REVIEW.md` ("Conventions with no tool enforcer").
 
-### D.3 Contracts source layout (`contracts/src/`)
+### D.3 Contracts source layout (`src/contracts/`)
 
-**Rule:** Put one file per resource in `contracts/src/`. Keep only Zod schemas and types. Do not add runtime logic.
+**Rule:** Put one file per resource in `src/contracts/`. Keep only Zod schemas and types. Do not add runtime logic.
 
 **Good:**
 
 ```ts
-// contracts/src/order.ts
+// src/contracts/order.ts
 import { z } from 'zod';
 
 export const OrderSchema = z.object({
@@ -1076,8 +1076,8 @@ export type Order = z.infer<typeof OrderSchema>;
 **Bad:**
 
 ```ts
-// contracts/src/order.ts
-import { db } from '../../api/src/adapters/db.js';
+// src/contracts/order.ts
+import { db } from '../api/adapters/db.js';
 
 export function isPaid(order: Order): boolean {
   return order.status === 'paid';
@@ -1086,23 +1086,23 @@ export function isPaid(order: Order): boolean {
 
 **Enforcer:** `eslint-plugin-boundaries` and `dependency-cruiser`. The no-runtime-logic check is in `REVIEW.md` ("Conventions with no tool enforcer").
 
-### D.4 Infra source layout (`infra/src/`)
+### D.4 Infra source layout (`bin/`, `lib/`)
 
-**Rule:** Put infra code in `stacks/`, `constructs/`, and `config/<env>.ts`. Keep `constructs/` for this project only. Put shared constructs in `packages/cdk-constructs`.
+**Rule:** Put the CDK app entry in `bin/<name>.ts`. Put infra code in `lib/stacks/`, `lib/constructs/`, and `lib/config/<env>.ts`. Keep `lib/constructs/` for this project only. Put shared constructs in `packages/cdk-constructs`.
 Read shared AWS resources (user pool, zone, certificate) through SSM helpers in `@vprprudhvi/shared-cdk-constructs`. Never import `platform/infra` code.
 
 **Good:**
 
 ```ts
-// projects/sample-fullstack/infra/src/stacks/api-stack.ts
+// projects/sample/lib/stacks/api-stack.ts
 import { ApiService } from '@vprprudhvi/shared-cdk-constructs';
 ```
 
 **Bad:**
 
 ```ts
-// projects/sample-fullstack/infra/src/stacks/api-stack.ts
-import { SampleApiStack } from '@vprprudhvi/sample-api-only-infra';
+// projects/sample/lib/stacks/api-stack.ts
+import { OtherApiStack } from '../../../other/lib/stacks/api-stack.js'; // never: another project
 import { UserPool } from '@vprprudhvi/platform-infra'; // never: platform code is not imported
 ```
 
@@ -1185,7 +1185,7 @@ export function calculateTax(orderTotal: number): number {
 
 ### F.1 Validate input at boundaries
 
-**Rule:** Validate all input at a boundary with a Zod schema from the project's own `contracts`. API routes use `fastify-type-provider-zod`. The web app parses each response with the same schemas.
+**Rule:** Validate all input at a boundary with a Zod schema from `src/contracts` of the same project. API routes use `fastify-type-provider-zod`. The web app parses each response with the same schemas.
 
 **Good:**
 
@@ -1215,7 +1215,7 @@ app.post('/v1/orders', async (request) => {
 **Good:**
 
 ```ts
-// api/src/config.ts
+// src/api/config.ts
 const envSchema = z.object({
   SAMPLE_API_DB_URL: z.string().url(),
 });
@@ -1226,7 +1226,7 @@ export const config = envSchema.parse(process.env);
 **Bad:**
 
 ```ts
-// api/src/routes/order/create-order.ts
+// src/api/routes/order/create-order.ts
 const dbUrl = process.env.SAMPLE_API_DB_URL;
 ```
 
@@ -1298,7 +1298,7 @@ PR title: misc fixes, lint config, and orders export
 
 ---
 
-## G. Python (`projects/<name>/api-py`)
+## G. Python (`projects/<name>/src/api-py`)
 
 Python backends follow PEP 8 and these rules. Each rule names its enforcer. The Python tools run through `uv` and the Rush wrapper. See ADR 0007.
 
@@ -1309,7 +1309,7 @@ Python backends follow PEP 8 and these rules. Each rule names its enforcer. The 
 **Good:**
 
 ```text
-projects/sample-api-only/api-py/
+projects/sample/src/api-py/
   pyproject.toml
   src/sample_api/
     handlers/health.py
@@ -1320,7 +1320,7 @@ projects/sample-api-only/api-py/
 **Bad:**
 
 ```text
-projects/sample-api-only/api-py/
+projects/sample/src/api-py/
   handler.py              # HTTP handler, SQL, and business rules in one file
 ```
 
@@ -1498,7 +1498,7 @@ def get_user(user_id: str) -> UserProfile | None:
 
 ### G.10 Models come from the Zod contracts. Never edit them by hand
 
-**Rule:** Import Pydantic models from `generated/`. Change the Zod schema in `<project>-contracts`, then run the generator. Do not edit a file in `generated/`.
+**Rule:** Import Pydantic models from `generated/`. Change the Zod schema in `src/contracts`, then run the generator. Do not edit a file in `generated/`.
 
 **Good:**
 
@@ -1645,7 +1645,7 @@ from pydantic import BaseModel
 
 ---
 
-## H. Go (`projects/<name>/api-go`)
+## H. Go (`projects/<name>/src/api-go`)
 
 Go backends follow Effective Go and these rules. Each rule names its enforcer. The Go tools run through the Rush wrapper. See ADR 0007.
 
@@ -1656,7 +1656,7 @@ Go backends follow Effective Go and these rules. Each rule names its enforcer. T
 **Good:**
 
 ```text
-projects/sample-api-only/api-go/
+projects/sample/src/api-go/
   go.mod
   cmd/health/main.go
   internal/domain/health.go
@@ -1666,7 +1666,7 @@ projects/sample-api-only/api-go/
 **Bad:**
 
 ```text
-projects/sample-api-only/api-go/
+projects/sample/src/api-go/
   main.go                 # handler, database access, and rules in one package
 ```
 
@@ -1927,7 +1927,7 @@ result = other() // earlier value of result is never read
 **Good:**
 
 ```go
-import "sample-api/internal/gen"
+import "github.com/vprprudhvi/sample/api-go/internal/gen"
 
 var order gen.CreateOrder
 ```

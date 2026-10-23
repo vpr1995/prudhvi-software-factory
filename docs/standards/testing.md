@@ -21,12 +21,12 @@ This document sets the test rules for all projects and packages.
 
 Diff coverage checks only the lines changed in the PR.
 
-## 3. Test types by kind
+## 3. Test types by part
 
-### 3.1 API (`projects/<name>/api`)
+### 3.1 API (`projects/<name>/src/api`)
 
 - Use `fastify.inject()` for integration tests. Do not start a real port.
-- Each route has a contract test. The contract test checks that the route matches the schemas in the project's `contracts`.
+- Each route has a contract test. The contract test checks that the route matches the schemas in `src/contracts`.
 - Test the error envelope. Every error response matches `{ error: { code, message, requestId } }`.
 - Each route also has a Bruno request with docs and assertions. See section 9.
 
@@ -49,17 +49,18 @@ await app.inject({ method: 'GET', url: '/v1/users/u_1' });
 - Run `axe` checks in Playwright on each page that a PR changes.
 - Each page has a Playwright spec. See section 10.
 
-### 3.3 Infra (`projects/<name>/infra`, `packages/cdk-constructs`)
+### 3.3 Infra (`projects/<name>/bin` and `projects/<name>/lib`, `packages/cdk-constructs`)
 
 - Use CDK assertions (`Template.fromStack`) for each stack and construct.
 - Use snapshot tests for each stack. A snapshot change needs a reason in the PR.
 - Run `cdk-nag` with the AwsSolutions pack. An unresolved nag error fails `cdk synth`.
+- Turn Lambda bundling off in unit tests. See `docs/guides/infra.md`.
 
 ### 3.4 Contracts and domain code
 
 - Test each Zod schema with valid and invalid input.
-- Test pure domain functions in `api/src/domain/` without Fastify.
-- Mutation tests (Stryker) run nightly on `contracts` and `api` domain code. They do not run on each PR.
+- Test pure domain functions in `src/api/domain/` without Fastify.
+- Mutation tests (Stryker) run nightly on `src/contracts` and `src/api/domain`. They do not run on each PR.
 
 ## 4. Anti-skip rules
 
@@ -123,7 +124,7 @@ The hook writes the result to `.claude/state/last-verify.json`. It blocks `gh pr
 
 The Python (`api-py`) and Go (`api-go`) backends use the same rules as the TypeScript API. The tools differ.
 
-### 8.1 Python (`projects/<name>/api-py`)
+### 8.1 Python (`projects/<name>/src/api-py`)
 
 | Rule | Tool | Gate |
 |---|---|---|
@@ -131,12 +132,12 @@ The Python (`api-py`) and Go (`api-go`) backends use the same rules as the TypeS
 | Coverage: lines 80% minimum. | `pytest-cov`, `--cov-fail-under=80` | `rush test`, CI |
 | Each route has a test with the framework test client (Powertools event or ASGI test client). | `pytest` | Review and CI |
 | Each generated model has a round-trip test: parse valid JSON, reject invalid JSON. | `pytest` | CI |
-| Contract tests check each route against the OpenAPI document from `<project>-contracts`. | `pytest` | CI |
+| Contract tests check each route against the OpenAPI document in `dist/openapi.json`. | `pytest` | CI |
 | Diff coverage on changed lines: 90%. | Same script as TypeScript | CI |
 
 Use `uv run pytest` through `rush test`. Do not run `pip install` or `pytest` outside `uv`.
 
-### 8.2 Go (`projects/<name>/api-go`)
+### 8.2 Go (`projects/<name>/src/api-go`)
 
 | Rule | Tool | Gate |
 |---|---|---|
@@ -144,7 +145,7 @@ Use `uv run pytest` through `rush test`. Do not run `pip install` or `pytest` ou
 | Each test run uses the race detector: `go test -race`. | `go test -race -cover` | `rush test`, CI |
 | Coverage: 80% minimum. | `go test -coverprofile`, CI script | CI |
 | Each handler has a test with `httptest`. | `go test` | Review and CI |
-| Contract tests check each route against the OpenAPI document from `<project>-contracts`. | `go test` | CI |
+| Contract tests check each route against the OpenAPI document in `dist/openapi.json`. | `go test` | CI |
 | Diff coverage on changed lines: 90%. | Same script as TypeScript | CI |
 
 Do not use `t.Skip` to pass a check. Do not remove a `-race` flag.
@@ -227,7 +228,7 @@ tests {
 
 ### 9.4 Rules
 
-- Each route in the `<project>-contracts` OpenAPI output has at least one `.bru` request with the same method and path, and at least one assertion. `bruno-coverage` checks this.
+- Each route in the `dist/openapi.json` OpenAPI output has at least one `.bru` request with the same method and path, and at least one assertion. `bruno-coverage` checks this.
 - Update the `.bru` request in the same PR as the route.
 - Run the collection with `@usebruno/cli`. The Rush `e2e` phase runs it. Do not run `bru` with a different version.
 - Each project pins `@usebruno/cli` in its devDependencies or in an autoinstaller.
@@ -239,7 +240,7 @@ Each web part has an `e2e/` folder. The folder uses `@playwright/test` and `@axe
 ### 10.1 Rules
 
 - Each `app/**/page.tsx` route has a spec. The spec calls `page.goto('<route>')` and runs an axe check. `playwright-coverage` checks this.
-- A web part without an `e2e/` folder fails the gate.
+- A project with a `web/` folder and no `web/e2e/` folder fails the gate.
 - Use a role or a label to find an element. Do not select by CSS class.
 - Keep the screenshot and trace settings. They are on for failures in CI.
 - In PR runs, use Chromium. The nightly run uses Chromium, Firefox, and WebKit.
@@ -247,7 +248,7 @@ Each web part has an `e2e/` folder. The folder uses `@playwright/test` and `@axe
 ### 10.2 Example
 
 ```ts
-// projects/sample-fullstack/web/e2e/home.spec.ts
+// projects/sample/web/e2e/home.spec.ts
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 

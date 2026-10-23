@@ -7,34 +7,35 @@ This guide holds the stack, the layout, the full import rules, and the non-goals
 - Monorepo: Rush 5.181 with pnpm 10. Node 24 (see `.nvmrc`).
 - Language: TypeScript, ESM only, `strict` mode.
 - Web: Next.js (App Router). API: Fastify (TypeScript). Optional: Python (`api-py`) and Go (`api-go`) backends.
-- Contracts: Zod schemas and types. Each project has one `contracts` package. It is the single source of truth.
+- Contracts: Zod schemas and types in `src/contracts` of each project. It is the single source of truth.
 - Compute: Lambda first. API: Fastify on Lambda (`@fastify/aws-lambda`) behind API Gateway HTTP API. Web: Next.js through OpenNext (CloudFront, S3, Lambda).
-- Infrastructure: AWS CDK. `platform/infra` owns shared AWS resources. Each project has its own `infra` app.
+- Infrastructure: AWS CDK. `platform/infra` owns shared AWS resources. Each project has its own CDK app in `bin` and `lib`.
 - Tests: Vitest, Testing Library, Bruno (API requests), Playwright and axe (web), pytest, go test, CDK assertions.
 - Tracing: OpenTelemetry. See `docs/standards/observability.md`.
 
 ## 2. Layout
 
-- `projects/<name>/{contracts,web,api,api-py,api-go,infra}`: one product. Each part is a Rush project. `web` and `api` are optional. `api-py` and `api-go` are optional backends. Guide: `docs/guides/`.
+- `projects/<name>/`: one product and one Rush project (`@vprprudhvi/<name>`, one `package.json`). Parts are folders: `src/contracts`, `src/api`, `src/api-py`, `src/api-go`, `web`, and the CDK app in `bin` and `lib`. `src/contracts` is always present. The other parts are optional. Guide: `docs/guides/`.
 - `projects/<name>/bruno/`: the Bruno collection of the project.
-- `projects/sample-fullstack/`, `projects/sample-api-only/`: sample products.
+- `projects/sample/`: the sample product. It has every part.
 - `platform/infra`: shared AWS resources (one Cognito user pool, imported Route53 zone, ACM wildcard certificate). Package `@vprprudhvi/platform-infra`. It writes IDs to SSM under `/platform/<env>/...`.
-- `packages/*`: shared code with no project logic. Planned: `flags`, `logger`, `result`, `cdk-constructs`, and `telemetry`. None exists yet.
+- `packages/*`: shared code with no project logic. Now: `flags`, `logger`, `result`, and `telemetry`. Planned: `cdk-constructs`.
 - `tooling/*`: shared config for ESLint, TypeScript, Vitest, Opengrep.
 - `common/`: Rush config, git hooks, autoinstallers. These are gate files.
 - `docs/`: standards, guides, ADRs, runbooks, templates.
 
 ## 3. Import rules
 
-- `web` imports its own `contracts` and `packages/*`. It never imports `api`.
-- `api` imports its own `contracts` and `packages/*`. It never imports `web`.
-- `contracts` imports only `zod`. It never imports `web`, `api`, or `infra`.
-- `infra` imports its own `contracts` (types only) and `packages/cdk-constructs`.
+- Imports inside a project are relative.
+- `web` imports `src/contracts` and `packages/*`. It never imports `src/api`.
+- `src/api` imports `src/contracts` and `packages/*`. It never imports `web`.
+- `src/contracts` imports only `zod`. It never imports `web`, `src/api`, `bin`, or `lib`.
+- `bin` and `lib` import `src/contracts` (types only) and `packages/cdk-constructs`.
 - A project never imports another project.
 - `packages/*` never imports from `projects/*`.
-- `api-py` and `api-go` import only their generated models and their own code. They never import TypeScript packages.
-- `platform/infra` is imported by nothing. Project infra never imports it.
-- A project `infra` reads platform values only through SSM helpers in `@vprprudhvi/shared-cdk-constructs`.
+- `src/api-py` and `src/api-go` import only their generated models and their own code. They never import TypeScript packages.
+- `platform/infra` is imported by nothing. Project `bin` and `lib` never import it.
+- A project reads platform values only through SSM helpers in `@vprprudhvi/shared-cdk-constructs`.
 - Shared code goes in `packages/*`. That change needs a human.
 
 Enforcers: `eslint-plugin-boundaries` and `dependency-cruiser`. See `docs/standards/coding-conventions.md`, section D.
@@ -63,7 +64,7 @@ Agents can propose edits to `CLAUDE.md` files, `REVIEW.md` files, `docs/guides/*
 | Branches, commits, hooks | [git-workflow.md](../standards/git-workflow.md) |
 | Gate files and human unlock steps | [gates.md](../standards/gates.md) |
 | Risk tiers and approvals | [risk-tiers.md](../standards/risk-tiers.md) |
-| Review rules for the AI reviewer. Per-kind templates are in `docs/templates/`. Project and platform `REVIEW.md` files sit beside each project. | [REVIEW.md](../../REVIEW.md) |
+| Review rules for the AI reviewer. Per-part templates are in `docs/templates/`. Project and platform `REVIEW.md` files sit beside each project. | [REVIEW.md](../../REVIEW.md) |
 | Setup for a new machine | [onboarding.md](../onboarding.md) |
 | Rollback steps | [rollback.md](../runbooks/rollback.md) |
 | Decisions | [ADRs](../adr/) |

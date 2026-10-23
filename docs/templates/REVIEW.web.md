@@ -16,7 +16,7 @@ Use this template with `REVIEW.md` for each change in `projects/<name>/web/`. Ap
 Example of a finding:
 
 ```
-Important  projects/sample-fullstack/web/src/components/icon-button.tsx:12
+Important  projects/sample/web/components/icon-button.tsx:12
 Icon button has no accessible name. Screen readers read nothing.
 Fix: add aria-label from the caller, or render visible text.
 ```

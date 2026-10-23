@@ -14,14 +14,14 @@ Rules: use localhost only. Never use a deployed URL. The gates run through `rush
 1. Run `mkdir -p .claude/state/screenshots`.
 2. Run the rush e2e gate for the impacted parts:
    `rush e2e --impacted-by git:origin/main > .claude/state/e2e-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/e2e-output.log`
-   If `origin/main` does not exist, run `rush e2e --impacted-by git:main` or, for one project, `rush e2e --only tag:project:<name>`.
-   Each api part's `_phase:e2e` starts its server on a free port, runs its Bruno folder, and stops the server. Each web part's `_phase:e2e` runs `next start` and Playwright.
+   If `origin/main` does not exist, run `rush e2e --impacted-by git:main` or, for one project, `rush e2e --only @vprprudhvi/<name>`.
+   The project `_phase:e2e` starts each api server (TypeScript, Python, Go) on a free port, runs the Bruno folder, and stops the server. It then runs `next start` and Playwright for web.
 3. If the e2e run fails, read the first failing request or test in the log. Fix the cause, then run step 2 again.
 4. Run the Bruno collections by hand when you need to inspect one API. Start the API with its dev script first, then run:
    `(cd projects/<name>/bruno && npx bru run --env local --env-var baseUrl=http://localhost:<port> --reporter-junit ../../../.claude/state/bruno-<name>.xml)`
    Paste the summary lines.
 5. Open each Playwright screenshot in `.claude/state/screenshots/` with the Read tool. Write one line per screenshot. Do not claim a visual pass if you did not look. Playwright writes screenshots and traces on failure under `test-results/`.
-6. For each changed infra folder, including `platform/infra`:
+6. For each changed infra app (`projects/<name>` when `bin` or `lib` changed, and `platform/infra`):
    - `(cd <folder> && npx cdk synth --quiet)`
    - `(cd <folder> && npx cdk diff <StackName>)`. This is read-only.
    - If AWS credentials are missing, write "cdk diff not available: <error>" and skip the diff.
@@ -33,7 +33,7 @@ Rules: use localhost only. Never use a deployed URL. The gates run through `rush
 - [ ] `rush e2e` exits 0 for the impacted parts, and the output is pasted.
 - [ ] Every changed Bruno collection runs with no failed assertion.
 - [ ] Screenshots are viewed and described.
-- [ ] `cdk synth` passes for each changed infra folder. The diff is pasted or marked not available.
+- [ ] `cdk synth` passes for each changed infra app. The diff is pasted or marked not available.
 
 ## Do not
 

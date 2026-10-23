@@ -18,9 +18,9 @@ Rule: show real output. Never say "pass" without pasted output.
    - If `HAS_ORIGIN`: `rush verify --impacted-by git:origin/main > .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
    - If `NO_ORIGIN`: `rush verify > .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
    The e2e phase starts each api server, runs its Bruno collection, and runs Playwright for each web part.
-4. Find changed infra. This includes `platform/infra`:
-   `{ git diff --name-only origin/main...HEAD 2>/dev/null; git diff --name-only HEAD; git ls-files --others --exclude-standard; } | sort -u | grep -E '^(projects/[^/]+/infra|platform/infra)/'`
-5. For each changed infra folder, run `cdk synth` in that folder. Use the folder path, and name the log `cdk-synth-<name>.log`, where `<name>` is the project name or `platform`:
+4. Find changed infra. This includes `projects/<name>/bin`, `projects/<name>/lib`, and `platform/infra`:
+   `{ git diff --name-only origin/main...HEAD 2>/dev/null; git diff --name-only HEAD; git ls-files --others --exclude-standard; } | sort -u | grep -E '^(projects/[^/]+/(bin|lib)|platform/infra)/'`
+5. For each changed infra app, run `cdk synth` in its folder. The folder is `projects/<name>` for `bin` or `lib` changes, and `platform/infra` otherwise. Name the log `cdk-synth-<name>.log`, where `<name>` is the project name or `platform`:
    `(cd <folder> && npx cdk synth --quiet) > .claude/state/cdk-synth-<name>.log 2>&1; echo "exit=$?"`
    Read the log tail. Any `Error` line, or any nag error, means fail.
 6. Write the state file: `bash .claude/hooks/stop-gate.sh --write-state-only`.
@@ -37,7 +37,7 @@ Rule: show real output. Never say "pass" without pasted output.
 ## Done when
 
 - [ ] `rush verify` exits 0, and its output is pasted. The output includes the e2e phase.
-- [ ] Each changed infra folder, including `platform/infra`, runs `cdk synth` with exit 0 and no nag error.
+- [ ] Each changed infra app, including `platform/infra`, runs `cdk synth` with exit 0 and no nag error.
 - [ ] `.claude/state/last-verify.json` exists, is written by `stop-gate.sh`, and `result` is `pass`.
 - [ ] The final message shows the pasted output and the state result.
 

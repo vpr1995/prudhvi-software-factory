@@ -23,7 +23,7 @@ A PR that changes any path below is `risk:high`.
 | Authentication and authorization code | Access control. |
 | Billing code | Money. |
 | `platform/**` | Shared AWS resources (Cognito user pool, hosted zone, certificate, SSM parameters). Always human. |
-| `projects/*/infra/**` | Cloud resources and IAM for one project. |
+| `projects/*/bin/**` and `projects/*/lib/**` | Cloud resources and IAM for one project. |
 | `packages/cdk-constructs/**` | Shared infrastructure. Every project uses it. |
 | `packages/**` | Shared code. A change has a wide effect. |
 | New dependency, or a change to `common/config/rush/pnpm-lock.yaml` | Supply chain. |

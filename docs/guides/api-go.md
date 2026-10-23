@@ -1,18 +1,18 @@
 # Guide: api-go (Go)
 
-Kind: `projects/<name>/api-go`. Package: `@vprprudhvi/<name>-api-go`. Go on Lambda (`provided.al2023`) behind an API Gateway HTTP API. Read the root `CLAUDE.md` and `projects/CLAUDE.md` first.
+Part: `projects/<name>/src/api-go`. Package: `@vprprudhvi/<name>` (one package for the whole project). Go on Lambda (`provided.al2023`) behind an API Gateway HTTP API. Read the root `CLAUDE.md` and `projects/CLAUDE.md` first.
 
 ## Folder layout
 
-- `api-go/cmd/<name>-api/main.go`: the Lambda entry point. A switch maps `METHOD /v1/<resources>` route keys to handlers.
-- `api-go/internal/<resource>/`: domain code, handler, and tests.
-- `api-go/internal/gen/`: types from `oapi-codegen`. Generated. Never edit.
-- `api-go/scripts/`: `generate-types.sh` and the e2e script.
-- `api-go/.golangci.yml`: lint rules. It is a gate file.
+- `src/api-go/cmd/<name>-api/main.go`: the Lambda entry point. A switch maps `METHOD /v1/<resources>` route keys to handlers.
+- `src/api-go/internal/<resource>/`: domain code, handler, and tests.
+- `src/api-go/internal/gen/`: types from `oapi-codegen`. Generated. Never edit.
+- `src/api-go/scripts/`: `generate-types.sh`. The project `scripts/e2e.mjs` runs the e2e phase.
+- `src/api-go/.golangci.yml`: lint rules. It is a gate file.
 
 ## Rules
 
-- The schema source is Zod in `<project>-contracts`. Never write a type by hand.
+- The schema source is Zod in `src/contracts`. Never write a type by hand.
 - Follow Effective Go: MixedCaps names, short receiver names, `context.Context` as the first parameter.
 - Wrap errors with `%w`. Check each error. Compare with `errors.Is` and `errors.As`.
 - Never `panic` in a handler.

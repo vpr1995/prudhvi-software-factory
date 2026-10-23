@@ -1,6 +1,6 @@
 # ADR 0002: Use a projects layout with per-project contracts and import boundaries
 
-- Status: Accepted
+- Status: Superseded by ADR 0010
 - Date: 2026-10-22
 
 ## Context

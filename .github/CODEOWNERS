@@ -16,13 +16,13 @@
 # ---------------------------------------------------------------------------
 # Projects (general)
 # ---------------------------------------------------------------------------
-/projects/sample-fullstack/ @vprprudhvi
-/projects/sample-api-only/ @vprprudhvi
+/projects/sample/ @vprprudhvi
 
 # ---------------------------------------------------------------------------
 # Infrastructure (AWS CDK)
 # ---------------------------------------------------------------------------
-/projects/*/infra/ @vprprudhvi
+/projects/*/bin/ @vprprudhvi
+/projects/*/lib/ @vprprudhvi
 /packages/cdk-constructs/ @vprprudhvi
 
 # ---------------------------------------------------------------------------

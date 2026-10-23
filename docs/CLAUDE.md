@@ -5,10 +5,10 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 | Content | Folder |
 |---|---|
 | Rules for all code (naming, tests, security, Git, gates, risk, tracing) | `docs/standards/` |
-| How to work in one kind (web, api, api-py, api-go, contracts, infra) | `docs/guides/` |
+| How to work in one part (web, api, api-py, api-go, contracts, infra) | `docs/guides/` |
 | A decision with its reason | `docs/adr/` |
 | Steps for an incident or a rollback | `docs/runbooks/` |
-| Review templates for each kind | `docs/templates/` |
+| Review templates for each part | `docs/templates/` |
 | An explainer for one slice of code | `docs/explainers/` (use the [explain-area](../.claude/skills/explain-area/SKILL.md) skill) |
 | Setup for a new machine | `docs/onboarding.md` |
 

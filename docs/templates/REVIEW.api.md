@@ -1,6 +1,6 @@
 # Review template: api (Fastify)
 
-Use this template with `REVIEW.md` for each change in `projects/<name>/api/`. Apply the rules to the changed files only.
+Use this template with `REVIEW.md` for each change in `projects/<name>/src/api/`. Apply the rules to the changed files only.
 
 ## Checks
 
@@ -15,7 +15,7 @@ Use this template with `REVIEW.md` for each change in `projects/<name>/api/`. Ap
 Example of a finding:
 
 ```
-Important  projects/sample-api-only/api/src/routes/order/create-order.ts:18
+Important  projects/sample/src/api/routes/order/create-order.ts:18
 Body is cast with `as CreateOrder`. Input is not validated at runtime.
 Fix: attach the CreateOrderSchema to the route and remove the cast.
 ```

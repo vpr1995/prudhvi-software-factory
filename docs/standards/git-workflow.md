@@ -48,12 +48,12 @@ Allowed types:
 | `chore` | Other maintenance. |
 | `revert` | Reverts an earlier commit. |
 
-The scope is the Rush project name or the project name. Examples: `api`, `sample-fullstack`, `cdk-constructs`.
+The scope is the Rush project name or the project name. Examples: `sample`, `cdk-constructs`, `shared-logger`.
 
 Good:
 
 ```
-feat(sample-api-only): add order export route
+feat(sample): add order export route
 
 Users need a CSV export for their orders. The route sits behind the orders-export flag.
 ```

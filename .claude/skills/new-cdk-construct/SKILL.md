@@ -1,6 +1,6 @@
 ---
 name: new-cdk-construct
-description: Add an AWS CDK construct to a project infra app, Lambda-first, with PascalCase IDs, no physical names, least-privilege grants, platform values read through SSM, cdk-nag AwsSolutions checks, Template.fromStack assertions and a snapshot. Use when asked to add infra, a CDK construct, an API Lambda, a web site, a Cognito app client, a domain, a bucket, queue, table, or stack resource. Platform and shared constructs need a human. Triggers include new construct, add infra, CDK, add a bucket, add a queue, add a table, stack, lambda, api gateway, cognito client.
+description: Add an AWS CDK construct to a project CDK app (projects/<name>/bin and lib), Lambda-first, with PascalCase IDs, no physical names, least-privilege grants, platform values read through SSM, cdk-nag AwsSolutions checks, Template.fromStack assertions and a snapshot. Use when asked to add infra, a CDK construct, an API Lambda, a web site, a Cognito app client, a domain, a bucket, queue, table, or stack resource. Platform and shared constructs need a human. Triggers include new construct, add infra, CDK, add a bucket, add a queue, add a table, stack, lambda, api gateway, cognito client.
 ---
 
 # new-cdk-construct
@@ -8,7 +8,8 @@ description: Add an AWS CDK construct to a project infra app, Lambda-first, with
 Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-toplevel)/common/scripts/install-run-rush.js" "$@"; }`
 
 Rules:
-- Project constructs live in `projects/<name>/infra/src/constructs/<kebab>.ts`.
+- Project constructs live in `projects/<name>/lib/constructs/<kebab>.ts`.
+- The CDK app (`bin/`, `lib/`) uses the one project `package.json`. CDK bundles Lambda code at synth: `NodejsFunction` for TypeScript, `Code.fromAsset` with local bundling for Go (`go build`, `linux/arm64`) and Python (`uv`), Docker as fallback, local bundling for the OpenNext web build. Unit tests turn bundling off. Region is `us-east-1` only. See `docs/guides/infra.md`.
 - Shared constructs go to `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
 - Platform constructs live in `platform/infra`. Only a human changes them.
 - Compute is Lambda-first. API = Fastify on Lambda (`@fastify/aws-lambda`) behind an API Gateway HTTP API. Web = Next.js via OpenNext (CloudFront, S3, Lambda). Ask the human before any container or instance compute.
@@ -16,7 +17,7 @@ Rules:
 
 ## Steps
 
-1. Read `projects/<name>/infra/src/constructs/` and `stacks/`. Copy the existing style.
+1. Read `projects/<name>/lib/constructs/` and `lib/stacks/`. Copy the existing style.
 2. Decide the location. If another project would use it, or it belongs to the platform, stop and ask the human.
 3. Write the props type with `type`, not `interface`. Mark each field `readonly`.
 4. Write the construct class in PascalCase. Use PascalCase construct IDs: `new Bucket(this, 'AssetsBucket', ...)`.
@@ -29,15 +30,15 @@ Rules:
    - API Gateway HTTP API: no stage tracing. An HTTP API has no X-Ray support. It forwards `traceparent`. Lambda active tracing starts the X-Ray segment.
    - Cognito app client: one per project. Browser clients do not generate a secret.
    - Grant access with `grantRead`, `grantWrite`, or similar. Do not write `*` in actions or resources.
-7. Read the env from `projects/<name>/infra/src/config/<env>.ts`. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
+7. Read the env from `projects/<name>/lib/config/<env>.ts`. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
 8. Write `<kebab>.test.ts` next to the construct:
    - Create a stack: `new Stack(new App())`. Add `Aspects.of(app).add(new AwsSolutionsChecks())`.
    - Use `Template.fromStack(stack)` to assert resources, encryption, removal policy, runtime, log retention, and grants.
    - Assert that each Lambda has the ADOT layer and `TracingConfig` mode `Active`.
    - Assert that no cdk-nag error exists.
    - Add a snapshot: `expect(template.toJSON()).toMatchSnapshot()`.
-9. Run `rush test --to @vprprudhvi/<name>-infra` and paste the output. If the snapshot changes, read the diff. Update it only when the change is intended.
-10. Run `cd projects/<name>/infra && npx cdk synth --quiet`. It must show zero nag errors.
+9. Run `rush test --to @vprprudhvi/<name>` and paste the output. If the snapshot changes, read the diff. Update it only when the change is intended.
+10. Run `cd projects/<name> && npx cdk synth --quiet`. It must show zero nag errors.
 11. Run the `verify` skill.
 
 ## Done when
@@ -51,7 +52,7 @@ Rules:
 
 ## Do not
 
-- Add a `NagSuppressions` call or any cdk-nag suppression. A suppression needs a human.
+- Add a `NagSuppressions` call outside the one suppressions file of the stack (`lib/nag-suppressions/<stack>.ts`). Each suppression there needs a reason, and the owner approves the file.
 - Set `RemovalPolicy.DESTROY` on a stateful resource outside dev.
 - Write `*` in IAM actions or resources.
 - Import code from `platform/infra`, or use a CloudFormation cross-stack reference to a platform stack.
