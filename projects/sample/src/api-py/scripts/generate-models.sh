@@ -23,7 +23,7 @@ uv run --locked datamodel-codegen \
   --input "$work/openapi.json" --input-file-type openapi \
   --output "$work/generated/models.py" \
   --output-model-type pydantic_v2.BaseModel \
-  --target-python-version 3.12 \
+  --target-python-version 3.14 \
   --disable-timestamp \
   --use-annotated \
   --formatters ruff-check ruff-format

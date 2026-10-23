@@ -20,6 +20,7 @@ Part: `projects/<name>/src/api-py`. Package: `@vprprudhvi/<name>` (one package f
 - Log with the Powertools logger. Do not use `print`.
 - Import only generated models and own code. Never import TypeScript packages.
 - Use `uv` only. Never run `pip install`. `uv.lock` is a gate file.
+- Use Python 3.14 for the Lambda runtime and for local tools. The files `.python-version`, `pyproject.toml` (`requires-python`, ruff, mypy), and `generate-models.sh` all name 3.14. Use a uv version that can install CPython 3.14.
 - Gates: `ruff`, `mypy --strict`, `bandit`, `pip-audit`, `pip-licenses`. Complexity at most 15.
 
 ## Tests
