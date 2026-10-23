@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-cdk-constructs",
+      "comment": "Replace the environments dev, staging and prod with two: PLATFORM_ENVS is now prod only, and the new DEPLOY_ENVS (local, prod) with DeployEnv and isDeployEnv types the project stacks. TracedFunctionBase takes a DeployEnv. Breaking: dev and staging are gone from PlatformEnv.",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-cdk-constructs"
+}

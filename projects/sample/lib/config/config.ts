@@ -1,9 +1,8 @@
-import { isPlatformEnv } from '@vprprudhvi/shared-cdk-constructs';
+import { isDeployEnv } from '@vprprudhvi/shared-cdk-constructs';
 
-import { developmentConfig } from './dev.js';
+import { localConfig } from './local.js';
 import { productionConfig } from './prod.js';
 import type { SampleConfig } from './sample-config.js';
-import { stagingConfig } from './staging.js';
 
 /** The only AWS region of the project. */
 export const SAMPLE_REGION = 'us-east-1';
@@ -14,7 +13,7 @@ export type SampleEnvironment = {
   readonly region: typeof SAMPLE_REGION;
 };
 
-const configs = { dev: developmentConfig, staging: stagingConfig, prod: productionConfig } as const;
+const configs = { local: localConfig, prod: productionConfig } as const;
 
 /**
  * Reads the account and the region of the stacks. This is the only place that reads the
@@ -33,14 +32,14 @@ export function readSampleEnvironment(): SampleEnvironment {
 /**
  * Picks the config of one environment.
  *
- * @param envName - The value of the CDK context key `env` (`-c env=dev`).
+ * @param envName - The value of the CDK context key `env` (`-c env=local`).
  * @returns The sample config.
- * @throws When `envName` is not `dev`, `staging` or `prod`.
+ * @throws When `envName` is not `local` or `prod`.
  */
 export function loadSampleConfig(envName: unknown): SampleConfig {
-  if (typeof envName !== 'string' || !isPlatformEnv(envName)) {
+  if (typeof envName !== 'string' || !isDeployEnv(envName)) {
     throw new Error(
-      `Set the environment with "-c env=dev", "-c env=staging" or "-c env=prod". Got: ${String(envName)}`,
+      `Set the environment with "-c env=local" or "-c env=prod". Got: ${String(envName)}`,
     );
   }
   return configs[envName];

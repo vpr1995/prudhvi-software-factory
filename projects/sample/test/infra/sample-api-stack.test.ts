@@ -3,10 +3,11 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { ADOT_COLLECTOR_LAYER_ARN, PLATFORM_ENVS } from '@vprprudhvi/shared-cdk-constructs';
-import type { PlatformEnv } from '@vprprudhvi/shared-cdk-constructs';
+import { ADOT_COLLECTOR_LAYER_ARN, DEPLOY_ENVS } from '@vprprudhvi/shared-cdk-constructs';
+import type { DeployEnv } from '@vprprudhvi/shared-cdk-constructs';
 
 import { loadSampleConfig } from '../../lib/config/config.js';
+import type { SampleConfig } from '../../lib/config/sample-config.js';
 import { APIG4_REASON } from '../../lib/nag-acknowledgments/sample-api-stack.js';
 import { SAMPLE_ROUTES, SampleApiStack } from '../../lib/sample-api-stack.js';
 
@@ -15,29 +16,39 @@ type Built = { readonly stack: SampleApiStack; readonly template: Template };
 /** The time that the first build of each environment can take: it hashes the Python and Go code. */
 const BUILD_TIMEOUT_MS = 60_000;
 
-const builds = new Map<PlatformEnv, Built>();
+const builds = new Map<DeployEnv, Built>();
+
+/** Creates the stack for one config. The context turns bundling off, so no tool runs. */
+function buildWith(config: SampleConfig): Built {
+  const app = new App({ context: { 'aws:cdk:bundling-stacks': [] } });
+  const stack = new SampleApiStack(app, 'TestSampleApi', { config, env: { region: 'us-east-1' } });
+  return { stack, template: Template.fromStack(stack) };
+}
 
 /**
- * Creates the stack for one environment, once. The context turns bundling off, so no tool runs.
- * The tests only read the stack, so they share it.
+ * Creates the stack for one environment, once. The tests only read the stack, so they share it.
+ * The default is `prod`, the environment with the functions and the APIs.
  */
-function build(env: PlatformEnv = 'dev'): Built {
+function build(env: DeployEnv = 'prod'): Built {
   const known = builds.get(env);
   if (known !== undefined) {
     return known;
   }
-  const app = new App({ context: { 'aws:cdk:bundling-stacks': [] } });
-  const stack = new SampleApiStack(app, 'TestSampleApi', {
-    config: loadSampleConfig(env),
-    env: { region: 'us-east-1' },
-  });
-  const built = { stack, template: Template.fromStack(stack) };
+  const built = buildWith(loadSampleConfig(env));
   builds.set(env, built);
   return built;
 }
 
+/** Lists the `/platform/` SSM parameter names that a template reads, sorted. */
+function platformParameterNames(template: Template): string[] {
+  return Object.values(template.findParameters('*'))
+    .map((parameter) => String(parameter['Default']))
+    .filter((name) => name.startsWith('/platform/'))
+    .sort();
+}
+
 beforeAll(() => {
-  for (const env of PLATFORM_ENVS) {
+  for (const env of DEPLOY_ENVS) {
     build(env);
   }
 }, BUILD_TIMEOUT_MS);
@@ -102,22 +113,19 @@ describe('SampleApiStack functions', () => {
     ['sample-api-py', 'SAMPLE_API_PY_ENVIRONMENT'],
     ['sample-api-go', 'SAMPLE_API_GO_ENVIRONMENT'],
   ])('sets the service name and the environment of %s', (serviceName, variable) => {
-    const { template } = build('staging');
+    const { template } = build('prod');
 
     expect(
       findWith(template, 'AWS::Lambda::Function', {
         Environment: {
-          Variables: { OTEL_SERVICE_NAME: serviceName, [variable]: 'staging' },
+          Variables: { OTEL_SERVICE_NAME: serviceName, [variable]: 'prod' },
         },
       }),
     ).toHaveLength(1);
   });
 
-  it.each([
-    ['dev', '1.0'],
-    ['staging', '1.0'],
-    ['prod', '0.1'],
-  ] as const)('samples %s traces at the ratio %s', (env, ratio) => {
+  // Only prod has functions. The 1.0 ratio of local is tested in shared-cdk-constructs.
+  it.each([['prod', '0.1']] as const)('samples %s traces at the ratio %s', (env, ratio) => {
     const ratios = functionEnvironments(build(env).template).map(
       (variables) => variables['OTEL_TRACES_SAMPLER_ARG'],
     );
@@ -198,18 +206,21 @@ describe('SampleApiStack HTTP APIs', () => {
     ).toHaveLength(3);
   });
 
-  it('allows the dev web origin in CORS and no origin in staging or prod', () => {
-    for (const properties of propertiesOf(build('dev').template, 'AWS::ApiGatewayV2::Api')) {
-      expect(properties['CorsConfiguration']).toMatchObject({
-        AllowOrigins: ['http://localhost:3000'],
-      });
-    }
-    for (const env of ['staging', 'prod'] as const) {
-      for (const properties of propertiesOf(build(env).template, 'AWS::ApiGatewayV2::Api')) {
+  it(
+    'allows the config origins in CORS, and no origin in prod',
+    () => {
+      const origin = 'https://web.sample.invalid';
+      const { template } = buildWith({ ...loadSampleConfig('prod'), corsOrigins: [origin] });
+
+      for (const properties of propertiesOf(template, 'AWS::ApiGatewayV2::Api')) {
+        expect(properties['CorsConfiguration']).toMatchObject({ AllowOrigins: [origin] });
+      }
+      for (const properties of propertiesOf(build('prod').template, 'AWS::ApiGatewayV2::Api')) {
         expect(properties).not.toHaveProperty('CorsConfiguration');
       }
-    }
-  });
+    },
+    BUILD_TIMEOUT_MS,
+  );
 
   it('adds one output with the URL of each API, the sign-in domain and the client ID', () => {
     const { template } = build();
@@ -226,7 +237,7 @@ describe('SampleApiStack HTTP APIs', () => {
 
 describe('SampleApiStack app client', () => {
   it('makes one public client with the code grant and the config URLs', () => {
-    const { template } = build();
+    const { template } = build('local');
 
     expect(
       findWith(template, 'AWS::Cognito::UserPoolClient', {
@@ -240,7 +251,7 @@ describe('SampleApiStack app client', () => {
     expect(Object.keys(template.findResources('AWS::Cognito::UserPoolClient'))).toHaveLength(1);
   });
 
-  it.each(PLATFORM_ENVS)('uses the callback URLs of the %s config', (env) => {
+  it.each(DEPLOY_ENVS)('uses the callback URLs of the %s config', (env) => {
     const { template } = build(env);
 
     expect(
@@ -283,7 +294,7 @@ describe('SampleApiStack cdk-nag', () => {
       .map(([id, reason]) => [id.replace(/^Annotation::/, ''), reason]);
   }
 
-  it.each(PLATFORM_ENVS)('has zero AwsSolutions violations in %s', (env) => {
+  it.each(DEPLOY_ENVS)('has zero AwsSolutions violations in %s', (env) => {
     expect(violations(build(env).stack)).toEqual([]);
   });
 
@@ -338,5 +349,58 @@ describe('SampleApiStack cdk-nag', () => {
       ids.filter((id) => /^AwsSolutions-IAM5\[Resource::<.+\.Arn>:\*\]$/.test(id)),
     ).toHaveLength(3);
     expect(ids).toHaveLength(9);
+  });
+});
+
+describe('SampleApiStack local', () => {
+  it('has the app client with the localhost URLs', () => {
+    const { template } = build('local');
+
+    expect(
+      findWith(template, 'AWS::Cognito::UserPoolClient', {
+        CallbackURLs: ['http://localhost:3000/auth/callback'],
+        LogoutURLs: ['http://localhost:3000'],
+      }),
+    ).toHaveLength(1);
+  });
+
+  it('has no function, no HTTP API and no route', () => {
+    const { stack, template } = build('local');
+    const count = (type: string): number => Object.keys(template.findResources(type)).length;
+
+    expect(count('AWS::Lambda::Function')).toBe(0);
+    expect(count('AWS::ApiGatewayV2::Api')).toBe(0);
+    expect(count('AWS::ApiGatewayV2::Route')).toBe(0);
+    expect(stack.functions).toEqual([]);
+    expect(stack.apis).toEqual([]);
+  });
+
+  it('reads the prod platform parameters, never /platform/local/', () => {
+    const names = platformParameterNames(build('local').template);
+
+    expect(names).toEqual([
+      '/platform/prod/cognito/user-pool-arn',
+      '/platform/prod/cognito/user-pool-domain',
+    ]);
+    expect(names.join(' ')).not.toContain('/platform/local/');
+  });
+
+  it('adds only the outputs of the sign-in domain and the client ID', () => {
+    const { template } = build('local');
+
+    expect(Object.keys(template.toJSON()['Outputs'] as object).sort()).toEqual([
+      'UserPoolClientId',
+      'UserPoolDomain',
+    ]);
+  });
+
+  it('acknowledges no cdk-nag finding', () => {
+    const { stack } = build('local');
+
+    const acknowledged = stack.node
+      .findAll()
+      .flatMap((construct) => construct.node.metadata)
+      .filter((entry) => entry.type === Validations.ACKNOWLEDGED_RULES_METADATA_KEY);
+    expect(acknowledged).toEqual([]);
   });
 });

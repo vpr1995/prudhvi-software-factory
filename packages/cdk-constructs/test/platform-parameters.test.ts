@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   allPlatformParameterNames,
+  DEPLOY_ENVS,
+  isDeployEnv,
   isPlatformEnv,
   PLATFORM_ENVS,
   platformParameterName,
@@ -11,14 +13,14 @@ import {
 } from '../src/platform-parameters.js';
 
 describe('platformParameterNames', () => {
-  it('returns the exact names of ADR 0006 for dev', () => {
-    expect(platformParameterNames('dev')).toEqual({
-      userPoolId: '/platform/dev/cognito/user-pool-id',
-      userPoolArn: '/platform/dev/cognito/user-pool-arn',
-      userPoolDomain: '/platform/dev/cognito/user-pool-domain',
-      hostedZoneId: '/platform/dev/dns/hosted-zone-id',
-      zoneName: '/platform/dev/dns/zone-name',
-      wildcardCertificateArn: '/platform/dev/acm/wildcard-certificate-arn',
+  it('returns the exact names of ADR 0006 for prod', () => {
+    expect(platformParameterNames('prod')).toEqual({
+      userPoolId: '/platform/prod/cognito/user-pool-id',
+      userPoolArn: '/platform/prod/cognito/user-pool-arn',
+      userPoolDomain: '/platform/prod/cognito/user-pool-domain',
+      hostedZoneId: '/platform/prod/dns/hosted-zone-id',
+      zoneName: '/platform/prod/dns/zone-name',
+      wildcardCertificateArn: '/platform/prod/acm/wildcard-certificate-arn',
     });
   });
 
@@ -38,14 +40,14 @@ describe('platformParameterName', () => {
 });
 
 describe('allPlatformParameterNames', () => {
-  it('lists exactly the six contract names for staging', () => {
-    expect(allPlatformParameterNames('staging')).toEqual([
-      '/platform/staging/cognito/user-pool-id',
-      '/platform/staging/cognito/user-pool-arn',
-      '/platform/staging/cognito/user-pool-domain',
-      '/platform/staging/dns/hosted-zone-id',
-      '/platform/staging/dns/zone-name',
-      '/platform/staging/acm/wildcard-certificate-arn',
+  it('lists exactly the six contract names for prod', () => {
+    expect(allPlatformParameterNames('prod')).toEqual([
+      '/platform/prod/cognito/user-pool-id',
+      '/platform/prod/cognito/user-pool-arn',
+      '/platform/prod/cognito/user-pool-domain',
+      '/platform/prod/dns/hosted-zone-id',
+      '/platform/prod/dns/zone-name',
+      '/platform/prod/acm/wildcard-certificate-arn',
     ]);
   });
 
@@ -65,7 +67,7 @@ describe('writtenPlatformParameterNames', () => {
   });
 
   it('holds no DNS or ACM name, because no zone and no certificate exist yet', () => {
-    for (const name of writtenPlatformParameterNames('dev')) {
+    for (const name of writtenPlatformParameterNames('prod')) {
       expect(name).not.toMatch(/\/(dns|acm)\//);
     }
   });
@@ -79,11 +81,35 @@ describe('writtenPlatformParameterNames', () => {
 });
 
 describe('isPlatformEnv', () => {
-  it.each(['dev', 'staging', 'prod'])('accepts %s', (value) => {
+  it.each(['prod'])('accepts %s', (value) => {
     expect(isPlatformEnv(value)).toBe(true);
   });
 
-  it.each(['', 'Dev', 'production', 'test'])('rejects "%s"', (value) => {
-    expect(isPlatformEnv(value)).toBe(false);
+  it.each(['', 'Prod', 'production', 'test', 'local', 'dev', 'staging'])(
+    'rejects "%s"',
+    (value) => {
+      expect(isPlatformEnv(value)).toBe(false);
+    },
+  );
+
+  it('lists only prod, because the platform deploys only prod', () => {
+    expect(PLATFORM_ENVS).toEqual(['prod']);
+  });
+});
+
+describe('isDeployEnv', () => {
+  it.each(['local', 'prod'])('accepts %s', (value) => {
+    expect(isDeployEnv(value)).toBe(true);
+  });
+
+  it.each(['', 'Local', 'production', 'test', 'dev', 'staging'])('rejects "%s"', (value) => {
+    expect(isDeployEnv(value)).toBe(false);
+  });
+
+  it('lists local and prod, and every platform environment is a deploy environment', () => {
+    expect(DEPLOY_ENVS).toEqual(['local', 'prod']);
+    for (const env of PLATFORM_ENVS) {
+      expect(isDeployEnv(env)).toBe(true);
+    }
   });
 });

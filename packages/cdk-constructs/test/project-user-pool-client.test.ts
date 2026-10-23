@@ -8,7 +8,7 @@ import { createProjectUserPoolClient } from '../src/project-user-pool-client.js'
 /** Creates a stack with an imported platform pool and one project client. */
 function build(logoutUrls?: readonly string[]): { stack: Stack; template: Template } {
   const stack = new Stack(new App(), 'TestStack');
-  const pool = readPlatformUserPool(stack, 'dev');
+  const pool = readPlatformUserPool(stack, 'prod');
   // Use the domain value, so CloudFormation does not warn about an unused parameter.
   new CfnOutput(stack, 'SignInDomain', { value: pool.domainName });
   createProjectUserPoolClient(stack, 'WebClient', {
@@ -65,13 +65,13 @@ describe('createProjectUserPoolClient', () => {
     const { template } = build();
 
     expect(JSON.stringify(clientProperties(template)['UserPoolId'])).toContain(
-      'SsmParameterValueplatformdevcognitouserpoolarn',
+      'SsmParameterValueplatformprodcognitouserpoolarn',
     );
   });
 
   it('needs at least one callback URL', () => {
     const stack = new Stack(new App(), 'BadStack');
-    const pool = readPlatformUserPool(stack, 'dev');
+    const pool = readPlatformUserPool(stack, 'prod');
 
     expect(() =>
       createProjectUserPoolClient(stack, 'WebClient', {

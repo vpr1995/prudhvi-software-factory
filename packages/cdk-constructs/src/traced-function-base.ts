@@ -13,7 +13,7 @@ import { CfnLogGroup, LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import type { ILogGroup } from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
-import type { PlatformEnv } from './platform-parameters.js';
+import type { DeployEnv } from './platform-parameters.js';
 
 /**
  * The ADOT (AWS Distro for OpenTelemetry) collector-only Lambda layer for arm64 in `us-east-1`.
@@ -41,7 +41,7 @@ export const OTEL_PROPAGATORS_VALUE = 'tracecontext,baggage,xray';
 /** The sampler: follow the parent decision, else sample by trace id ratio. */
 export const OTEL_TRACES_SAMPLER_VALUE = 'parentbased_traceidratio';
 
-/** The share of root traces to sample in `dev` and `staging`. */
+/** The share of root traces to sample outside `prod` (in `local`). */
 export const OTEL_SAMPLER_ARG_NON_PROD = '1.0';
 
 /** The share of root traces to sample in `prod`. */
@@ -68,7 +68,7 @@ export type TracedFunctionBaseProps = {
   /** The service name. It becomes `OTEL_SERVICE_NAME`. */
   readonly serviceName: string;
   /** The deployment environment. It sets the trace sampling ratio: 1.0 in non-prod, 0.1 in prod. */
-  readonly env: PlatformEnv;
+  readonly env: DeployEnv;
   /** Memory in MB. Defaults to 512. */
   readonly memorySize?: number;
   /** Timeout. Defaults to 10 seconds. */

@@ -1,7 +1,9 @@
 export {
+  DEPLOY_ENVS,
   PLATFORM_ENVS,
   PLATFORM_PARAMETER_PATHS,
   allPlatformParameterNames,
+  isDeployEnv,
   isPlatformEnv,
   platformParameterName,
   platformParameterNames,
@@ -9,6 +11,7 @@ export {
   writtenPlatformParameterNames,
 } from './platform-parameters.js';
 export type {
+  DeployEnv,
   PlatformEnv,
   PlatformParameterKey,
   PlatformParameterNames,

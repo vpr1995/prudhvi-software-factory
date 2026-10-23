@@ -58,7 +58,7 @@ export type CommonOverrides = Partial<
 export function nodeProps(overrides: CommonOverrides = {}): TracedNodeFunctionProps {
   return {
     serviceName: 'sample-api',
-    env: 'dev',
+    env: 'local',
     entry: PATHS.nodeEntry,
     ...overrides,
   };
@@ -72,7 +72,7 @@ export function nodeProps(overrides: CommonOverrides = {}): TracedNodeFunctionPr
 export function goProps(overrides: CommonOverrides = {}): TracedGoFunctionProps {
   return {
     serviceName: 'sample-api-go',
-    env: 'dev',
+    env: 'local',
     moduleDir: PATHS.goModule,
     entry: PATHS.goEntry,
     bundling: { dockerImage: DockerImage.fromRegistry('dummy') },
@@ -84,7 +84,7 @@ export function goProps(overrides: CommonOverrides = {}): TracedGoFunctionProps 
 export function pythonProps(overrides: CommonOverrides = {}): TracedPythonFunctionProps {
   return {
     serviceName: 'sample-api-py',
-    env: 'dev',
+    env: 'local',
     entry: PATHS.pythonEntry,
     index: 'index.py',
     ...overrides,

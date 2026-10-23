@@ -47,6 +47,9 @@ type PartName = 'TypeScript' | 'Python' | 'Go';
  * (`TracedNodeFunction`, `TracedPythonFunction`, `TracedGoFunction`) behind one `TracedHttpApi`
  * with the routes in `SAMPLE_ROUTES`. No domain exists yet, so each API has its `execute-api` URL.
  *
+ * When `config.deployApis` is `false` (the `local` stack), the stack holds only the app client and
+ * its outputs. The web app and the API then run on this machine.
+ *
  * CDK bundles the code at synth: esbuild for TypeScript, `go build` for Go, and `uv` in Docker for
  * Python. Build the workspace packages first (`rush build`), because the TypeScript bundle reads
  * their `dist` output.
@@ -56,9 +59,9 @@ export class SampleApiStack extends Stack {
   public readonly userPoolClient: IUserPoolClient;
   /** The imported platform user pool. */
   public readonly userPool: IUserPool;
-  /** The three functions, in the order TypeScript, Python, Go. */
+  /** The three functions, in the order TypeScript, Python, Go. Empty when the APIs are off. */
   public readonly functions: readonly TracedFunctionBase[];
-  /** The three HTTP APIs, in the same order. */
+  /** The three HTTP APIs, in the same order. Empty when the APIs are off. */
   public readonly apis: readonly TracedHttpApi[];
 
   /**
@@ -70,7 +73,7 @@ export class SampleApiStack extends Stack {
     const { config, ...stackProps } = props;
     super(scope, id, stackProps);
 
-    const platform = readPlatformUserPool(this, config.env);
+    const platform = readPlatformUserPool(this, config.platformEnv);
     this.userPool = platform.userPool;
     this.userPoolClient = createProjectUserPoolClient(this, 'UserPoolClient', {
       userPool: platform.userPool,
@@ -78,12 +81,7 @@ export class SampleApiStack extends Stack {
       logoutUrls: config.logoutUrls,
     });
 
-    const projectRoot = findProjectRoot();
-    const parts: readonly (readonly [PartName, TracedFunctionBase])[] = [
-      ['TypeScript', this.createNodeFunction(projectRoot, config)],
-      ['Python', this.createPythonFunction(projectRoot, config)],
-      ['Go', this.createGoFunction(projectRoot, config)],
-    ];
+    const parts = config.deployApis ? this.createFunctions(config) : [];
     this.functions = parts.map(([, target]) => target);
     this.apis = parts.map(([part, target]) => this.addApi(part, target, config));
 
@@ -96,6 +94,23 @@ export class SampleApiStack extends Stack {
       description: 'The ID of the app client of this project.',
     });
     acknowledgeSampleApiStack(this.apis);
+  }
+
+  /**
+   * Creates the three functions.
+   *
+   * @param config - The settings of the environment.
+   * @returns The part name and the function of each part, in the order TypeScript, Python, Go.
+   */
+  private createFunctions(
+    config: SampleConfig,
+  ): readonly (readonly [PartName, TracedFunctionBase])[] {
+    const projectRoot = findProjectRoot();
+    return [
+      ['TypeScript', this.createNodeFunction(projectRoot, config)],
+      ['Python', this.createPythonFunction(projectRoot, config)],
+      ['Go', this.createGoFunction(projectRoot, config)],
+    ];
   }
 
   /**

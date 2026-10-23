@@ -16,7 +16,7 @@ import { GOOGLE_SCOPES, PlatformStack, googleSecretName } from '../lib/platform-
 type Built = { readonly stack: PlatformStack; readonly template: Template };
 
 /** Creates the platform stack for one environment, with the fixed region. */
-function build(env: PlatformEnv = 'dev'): Built {
+function build(env: PlatformEnv = 'prod'): Built {
   const stack = new PlatformStack(new App(), 'TestPlatform', {
     config: loadPlatformConfig(env),
     env: { region: 'us-east-1' },
@@ -149,10 +149,10 @@ describe('PlatformStack Google provider', () => {
     ] as Record<string, string>;
 
     expect(details['client_id']).toBe(
-      '{{resolve:secretsmanager:/platform/dev/cognito/google-oauth:SecretString:clientId::}}',
+      '{{resolve:secretsmanager:/platform/prod/cognito/google-oauth:SecretString:clientId::}}',
     );
     expect(details['client_secret']).toBe(
-      '{{resolve:secretsmanager:/platform/dev/cognito/google-oauth:SecretString:clientSecret::}}',
+      '{{resolve:secretsmanager:/platform/prod/cognito/google-oauth:SecretString:clientSecret::}}',
     );
   });
 
@@ -215,7 +215,7 @@ describe('PlatformStack SSM parameters', () => {
     );
 
     expect(
-      allPlatformParameterNames('dev').filter((name) => /\/(dns|acm)\//.test(name)),
+      allPlatformParameterNames('prod').filter((name) => /\/(dns|acm)\//.test(name)),
     ).toHaveLength(3);
     expect(names.filter((name) => /\/(dns|acm)\//.test(name))).toEqual([]);
   });
@@ -226,17 +226,17 @@ describe('PlatformStack SSM parameters', () => {
     const domainId = Object.keys(template.findResources('AWS::Cognito::UserPoolDomain'))[0] ?? '';
 
     template.hasResourceProperties('AWS::SSM::Parameter', {
-      Name: '/platform/dev/cognito/user-pool-id',
+      Name: '/platform/prod/cognito/user-pool-id',
       Type: 'String',
       Value: { Ref: poolId },
     });
     template.hasResourceProperties('AWS::SSM::Parameter', {
-      Name: '/platform/dev/cognito/user-pool-arn',
+      Name: '/platform/prod/cognito/user-pool-arn',
       Type: 'String',
       Value: { 'Fn::GetAtt': [poolId, 'Arn'] },
     });
     template.hasResourceProperties('AWS::SSM::Parameter', {
-      Name: '/platform/dev/cognito/user-pool-domain',
+      Name: '/platform/prod/cognito/user-pool-domain',
       Type: 'String',
       Value: { 'Fn::Join': ['', [{ Ref: domainId }, '.auth.us-east-1.amazoncognito.com']] },
     });

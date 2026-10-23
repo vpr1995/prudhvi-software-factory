@@ -5,7 +5,7 @@ import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { describe, expect, it } from 'vitest';
 
-import type { PlatformEnv } from '../src/platform-parameters.js';
+import type { DeployEnv } from '../src/platform-parameters.js';
 import {
   ADOT_COLLECTOR_LAYER_ARN,
   RESERVED_ENVIRONMENT_KEYS,
@@ -95,7 +95,7 @@ describe.each(KINDS)('traced %s function: telemetry', (kind) => {
     ).toHaveLength(1);
   });
 
-  it('sets the OpenTelemetry environment variables for dev', () => {
+  it('sets the OpenTelemetry environment variables for local', () => {
     const { template } = build(kind);
 
     expect(functionEnvironment(template)['OTEL_SERVICE_NAME']).toMatch(/^sample-api/);
@@ -114,10 +114,9 @@ describe.each(KINDS)('traced %s function: telemetry', (kind) => {
   });
 
   it.each([
-    ['dev', '1.0'],
-    ['staging', '1.0'],
+    ['local', '1.0'],
     ['prod', '0.1'],
-  ] satisfies [PlatformEnv, string][])('samples %s at ratio %s', (env, ratio) => {
+  ] satisfies [DeployEnv, string][])('samples %s at ratio %s', (env, ratio) => {
     const { template } = build(kind, { env });
 
     expect(functionEnvironment(template)['OTEL_TRACES_SAMPLER_ARG']).toBe(ratio);

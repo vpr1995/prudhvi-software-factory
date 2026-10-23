@@ -45,7 +45,7 @@ function platformReads(template: Template): string[] {
 }
 
 /** Reads the user pool and uses each value in one TXT record, so no parameter is unused. */
-function userPoolSetup(env: PlatformEnv = 'dev'): {
+function userPoolSetup(env: PlatformEnv = 'prod'): {
   stack: Stack;
   template: Template;
   result: ReturnType<typeof readPlatformUserPool>;
@@ -62,7 +62,7 @@ function userPoolSetup(env: PlatformEnv = 'dev'): {
 describe('readPlatformUserPool', () => {
   it('reads only the user pool ARN and the domain from SSM, as String parameters', () => {
     const { template } = userPoolSetup();
-    const names = platformParameterNames('dev');
+    const names = platformParameterNames('prod');
 
     expect(platformReads(template)).toEqual([names.userPoolArn, names.userPoolDomain].sort());
     for (const parameter of Object.values(template.findParameters('*', { Type: SSM_VALUE_TYPE }))) {
@@ -72,7 +72,7 @@ describe('readPlatformUserPool', () => {
 
   it('derives the user pool ARN and id from the SSM user pool ARN value', () => {
     const { stack, template, result } = userPoolSetup();
-    const arnRef = parameterId(template, platformParameterNames('dev').userPoolArn);
+    const arnRef = parameterId(template, platformParameterNames('prod').userPoolArn);
 
     expect(stack.resolve(result.userPool.userPoolArn)).toEqual({ Ref: arnRef });
     expect(JSON.stringify(stack.resolve(result.userPool.userPoolId))).toContain(arnRef);
@@ -82,7 +82,7 @@ describe('readPlatformUserPool', () => {
     const { stack, template, result } = userPoolSetup();
 
     expect(stack.resolve(result.domainName)).toEqual({
-      Ref: parameterId(template, platformParameterNames('dev').userPoolDomain),
+      Ref: parameterId(template, platformParameterNames('prod').userPoolDomain),
     });
   });
 
@@ -105,17 +105,17 @@ describe('readPlatformUserPool', () => {
     const { stack } = userPoolSetup();
 
     expect(stack.node.tryFindChild('PlatformUserPool')).toBeDefined();
-    expect(() => readPlatformUserPool(stack, 'dev')).toThrow(/PlatformUserPool/);
+    expect(() => readPlatformUserPool(stack, 'prod')).toThrow(/PlatformUserPool/);
   });
 });
 
 describe('readPlatformDns', () => {
   it('reads only the two DNS parameters and wires the zone to them', () => {
     const stack = newStack();
-    const zone = readPlatformDns(stack, 'dev');
+    const zone = readPlatformDns(stack, 'prod');
     new TxtRecord(stack, 'ProbeRecord', { zone, values: ['probe'] });
     const template = Template.fromStack(stack);
-    const names = platformParameterNames('dev');
+    const names = platformParameterNames('prod');
 
     expect(platformReads(template)).toEqual([names.hostedZoneId, names.zoneName].sort());
     expect(stack.resolve(zone.hostedZoneId)).toEqual({
@@ -129,13 +129,13 @@ describe('readPlatformDns', () => {
 describe('readPlatformCertificate', () => {
   it('reads only the certificate parameter and wires the ARN to it', () => {
     const stack = newStack();
-    const certificate = readPlatformCertificate(stack, 'dev');
+    const certificate = readPlatformCertificate(stack, 'prod');
     new TxtRecord(stack, 'ProbeRecord', {
       zone: probeZone(stack),
       values: [certificate.certificateArn],
     });
     const template = Template.fromStack(stack);
-    const name = platformParameterNames('dev').wildcardCertificateArn;
+    const name = platformParameterNames('prod').wildcardCertificateArn;
 
     expect(platformReads(template)).toEqual([name]);
     expect(stack.resolve(certificate.certificateArn)).toEqual({ Ref: parameterId(template, name) });
@@ -152,9 +152,9 @@ describe('independent readers', () => {
 
   it('lets the three readers share one stack', () => {
     const stack = newStack();
-    const pool = readPlatformUserPool(stack, 'dev');
-    const zone = readPlatformDns(stack, 'dev');
-    const certificate = readPlatformCertificate(stack, 'dev');
+    const pool = readPlatformUserPool(stack, 'prod');
+    const zone = readPlatformDns(stack, 'prod');
+    const certificate = readPlatformCertificate(stack, 'prod');
     new TxtRecord(stack, 'ProbeRecord', {
       zone,
       values: [pool.userPool.userPoolId, pool.domainName, certificate.certificateArn],

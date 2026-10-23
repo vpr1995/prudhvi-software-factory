@@ -8,11 +8,27 @@
  * project must not read them (see `readPlatformDns` and `readPlatformCertificate`).
  */
 
-/** The deployment environments that have platform parameters. */
-export const PLATFORM_ENVS = ['dev', 'staging', 'prod'] as const;
+/**
+ * The environments that have platform parameters (`/platform/<env>/...`). The platform deploys
+ * only `prod`. Pass a `PlatformEnv` to the `readPlatform*` readers and the name builders.
+ */
+export const PLATFORM_ENVS = ['prod'] as const;
 
-/** A deployment environment name. */
+/** A platform environment name. */
 export type PlatformEnv = (typeof PLATFORM_ENVS)[number];
+
+/**
+ * The environments of the project stacks. `local` is the stack for the web app and the API that
+ * run on this machine against the cloud resources. `prod` is the deployed stack. Both read the
+ * platform parameters of `prod`.
+ *
+ * The two lists are separate types on purpose. The readers read SSM with a deploy-time token, so a
+ * wrong environment would synthesize and fail only at deploy. With two types, it does not compile.
+ */
+export const DEPLOY_ENVS = ['local', 'prod'] as const;
+
+/** A project stack environment name. */
+export type DeployEnv = (typeof DEPLOY_ENVS)[number];
 
 /** The path under `/platform/<env>/` for each platform value. */
 export const PLATFORM_PARAMETER_PATHS = {
@@ -38,10 +54,21 @@ export type PlatformParameterNames = Readonly<Record<PlatformParameterKey, strin
  * Checks that a text is a platform environment name.
  *
  * @param value - Any text, for example from a CDK context value.
- * @returns `true` when the text is `dev`, `staging` or `prod`.
+ * @returns `true` when the text is `prod`.
  */
 export function isPlatformEnv(value: string): value is PlatformEnv {
   const envNames: readonly string[] = PLATFORM_ENVS;
+  return envNames.includes(value);
+}
+
+/**
+ * Checks that a text is a project stack environment name.
+ *
+ * @param value - Any text, for example from a CDK context value.
+ * @returns `true` when the text is `local` or `prod`.
+ */
+export function isDeployEnv(value: string): value is DeployEnv {
+  const envNames: readonly string[] = DEPLOY_ENVS;
   return envNames.includes(value);
 }
 
@@ -50,7 +77,7 @@ export function isPlatformEnv(value: string): value is PlatformEnv {
  *
  * @param env - The environment.
  * @param key - The platform value.
- * @returns The name, for example `/platform/dev/cognito/user-pool-id`.
+ * @returns The name, for example `/platform/prod/cognito/user-pool-id`.
  */
 export function platformParameterName(env: PlatformEnv, key: PlatformParameterKey): string {
   return `/platform/${env}/${PLATFORM_PARAMETER_PATHS[key]}`;

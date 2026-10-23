@@ -7,12 +7,16 @@ import {
 } from '../../lib/config/config.js';
 
 describe('loadPlatformConfig', () => {
-  it.each(['dev', 'staging', 'prod'])('loads the %s config', (env) => {
+  it.each(['prod'])('loads the %s config', (env) => {
     expect(loadPlatformConfig(env)).toMatchObject({ env, domainPrefix: 'vprprudhvi' });
   });
 
-  it.each([undefined, '', 'test', 'Dev', 42])('rejects the environment %s', (value) => {
-    expect(() => loadPlatformConfig(value)).toThrow(/-c env=dev/);
+  it.each([undefined, '', 'test', 'Prod', 42])('rejects the environment %s', (value) => {
+    expect(() => loadPlatformConfig(value)).toThrow(/-c env=prod/);
+  });
+
+  it.each(['local', 'dev', 'staging'])('rejects %s, which has no platform stack', (value) => {
+    expect(() => loadPlatformConfig(value)).toThrow(/-c env=prod/);
   });
 });
 

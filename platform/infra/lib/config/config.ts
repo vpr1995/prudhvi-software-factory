@@ -1,9 +1,7 @@
 import { isPlatformEnv } from '@vprprudhvi/shared-cdk-constructs';
 
-import { developmentConfig } from './dev.js';
 import type { PlatformConfig } from './platform-config.js';
 import { productionConfig } from './prod.js';
-import { stagingConfig } from './staging.js';
 
 /** The only AWS region of the platform. */
 export const PLATFORM_REGION = 'us-east-1';
@@ -14,7 +12,7 @@ export type PlatformEnvironment = {
   readonly region: typeof PLATFORM_REGION;
 };
 
-const configs = { dev: developmentConfig, staging: stagingConfig, prod: productionConfig } as const;
+const configs = { prod: productionConfig } as const;
 
 /**
  * Reads the account and the region of the stack. This is the only place that reads the
@@ -31,17 +29,15 @@ export function readPlatformEnvironment(): PlatformEnvironment {
 }
 
 /**
- * Picks the config of one environment.
+ * Picks the config of one environment. The platform deploys only `prod`.
  *
- * @param envName - The value of the CDK context key `env` (`-c env=dev`).
+ * @param envName - The value of the CDK context key `env` (`-c env=prod`).
  * @returns The platform config.
- * @throws When `envName` is not `dev`, `staging` or `prod`.
+ * @throws When `envName` is not `prod`.
  */
 export function loadPlatformConfig(envName: unknown): PlatformConfig {
   if (typeof envName !== 'string' || !isPlatformEnv(envName)) {
-    throw new Error(
-      `Set the environment with "-c env=dev", "-c env=staging" or "-c env=prod". Got: ${String(envName)}`,
-    );
+    throw new Error(`Set the environment with "-c env=prod". Got: ${String(envName)}`);
   }
   return configs[envName];
 }

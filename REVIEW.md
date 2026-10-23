@@ -99,7 +99,7 @@ Check these failure types on each change.
 
 - An IAM policy uses `*` for an action or a resource.
 - A stateful resource is replaced in `cdk diff`. Example: a database with a new logical ID.
-- `RemovalPolicy.DESTROY` is set on a stateful resource outside `dev`.
+- `RemovalPolicy.DESTROY` is set on a stateful resource outside `local`.
 - A resource is public without a reason in the PR.
 - A change adds a cost driver with no reason. Example: a NAT gateway or a large instance.
 

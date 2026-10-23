@@ -16,12 +16,12 @@ describe('bin/app', () => {
     async () => {
       const outdir = mkdtempSync(join(tmpdir(), 'sample-bin-'));
       vi.stubEnv('CDK_OUTDIR', outdir);
-      vi.stubEnv('CDK_CONTEXT_JSON', JSON.stringify({ ...NO_BUNDLING, env: 'dev' }));
+      vi.stubEnv('CDK_CONTEXT_JSON', JSON.stringify({ ...NO_BUNDLING, env: 'local' }));
       vi.resetModules();
 
       await import('../../../bin/app.js');
 
-      expect(existsSync(join(outdir, 'SampleApi-dev.template.json'))).toBe(true);
+      expect(existsSync(join(outdir, 'SampleApi-local.template.json'))).toBe(true);
     },
     STACK_TIMEOUT_MS,
   );
@@ -31,6 +31,6 @@ describe('bin/app', () => {
     vi.stubEnv('CDK_CONTEXT_JSON', JSON.stringify(NO_BUNDLING));
     vi.resetModules();
 
-    await expect(import('../../../bin/app.js')).rejects.toThrow(/-c env=dev/);
+    await expect(import('../../../bin/app.js')).rejects.toThrow(/-c env=local/);
   });
 });

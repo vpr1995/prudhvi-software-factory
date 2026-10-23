@@ -47,12 +47,12 @@ const SAMPLE_ROUTE_KEYS = ['GET /v1/health', 'GET /v1/notes', 'POST /v1/notes'];
 /** Creates a stack with the platform imports, one `TracedNodeFunction` and one `TracedHttpApi`. */
 function build({ hasDomain = true, routes = SAMPLE_ROUTES, ...overrides }: Overrides = {}): Built {
   const stack = new Stack(newApp(), 'TestStack');
-  const pool = readPlatformUserPool(stack, 'dev');
+  const pool = readPlatformUserPool(stack, 'prod');
   const tracedFunction = new TracedNodeFunction(stack, 'Api', nodeProps());
   // Without a domain the stack reads no DNS and no ACM parameter.
   const domain = {
-    hostedZone: hasDomain ? readPlatformDns(stack, 'dev') : undefined,
-    certificate: hasDomain ? readPlatformCertificate(stack, 'dev') : undefined,
+    hostedZone: hasDomain ? readPlatformDns(stack, 'prod') : undefined,
+    certificate: hasDomain ? readPlatformCertificate(stack, 'prod') : undefined,
     recordName: 'sample-api',
   };
   const api = new TracedHttpApi(stack, 'Http', {
@@ -404,7 +404,7 @@ describe('TracedHttpApi custom domain', () => {
   it('creates a regional TLS 1.2 domain name with the wildcard certificate', () => {
     const { template } = build();
     const certificateParameter = Object.keys(
-      template.findParameters('*', { Default: '/platform/dev/acm/wildcard-certificate-arn' }),
+      template.findParameters('*', { Default: '/platform/prod/acm/wildcard-certificate-arn' }),
     );
 
     expect(
@@ -423,7 +423,7 @@ describe('TracedHttpApi custom domain', () => {
   it('names the domain from the record name and the zone name', () => {
     const { template } = build();
     const zoneNameParameter = Object.keys(
-      template.findParameters('*', { Default: '/platform/dev/dns/zone-name' }),
+      template.findParameters('*', { Default: '/platform/prod/dns/zone-name' }),
     );
 
     expect(propertiesOf(template, 'AWS::ApiGatewayV2::DomainName')['DomainName']).toEqual({
@@ -447,7 +447,7 @@ describe('TracedHttpApi custom domain', () => {
     const { template } = build();
     const domainId = onlyId(template, 'AWS::ApiGatewayV2::DomainName');
     const zoneIdParameter = Object.keys(
-      template.findParameters('*', { Default: '/platform/dev/dns/hosted-zone-id' }),
+      template.findParameters('*', { Default: '/platform/prod/dns/hosted-zone-id' }),
     );
 
     expect(
@@ -473,7 +473,7 @@ describe('TracedHttpApi custom domain', () => {
 
   it.each(['', 'a.b', 'A', '-a', 'a_b'])('rejects the record name "%s"', (recordName) => {
     const stack = new Stack(newApp(), 'BadStack');
-    const pool = readPlatformUserPool(stack, 'dev');
+    const pool = readPlatformUserPool(stack, 'prod');
     expect(
       () =>
         new TracedHttpApi(stack, 'Http', {
@@ -483,8 +483,8 @@ describe('TracedHttpApi custom domain', () => {
             callbackUrls: ['https://app.example.com/callback'],
           }),
           domain: {
-            hostedZone: readPlatformDns(stack, 'dev'),
-            certificate: readPlatformCertificate(stack, 'dev'),
+            hostedZone: readPlatformDns(stack, 'prod'),
+            certificate: readPlatformCertificate(stack, 'prod'),
             recordName,
           },
         }),

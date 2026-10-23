@@ -18,6 +18,8 @@ export function addSampleApiStack(app: App, envName: unknown): SampleApiStack {
   return new SampleApiStack(app, `SampleApi-${config.env}`, {
     config,
     env: readSampleEnvironment(),
-    description: `The sample TypeScript, Python and Go APIs (${config.env}).`,
+    description: config.deployApis
+      ? `The sample TypeScript, Python and Go APIs (${config.env}).`
+      : `The sample app client for the web app and the API on this machine (${config.env}).`,
   });
 }

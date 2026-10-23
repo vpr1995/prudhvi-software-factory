@@ -182,8 +182,8 @@ Fix: grant s3:GetObject on the bucket ARN only, or use bucket.grantRead().
 
 ### RemovalPolicy
 
-- A stateful resource does not use `RemovalPolicy.DESTROY` outside `dev`.
-- Set `RemovalPolicy.RETAIN` for stateful resources in `staging` and `prod`.
+- A stateful resource does not use `RemovalPolicy.DESTROY` outside `local`.
+- Set `RemovalPolicy.RETAIN` for stateful resources in `prod`.
 - Do not set `removalPolicy` on a stateless resource unless the PR says why.
 
 ### Encryption
@@ -205,7 +205,7 @@ Fix: grant s3:GetObject on the bucket ARN only, or use bucket.grantRead().
 - A new NAT gateway, load balancer, or instance type has a reason in the PR.
 - A new log group sets a retention period. Do not leave it at "never expire".
 - A new autoscaling setting has a maximum.
-- A change in `dev` does not use a production instance size.
+- A change in `local` does not use a production instance size.
 
 ### Config and naming
 

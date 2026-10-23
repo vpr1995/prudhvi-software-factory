@@ -23,7 +23,7 @@ export type TelemetryOptions = {
   readonly serviceName: string;
   /** The service version. It becomes `service.version`. */
   readonly serviceVersion: string;
-  /** The deployment environment (`local`, `dev`, `staging`, `prod`). It becomes `deployment.environment`. */
+  /** The deployment environment (`local`, `prod`). It becomes `deployment.environment`. */
   readonly environment: string;
 };
 

@@ -6,6 +6,8 @@ import { App } from 'aws-cdk-lib';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { describe, expect, it } from 'vitest';
 
+import { DEPLOY_ENVS } from '@vprprudhvi/shared-cdk-constructs';
+
 import { addSampleApiStack } from '../../lib/sample-app.js';
 
 const NO_BUNDLING = { 'aws:cdk:bundling-stacks': [] };
@@ -27,9 +29,9 @@ describe('addSampleApiStack', () => {
     () => {
       const app = newApp();
 
-      const stack = addSampleApiStack(app, 'staging');
+      const stack = addSampleApiStack(app, 'prod');
 
-      expect(stack.stackName).toBe('SampleApi-staging');
+      expect(stack.stackName).toBe('SampleApi-prod');
       expect(stack.region).toBe('us-east-1');
       expect(app.node.children).toContain(stack);
     },
@@ -37,10 +39,14 @@ describe('addSampleApiStack', () => {
   );
 
   it('rejects a missing environment', () => {
-    expect(() => addSampleApiStack(newApp(), undefined)).toThrow(/-c env=dev/);
+    expect(() => addSampleApiStack(newApp(), undefined)).toThrow(/-c env=local/);
   });
 
-  it.each(['dev', 'staging', 'prod'])(
+  it.each(['dev', 'staging'])('rejects the removed environment %s', (env) => {
+    expect(() => addSampleApiStack(newApp(), env)).toThrow(/-c env=local/);
+  });
+
+  it.each(DEPLOY_ENVS)(
     'synthesizes the %s stack with the checks on',
     (env) => {
       const app = newApp();
@@ -53,11 +59,18 @@ describe('addSampleApiStack', () => {
     STACK_TIMEOUT_MS,
   );
 
+  it('names the local stack for the environment and describes it as the app client only', () => {
+    const stack = addSampleApiStack(newApp(), 'local');
+
+    expect(stack.stackName).toBe('SampleApi-local');
+    expect(stack.templateOptions.description).toContain('app client');
+  });
+
   it(
     'runs the AwsSolutions checks at synth, so a new finding stops the synth',
     () => {
       const app = newApp();
-      const stack = addSampleApiStack(app, 'dev');
+      const stack = addSampleApiStack(app, 'local');
       // A bucket without any setting breaks AwsSolutions rules (for example S1 and S10).
       new Bucket(stack, 'BadBucket');
 

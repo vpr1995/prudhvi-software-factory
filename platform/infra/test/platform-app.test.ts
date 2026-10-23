@@ -12,18 +12,22 @@ describe('addPlatformStack', () => {
   it('adds one stack named for the environment, in us-east-1', () => {
     const app = new App();
 
-    const stack = addPlatformStack(app, 'staging');
+    const stack = addPlatformStack(app, 'prod');
 
-    expect(stack.stackName).toBe('PlatformInfra-staging');
+    expect(stack.stackName).toBe('PlatformInfra-prod');
     expect(stack.region).toBe('us-east-1');
     expect(app.node.children).toContain(stack);
   });
 
   it('rejects a missing environment', () => {
-    expect(() => addPlatformStack(new App(), undefined)).toThrow(/-c env=dev/);
+    expect(() => addPlatformStack(new App(), undefined)).toThrow(/-c env=prod/);
   });
 
-  it.each(['dev', 'staging', 'prod'])('synthesizes the %s stack with the checks on', (env) => {
+  it.each(['local', 'dev', 'staging'])('rejects the environment %s', (env) => {
+    expect(() => addPlatformStack(new App(), env)).toThrow(/-c env=prod/);
+  });
+
+  it.each(['prod'])('synthesizes the %s stack with the checks on', (env) => {
     const app = new App({ outdir: mkdtempSync(join(tmpdir(), 'platform-app-')) });
     const stack = addPlatformStack(app, env);
 
@@ -34,7 +38,7 @@ describe('addPlatformStack', () => {
 
   it('runs the AwsSolutions checks at synth, so a new finding stops the synth', () => {
     const app = new App({ outdir: mkdtempSync(join(tmpdir(), 'platform-app-')) });
-    const stack = addPlatformStack(app, 'dev');
+    const stack = addPlatformStack(app, 'prod');
     // A bucket without any setting breaks AwsSolutions rules (for example S1 and S10).
     new Bucket(stack, 'BadBucket');
 
@@ -46,18 +50,18 @@ describe('bin/app', () => {
   it('reads the environment from the CDK context and synthesizes', async () => {
     const outdir = mkdtempSync(join(tmpdir(), 'platform-bin-'));
     vi.stubEnv('CDK_OUTDIR', outdir);
-    vi.stubEnv('CDK_CONTEXT_JSON', JSON.stringify({ env: 'dev' }));
+    vi.stubEnv('CDK_CONTEXT_JSON', JSON.stringify({ env: 'prod' }));
     vi.resetModules();
 
     await import('../bin/app.js');
 
-    expect(existsSync(join(outdir, 'PlatformInfra-dev.template.json'))).toBe(true);
+    expect(existsSync(join(outdir, 'PlatformInfra-prod.template.json'))).toBe(true);
   });
 
   it('fails without the env context', async () => {
     vi.stubEnv('CDK_OUTDIR', mkdtempSync(join(tmpdir(), 'platform-bin-')));
     vi.resetModules();
 
-    await expect(import('../bin/app.js')).rejects.toThrow(/-c env=dev/);
+    await expect(import('../bin/app.js')).rejects.toThrow(/-c env=prod/);
   });
 });
