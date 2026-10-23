@@ -6,10 +6,12 @@
 # It runs the steps cheap first and stops at the first failure with "gates: FAIL <step>".
 # Base for the diff checks: scripts/gates/gates-base.mjs (GATES_BASE, origin/main, the upstream,
 # .claude/state/gates-base, then the root commit). With the root commit, `rush verify` runs in full.
+# After rush verify: cdk synth for the CDK apps whose infra changed (scripts/gates/synth-changed.mjs).
 # Dependency checks (scripts/gates/dep-checks.mjs): license checks run when a lock or the license
 # policy changed since the base. The audits do not run here: they belong to the nightly run.
 # Env: GATE_LABELS  PR labels for check-gates, separated by commas (no PR exists locally).
-#      GATES_FULL=1 every check: all license checks, the audits, all gate tests, the full rush verify.
+#      GATES_FULL=1 every check: all license checks, the audits, all gate tests, the full rush verify,
+#                   cdk synth of every app.
 # Skips print "gates: SKIP <step> (<reason>)". `rush change --verify` skips only without a remote.
 set -euo pipefail
 
@@ -112,6 +114,10 @@ elif [ "$source" = "root" ]; then
 else
   step "rush verify --impacted-by git:$base" rush verify --impacted-by "git:$base"
 fi
+
+# h2. Offline cdk synth for each CDK app whose infra changed since the base (after verify, because
+# the apps import the built shared packages). GATES_FULL=1 synths every app.
+step "cdk synth (changed infra)" node scripts/gates/synth-changed.mjs --base "$base"
 
 # i. API and page coverage.
 step "bruno coverage" node scripts/gates/bruno-coverage.mjs

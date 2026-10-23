@@ -281,6 +281,27 @@ describe('local-gates.sh runner', () => {
     assert.match(result.stderr, /gates: FAIL rush change --verify/);
   });
 
+  it('lists the steps in run order: verify, then cdk synth, then coverage', () => {
+    const script = fs.readFileSync(path.join(GATES, 'local-gates.sh'), 'utf8');
+    const order = [
+      'step "rush change --verify"',
+      'dep_checks --base "$base"',
+      'step "opengrep"',
+      'step "anti-skip"',
+      'step "check-gates"',
+      'step "gate lint"',
+      'step "rush verify --impacted-by git:$base"',
+      'step "cdk synth (changed infra)" node scripts/gates/synth-changed.mjs --base "$base"',
+      'step "bruno coverage"',
+      'step "playwright coverage"',
+    ].map((text) => script.indexOf(text));
+    assert.ok(!order.includes(-1), `missing step: ${JSON.stringify(order)}`);
+    assert.deepEqual(
+      order,
+      [...order].sort((a, b) => a - b),
+    );
+  });
+
   it('fails before any step when GATES_BASE is not a commit', () => {
     const result = runGates({ GATES_BASE: 'no-such-ref' });
     assert.equal(result.status, 1);
