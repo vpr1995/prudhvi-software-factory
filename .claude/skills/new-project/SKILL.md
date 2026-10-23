@@ -24,7 +24,7 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - api-go: `mkdir -p projects/<name>/src/api-go/{cmd,internal,scripts}`
    - any api part: `mkdir -p projects/<name>/bruno/{environments,health}`
 4. Write the non-gate files. Use `reference.md` for the content. Follow the "Handoff files" list, not the labels in `reference.md`. The one `package.json` is private. It is named `@vprprudhvi/<name>` and has the `_phase:*` scripts. Each phase runs every chosen part and fails fast with the part name. `_phase:e2e` runs Bruno for each API part and Playwright for web. Write `package.json` to the handoff folder (step 7). No dependencies yet.
-   - Bruno (any api part): `bruno/environments/local.bru`, `dev.bru`, `staging.bru` (non-secret values only), and `bruno/health/get-health.bru` with docs and assertions. `bruno/bruno.json` goes to the handoff folder.
+   - Bruno (any api part): `bruno/environments/local.bru`, `prod.bru` (non-secret values only), and `bruno/health/get-health.bru` with docs and assertions. `bruno/bruno.json` goes to the handoff folder.
    - web: `web/e2e/home.spec.ts` (calls `page.goto('/')`, runs axe). `playwright.config.ts` (project root) goes to the handoff folder. Playwright is mandatory for web.
    - Scripts in `scripts/` folders (`.sh`, `.mjs`, `.py`) go to the handoff folder.
 5. Telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step and report it as an open item (section 2 of that document).
@@ -47,7 +47,7 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 - any api part: `@usebruno/cli` (dev, pinned), so `bru` is available.
 - api-py: `uv add --dev <pkg>` from `projects/<name>/src/api-py`. api-go: `go get <module>` then `go mod tidy` from `projects/<name>/src/api-go`.
 
-11. Check the platform values exist (read-only): `aws ssm get-parameters-by-path --path /platform/dev --recursive --query 'Parameters[].Name' --output text`. If credentials are missing, say so.
+11. Check the platform values exist (read-only): `aws ssm get-parameters-by-path --path /platform/prod --recursive --query 'Parameters[].Name' --output text`. If credentials are missing, say so.
 12. Run `rush build --only @vprprudhvi/<name>` and paste the output. Then run `rush verify --only @vprprudhvi/<name>` and paste the output. Then run the `verify` skill.
 
 ## Handoff files

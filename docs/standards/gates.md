@@ -311,7 +311,7 @@ Planned. CI is not set up yet. The local runner covers these checks where sectio
 
 | Workflow       | Check                                                                                                              |
 | -------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `release.yml`  | Deploy to `dev`, then `staging`, then `prod`. `prod` needs a GitHub Environment approval. SBOM and container scan. |
+| `release.yml`  | Deploy to `prod`, after `local` (ADR 0011). `prod` needs a GitHub Environment approval. SBOM and container scan.   |
 | `rollback.yml` | Re-deploy the last good build or turn off a flag.                                                                  |
 
 ## 5. Labels

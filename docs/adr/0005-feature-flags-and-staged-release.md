@@ -1,6 +1,6 @@
 # ADR 0005: Use feature flags and a staged release
 
-- Status: Accepted
+- Status: Accepted. The deploy order is superseded by ADR 0011
 - Date: 2026-10-22
 
 ## Context

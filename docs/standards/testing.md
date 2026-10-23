@@ -174,8 +174,7 @@ projects/<name>/bruno/
   bruno.json
   environments/
     local.bru
-    dev.bru
-    staging.bru
+    prod.bru
   orders/
     get-order.bru
     create-order.bru

@@ -12,7 +12,7 @@ The Bruno collection is the API reference. Each `.bru` file is one route. Its `d
 ## Layout
 
 - `projects/<name>/bruno/bruno.json`: collection name and settings.
-- `projects/<name>/bruno/environments/local.bru`, `dev.bru`, `staging.bru`: base URL and non-secret variables.
+- `projects/<name>/bruno/environments/local.bru`, `prod.bru`: base URL and non-secret variables.
 - `projects/<name>/bruno/<resource>/<action>.bru`: one request per route.
 
 ## Read the docs

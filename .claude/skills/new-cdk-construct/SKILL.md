@@ -24,7 +24,7 @@ Rules:
 4. Write the construct class in PascalCase. Use PascalCase construct IDs: `new Bucket(this, 'AssetsBucket', ...)`.
 5. Do not set physical names: no `bucketName`, `functionName`, `tableName`, `queueName`, `roleName`, or `userPoolName`. Let CDK generate them.
 6. Set the defaults:
-   - Stateful resources: encryption at rest, and `removalPolicy: RETAIN`. Use `DESTROY` only when `config/dev.ts` sets it, and never in prod.
+   - Stateful resources: encryption at rest, and `removalPolicy: RETAIN`. Use `DESTROY` only when `config/local.ts` sets it, and never in prod.
    - Buckets: block public access. Web buckets use CloudFront Origin Access Control only.
    - Lambda: explicit timeout and memory, log group with retention, active tracing. Use the shared Lambda construct from `@vprprudhvi/shared-cdk-constructs`. It adds the ADOT collector-only layer and sets `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_PROPAGATORS`, `OTEL_TRACES_SAMPLER`, and `OTEL_TRACES_SAMPLER_ARG`. Do not add the layer by hand. Do not set `AWS_LAMBDA_EXEC_WRAPPER`. If the shared construct does not offer them, stop and ask the human. See `docs/standards/observability.md`, section 8. Runtime from the build output: Node for TypeScript, `PROVIDED_AL2023` with a `bootstrap` binary for Go, the current Python runtime for Python.
    - API Gateway HTTP API: a JWT authorizer on the Cognito pool for every route that needs a user. Any route without an authorizer needs a written reason in the test.
@@ -54,7 +54,7 @@ Rules:
 ## Do not
 
 - Add a cdk-nag acknowledgment (`Validations.of(construct).acknowledge({ id, reason })`) outside the one acknowledgments file of the stack (`lib/nag-acknowledgments/<stack>.ts`). Each acknowledgment needs a reason, and the owner approves it. A shared construct in `packages/cdk-constructs` can hold an acknowledgment only with an owner approval in the commit.
-- Set `RemovalPolicy.DESTROY` on a stateful resource outside dev.
+- Set `RemovalPolicy.DESTROY` on a stateful resource outside `local`.
 - Write `*` in IAM actions or resources.
 - Import code from `platform/infra`, or use a CloudFormation cross-stack reference to a platform stack.
 - Create a user pool, hosted zone, or wildcard certificate in a project.

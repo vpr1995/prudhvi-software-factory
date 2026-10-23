@@ -7,7 +7,7 @@ Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, const
 - `bin/<name>.ts`: the CDK app entry. It creates the `App`, adds the `AwsSolutionsChecks` aspect, and adds the stacks.
 - `lib/stacks/`: stacks. Example: `<name>-stack.ts`.
 - `lib/constructs/`: constructs for this project only, in kebab-case files.
-- `lib/config/<env>.ts`: account-neutral settings per environment. Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
+- `lib/config/<env>.ts`: account-neutral settings per project environment (`local` or `prod`). Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
 - `lib/nag-acknowledgments/<stack>.ts`: the one cdk-nag acknowledgments file for a stack (see Rules).
 - `cdk.json` (project root): gate file.
 - `bin` and `lib` use the one project `package.json`. They have no `package.json` of their own.
@@ -33,7 +33,7 @@ CDK bundles the Lambda code at synth. Do not build code in a separate deploy ste
 - Region is `us-east-1` only. Use one wildcard certificate (from the platform) for all project domains. Do not create a certificate in a project.
 - Compute is Lambda first. API: Fastify on Lambda (`@fastify/aws-lambda`) behind an API Gateway HTTP API. Web: Next.js through OpenNext (CloudFront, S3, Lambda). Ask the human before any container or instance compute.
 - Use PascalCase construct IDs. Set no physical names. Let CDK generate them.
-- Stateful resources: encryption at rest and `RETAIN`. Use `DESTROY` only when `lib/config/dev.ts` sets it, never in prod.
+- Stateful resources: encryption at rest and `RETAIN`. Use `DESTROY` only when `lib/config/local.ts` sets it, never in `prod`.
 - Buckets block public access. Web buckets use CloudFront Origin Access Control only.
 - Lambda: set timeout, memory, log retention, and active tracing.
 - Use a JWT authorizer on the Cognito pool for each route that needs a user.

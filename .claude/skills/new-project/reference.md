@@ -76,7 +76,7 @@ Start with `# <name> review rules`. Add one `## <part>` section per part, with t
 ## bruno (any api part)
 
 - `bruno/bruno.json`: `{ "version": "1", "name": "<name>-api", "type": "collection", "ignore": ["node_modules", ".git"] }`
-- `bruno/environments/local.bru`: `vars { baseUrl: http://localhost:3001 }`. `dev.bru` and `staging.bru` hold the non-secret base URLs only. The e2e phase overrides `baseUrl` with `--env-var`.
+- `bruno/environments/local.bru`: `vars { baseUrl: http://localhost:3001 }`. `prod.bru` holds the non-secret prod base URL only. The e2e phase overrides `baseUrl` with `--env-var`.
 - `bruno/health/get-health.bru`: the format in the `api-docs` skill, with this content:
   ```
   meta {

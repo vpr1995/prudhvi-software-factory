@@ -3,7 +3,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 ## What this area is
 
 - `platform/infra` (`@vprprudhvi/platform-infra`) is a CDK app. It owns the shared AWS resources: one Cognito user pool, the imported Route53 hosted zone, and one ACM wildcard certificate.
-- It writes each ID and ARN to SSM under `/platform/<env>/...`.
+- It writes each ID and ARN to SSM under `/platform/<env>/...`. Only `prod` exists. See [ADR 0011](../docs/adr/0011-local-and-prod-environments.md).
 - Every project reads these values. A broken change here breaks every project.
 
 ## Risk

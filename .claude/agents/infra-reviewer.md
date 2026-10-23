@@ -31,7 +31,7 @@ Any change under `platform/infra/**` is high risk. Report it with at least one I
 
 - IAM least privilege: `*` in actions or resources, admin-style managed policies, broad `grant*` on a shared resource, roles that a stack does not need.
 - Replacements and deletions: in the `cdk diff` output, look for `Replacement` and `destroy` on stateful resources (user pools, buckets, tables, keys, log groups, databases). A replacement of a stateful resource is Important.
-- RemovalPolicy: stateful resources use `RETAIN` outside dev. The Cognito user pool and the hosted zone import never get `DESTROY`. Deletion protection on the user pool is on in prod. `DESTROY` in prod is Important.
+- RemovalPolicy: stateful resources use `RETAIN` outside `local`. `DESTROY` is allowed only in `local`. Stateful resources in `prod` use `RETAIN`. The Cognito user pool and the hosted zone import never get `DESTROY`. Deletion protection on the user pool is on in prod. `DESTROY` in prod is Important. The platform stack deploys only `prod` (ADR 0011).
 - Encryption at rest on each stateful resource. Block public access on buckets. Web buckets use CloudFront Origin Access Control only.
 - Platform values: a project reads platform values only through the SSM helper from `shared-cdk-constructs`. Flag as Important:
   - a hard-coded user pool ID, hosted zone ID, certificate ARN, or account ID in project code;
