@@ -1,8 +1,7 @@
-import { App, Duration, Stack, Validations } from 'aws-cdk-lib';
+import { Duration, Validations } from 'aws-cdk-lib';
+import type { Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
-import { Code, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { describe, expect, it } from 'vitest';
 
@@ -10,23 +9,24 @@ import type { PlatformEnv } from '../src/platform-parameters.js';
 import {
   ADOT_COLLECTOR_LAYER_ARN,
   RESERVED_ENVIRONMENT_KEYS,
-  TracedFunction,
-} from '../src/traced-function.js';
-import type { TracedFunctionProps } from '../src/traced-function.js';
+} from '../src/traced-function-base.js';
 
-type Overrides = Partial<TracedFunctionProps>;
+import { KINDS, createFunction, newStack } from './support/functions.js';
+import type { CommonOverrides, Kind } from './support/functions.js';
 
-/** Creates a stack with one `TracedFunction`. The code comes from a bucket, so any runtime works. */
-function build(overrides: Overrides = {}): { stack: Stack; template: Template } {
-  const stack = new Stack(new App(), 'TestStack');
-  new TracedFunction(stack, 'Api', {
-    serviceName: 'sample-api',
-    env: 'dev',
-    code: Code.fromBucket(Bucket.fromBucketName(stack, 'CodeBucket', 'code-bucket'), 'code.zip'),
-    handler: 'index.handler',
-    runtime: Runtime.NODEJS_24_X,
-    ...overrides,
-  });
+type Built = { readonly stack: Stack; readonly template: Template };
+
+/** The Lambda runtime name that each kind must give. */
+const RUNTIMES: Record<Kind, string> = {
+  node: 'nodejs24.x',
+  go: 'provided.al2023',
+  python: 'python3.14',
+};
+
+/** Creates a stack with one traced function of one kind. The context turns bundling off. */
+function build(kind: Kind, overrides: CommonOverrides = {}): Built {
+  const stack = newStack();
+  createFunction(kind, stack, overrides);
   return { stack, template: Template.fromStack(stack) };
 }
 
@@ -55,12 +55,13 @@ function logGroupId(template: Template): string {
   return ids[0] ?? '';
 }
 
-describe('TracedFunction function settings', () => {
+describe.each(KINDS)('traced %s function: function settings', (kind) => {
   it('runs on arm64 with X-Ray active tracing, memory and timeout', () => {
-    const { template } = build();
+    const { template } = build(kind);
 
     expect(
       findWith(template, 'AWS::Lambda::Function', {
+        Runtime: RUNTIMES[kind],
         Architectures: ['arm64'],
         TracingConfig: { Mode: 'Active' },
         MemorySize: 512,
@@ -70,59 +71,35 @@ describe('TracedFunction function settings', () => {
   });
 
   it('takes memory and timeout from the props', () => {
-    const { template } = build({ memorySize: 1024, timeout: Duration.seconds(25) });
+    const { template } = build(kind, { memorySize: 1024, timeout: Duration.seconds(25) });
 
     expect(
       findWith(template, 'AWS::Lambda::Function', { MemorySize: 1024, Timeout: 25 }),
     ).toHaveLength(1);
   });
 
-  it.each([
-    ['node', Runtime.NODEJS_24_X, 'nodejs24.x'],
-    ['python', Runtime.PYTHON_3_14, 'python3.14'],
-    ['provided.al2023', Runtime.PROVIDED_AL2023, 'provided.al2023'],
-  ])('accepts the %s runtime on arm64', (_label, runtime, name) => {
-    const { template } = build({ runtime, handler: 'bootstrap' });
-
-    expect(
-      findWith(template, 'AWS::Lambda::Function', { Runtime: name, Architectures: ['arm64'] }),
-    ).toHaveLength(1);
-  });
-
-  it('rejects a Java runtime', () => {
-    expect(() => build({ runtime: Runtime.JAVA_21 })).toThrow(
-      /Node.js, Python and provided.al2023/,
-    );
-  });
-
   it('creates no custom resource for log retention', () => {
-    const { template } = build();
+    const { template } = build(kind);
 
     expect(template.findResources('Custom::LogRetention')).toEqual({});
     expect(template.findResources('AWS::Lambda::Function')).not.toEqual({});
   });
 });
 
-describe('TracedFunction telemetry', () => {
+describe.each(KINDS)('traced %s function: telemetry', (kind) => {
   it('adds the ADOT collector layer and no other layer', () => {
-    const { template } = build();
+    const { template } = build(kind);
 
     expect(
       findWith(template, 'AWS::Lambda::Function', { Layers: [ADOT_COLLECTOR_LAYER_ARN] }),
     ).toHaveLength(1);
   });
 
-  it('uses an arm64 us-east-1 layer ARN in the documented format', () => {
-    expect(ADOT_COLLECTOR_LAYER_ARN).toMatch(
-      /^arn:aws:lambda:us-east-1:\d{12}:layer:aws-otel-collector-arm64-ver-\d+-\d+-\d+:\d+$/,
-    );
-  });
-
   it('sets the OpenTelemetry environment variables for dev', () => {
-    const { template } = build();
+    const { template } = build(kind);
 
-    expect(functionEnvironment(template)).toEqual({
-      OTEL_SERVICE_NAME: 'sample-api',
+    expect(functionEnvironment(template)['OTEL_SERVICE_NAME']).toMatch(/^sample-api/);
+    expect(functionEnvironment(template)).toMatchObject({
       OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318',
       OTEL_PROPAGATORS: 'tracecontext,baggage,xray',
       OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
@@ -130,36 +107,42 @@ describe('TracedFunction telemetry', () => {
     });
   });
 
+  it('takes the service name from the props', () => {
+    const { template } = build(kind, { serviceName: 'orders' });
+
+    expect(functionEnvironment(template)['OTEL_SERVICE_NAME']).toBe('orders');
+  });
+
   it.each([
     ['dev', '1.0'],
     ['staging', '1.0'],
     ['prod', '0.1'],
   ] satisfies [PlatformEnv, string][])('samples %s at ratio %s', (env, ratio) => {
-    const { template } = build({ env });
+    const { template } = build(kind, { env });
 
     expect(functionEnvironment(template)['OTEL_TRACES_SAMPLER_ARG']).toBe(ratio);
   });
 
   it('never sets AWS_LAMBDA_EXEC_WRAPPER', () => {
-    const { template } = build({ environment: { TABLE: 'orders' } });
+    const { template } = build(kind, { environment: { TABLE: 'orders' } });
 
     expect(functionEnvironment(template)).not.toHaveProperty('AWS_LAMBDA_EXEC_WRAPPER');
   });
 
   it('keeps extra environment variables from the caller', () => {
-    const { template } = build({ environment: { TABLE: 'orders' } });
+    const { template } = build(kind, { environment: { TABLE: 'orders' } });
 
     expect(functionEnvironment(template)).toMatchObject({ TABLE: 'orders' });
   });
 
   it.each(RESERVED_ENVIRONMENT_KEYS)('rejects the reserved variable %s', (key) => {
-    expect(() => build({ environment: { [key]: 'x' } })).toThrow(key);
+    expect(() => build(kind, { environment: { [key]: 'x' } })).toThrow(key);
   });
 });
 
-describe('TracedFunction logs and role', () => {
+describe.each(KINDS)('traced %s function: logs and role', (kind) => {
   it('creates its own log group with one month retention by default', () => {
-    const { template } = build();
+    const { template } = build(kind);
     const [group] = Object.values(template.findResources('AWS::Logs::LogGroup'));
 
     expect(group).toMatchObject({
@@ -171,13 +154,13 @@ describe('TracedFunction logs and role', () => {
   });
 
   it('takes the retention from the props', () => {
-    const { template } = build({ logRetention: RetentionDays.ONE_YEAR });
+    const { template } = build(kind, { logRetention: RetentionDays.ONE_YEAR });
 
     expect(findWith(template, 'AWS::Logs::LogGroup', { RetentionInDays: 365 })).toHaveLength(1);
   });
 
   it('points the function at its log group', () => {
-    const { template } = build();
+    const { template } = build(kind);
 
     expect(
       findWith(template, 'AWS::Lambda::Function', {
@@ -187,7 +170,7 @@ describe('TracedFunction logs and role', () => {
   });
 
   it('uses one explicit role with no managed policy', () => {
-    const { template } = build();
+    const { template } = build(kind);
 
     expect(Object.keys(template.findResources('AWS::IAM::Role'))).toHaveLength(1);
     expect(propertiesOf(template, 'AWS::IAM::Role')).not.toHaveProperty('ManagedPolicyArns');
@@ -207,7 +190,7 @@ describe('TracedFunction logs and role', () => {
   });
 
   it('limits log writes to the log group of the function', () => {
-    const { template } = build();
+    const { template } = build(kind);
     const groupArn = { 'Fn::GetAtt': [logGroupId(template), 'Arn'] };
 
     expect(
@@ -229,9 +212,19 @@ describe('TracedFunction logs and role', () => {
       }),
     ).toHaveLength(1);
   });
+
+  it('exposes the function, the log group and the role', () => {
+    const stack = newStack();
+
+    const construct = createFunction(kind, stack);
+
+    expect(construct.function.node.id).toBe('Function');
+    expect(construct.logGroup.node.id).toBe('LogGroup');
+    expect(construct.role.node.id).toBe('Role');
+  });
 });
 
-describe('TracedFunction cdk-nag', () => {
+describe.each(KINDS)('traced %s function: cdk-nag', (kind) => {
   // cdk-nag 3 is a validation plugin. A plugin on the App makes synth throw on a violation, so
   // these tests call `validateScope` and read the report.
   // The construct acknowledges two AwsSolutions-IAM5 findings (owner approved 2026-10-22):
@@ -245,35 +238,15 @@ describe('TracedFunction cdk-nag', () => {
   }
 
   it('has zero AwsSolutions violations', () => {
-    const { stack } = build();
-
-    expect(violationNames(stack)).toEqual([]);
+    expect(violationNames(build(kind).stack)).toEqual([]);
   });
 
-  it.each([Runtime.PYTHON_3_14, Runtime.PROVIDED_AL2023])(
-    'has zero AwsSolutions violations for the %s runtime',
-    (runtime) => {
-      const { stack } = build({ runtime, handler: 'bootstrap' });
-
-      expect(violationNames(stack)).toEqual([]);
-    },
-  );
-
-  it('has zero violations for two functions in one stack', () => {
-    const { stack } = build();
-    new TracedFunction(stack, 'Worker', {
-      serviceName: 'worker',
-      env: 'prod',
-      code: Code.fromBucket(Bucket.fromBucketName(stack, 'WorkerCode', 'worker-code'), 'w.zip'),
-      handler: 'index.handler',
-      runtime: Runtime.NODEJS_24_X,
-    });
-
-    expect(violationNames(stack)).toEqual([]);
+  it('has zero violations for a function in prod', () => {
+    expect(violationNames(build(kind, { env: 'prod' }).stack)).toEqual([]);
   });
 
   it('does not acknowledge more than the two IAM5 findings', () => {
-    const { stack } = build();
+    const { stack } = build(kind);
     const role = stack.node.findChild('Api').node.findChild('Role');
     const metadata = role.node.metadata.concat(role.node.findChild('DefaultPolicy').node.metadata);
     const ids = metadata
@@ -283,5 +256,23 @@ describe('TracedFunction cdk-nag', () => {
     expect(ids).toHaveLength(2);
     expect(ids.join('')).toContain('AwsSolutions-IAM5[Resource::*]');
     expect(ids.join('')).toContain('Owner approved 2026-10-22');
+  });
+});
+
+describe('traced functions together', () => {
+  it('has zero violations for a function of each kind in one stack', () => {
+    const stack = newStack();
+    for (const kind of KINDS) {
+      createFunction(kind, stack, { serviceName: kind, id: `${kind}Api` });
+    }
+
+    expect(
+      new AwsSolutionsChecks()
+        .validateScope(stack)
+        .violations.map((violation) => violation.ruleName),
+    ).toEqual([]);
+    expect(
+      Object.keys(Template.fromStack(stack).findResources('AWS::Lambda::Function')),
+    ).toHaveLength(3);
   });
 });

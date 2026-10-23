@@ -1,10 +1,8 @@
-import { App, CfnOutput, Stack } from 'aws-cdk-lib';
+import { CfnOutput, Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
-import { Code, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import type { CfnLogGroup } from 'aws-cdk-lib/aws-logs';
-import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { describe, expect, it } from 'vitest';
 
@@ -16,7 +14,9 @@ import {
   readPlatformUserPool,
 } from '../src/platform-resources.js';
 import { createProjectUserPoolClient } from '../src/project-user-pool-client.js';
-import { TracedFunction } from '../src/traced-function.js';
+import { TracedNodeFunction } from '../src/traced-node-function.js';
+
+import { newApp, nodeProps } from './support/functions.js';
 
 type Overrides = Partial<
   Omit<TracedHttpApiProps, 'fn' | 'userPool' | 'userPoolClient' | 'domain'>
@@ -29,17 +29,11 @@ type Built = { readonly stack: Stack; readonly template: Template; readonly api:
 
 const HEALTH = { method: HttpMethod.GET, path: '/health' };
 
-/** Creates a stack with the platform imports, one `TracedFunction` and one `TracedHttpApi`. */
+/** Creates a stack with the platform imports, one `TracedNodeFunction` and one `TracedHttpApi`. */
 function build({ hasDomain = true, ...overrides }: Overrides = {}): Built {
-  const stack = new Stack(new App(), 'TestStack');
+  const stack = new Stack(newApp(), 'TestStack');
   const pool = readPlatformUserPool(stack, 'dev');
-  const tracedFunction = new TracedFunction(stack, 'Api', {
-    serviceName: 'sample-api',
-    env: 'dev',
-    code: Code.fromBucket(Bucket.fromBucketName(stack, 'CodeBucket', 'code-bucket'), 'code.zip'),
-    handler: 'index.handler',
-    runtime: Runtime.NODEJS_24_X,
-  });
+  const tracedFunction = new TracedNodeFunction(stack, 'Api', nodeProps());
   // Without a domain the stack reads no DNS and no ACM parameter.
   const domain = {
     hostedZone: hasDomain ? readPlatformDns(stack, 'dev') : undefined,
@@ -378,15 +372,9 @@ describe('TracedHttpApi custom domain', () => {
   });
 
   it.each(['', 'a.b', 'A', '-a', 'a_b'])('rejects the record name "%s"', (recordName) => {
-    const stack = new Stack(new App(), 'BadStack');
+    const stack = new Stack(newApp(), 'BadStack');
     const pool = readPlatformUserPool(stack, 'dev');
-    const tracedFunction = new TracedFunction(stack, 'Api', {
-      serviceName: 'x',
-      env: 'dev',
-      code: Code.fromBucket(Bucket.fromBucketName(stack, 'CodeBucket', 'code-bucket'), 'c.zip'),
-      handler: 'index.handler',
-      runtime: Runtime.NODEJS_24_X,
-    });
+    const tracedFunction = new TracedNodeFunction(stack, 'Api', nodeProps());
 
     expect(
       () =>

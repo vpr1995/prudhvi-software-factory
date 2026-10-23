@@ -23,7 +23,7 @@ import type { IHostedZone } from 'aws-cdk-lib/aws-route53';
 import { ApiGatewayv2DomainProperties } from 'aws-cdk-lib/aws-route53-targets';
 import { Construct } from 'constructs';
 
-import type { TracedFunction } from './traced-function.js';
+import type { TracedFunctionBase } from './traced-function-base.js';
 
 /** A route that needs no sign-in, for example `GET /health`. */
 export type PublicRoute = {
@@ -45,8 +45,8 @@ export type HttpApiDomain = {
 
 /** Settings for `TracedHttpApi`. */
 export type TracedHttpApiProps = {
-  /** The Lambda that serves every route. */
-  readonly fn: TracedFunction;
+  /** The traced function that serves every route. */
+  readonly fn: TracedFunctionBase;
   /** The user pool that issues the tokens. Its ID gives the JWT issuer. */
   readonly userPool: IUserPool;
   /** The app client of this project. It gives the JWT audience. */
@@ -157,7 +157,8 @@ function buildCors(origins: readonly string[]): CorsPreflightOptions {
 }
 
 /**
- * An API Gateway HTTP API in front of one `TracedFunction`.
+ * An API Gateway HTTP API in front of one traced function (`TracedNodeFunction`, `TracedGoFunction` or
+ * `TracedPythonFunction`).
  *
  * - Public routes (`publicRoutes`) have no authorizer. Every other route goes to the `$default`
  *   route, which uses the JWT authorizer of the Cognito user pool.

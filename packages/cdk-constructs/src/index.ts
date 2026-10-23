@@ -29,9 +29,19 @@ export {
   OTEL_SAMPLER_ARG_PROD,
   OTEL_TRACES_SAMPLER_VALUE,
   RESERVED_ENVIRONMENT_KEYS,
-  TracedFunction,
-} from './traced-function.js';
-export type { TracedFunctionProps } from './traced-function.js';
+  TracedFunctionBase,
+} from './traced-function-base.js';
+export type { TracedFunctionBaseProps } from './traced-function-base.js';
+export { GO_RUNTIME, TracedGoFunction } from './traced-go-function.js';
+export type { TracedGoFunctionProps } from './traced-go-function.js';
+export { NODE_REQUIRE_BANNER, NODE_RUNTIME, TracedNodeFunction } from './traced-node-function.js';
+export type { TracedNodeFunctionProps } from './traced-node-function.js';
+export {
+  PYTHON_DEFAULT_ASSET_EXCLUDES,
+  PYTHON_RUNTIME,
+  TracedPythonFunction,
+} from './traced-python-function.js';
+export type { TracedPythonFunctionProps } from './traced-python-function.js';
 export {
   ACCESS_LOG_FIELDS,
   CORS_ALLOW_HEADERS,

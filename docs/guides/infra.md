@@ -40,7 +40,7 @@ CDK bundles the Lambda code at synth. Do not build code in a separate deploy ste
 - Grant with `grantRead` and `grantWrite`. Never write `*` in IAM actions or resources.
 - Read platform values only through the SSM helper in `shared-cdk-constructs`. Never import `platform/infra`. See the `use-platform-resource` skill.
 - Each project makes its own Cognito app client, DNS records, and Lambdas.
-- cdk-nag 3: the app runs `Validations.of(app).addPlugins(new AwsSolutionsChecks(app))`. A finding makes `cdk synth` fail. Meet each rule. If a rule cannot be met, add one `Validations.of(construct).acknowledge({ id, reason })` to the one acknowledgments file of the stack. The id includes the bracket part, for example `AwsSolutions-IAM5[Resource::*]`. Give a reason for each one. The owner approves each one. `TracedFunction` holds two owner-approved acknowledgments (X-Ray `Resource: *`, log streams `<logGroupArn>:*`).
+- cdk-nag 3: the app runs `Validations.of(app).addPlugins(new AwsSolutionsChecks(app))`. A finding makes `cdk synth` fail. Meet each rule. If a rule cannot be met, add one `Validations.of(construct).acknowledge({ id, reason })` to the one acknowledgments file of the stack. The id includes the bracket part, for example `AwsSolutions-IAM5[Resource::*]`. Give a reason for each one. The owner approves each one. `TracedFunctionBase` (the base of `TracedNodeFunction`, `TracedGoFunction` and `TracedPythonFunction`) holds two owner-approved acknowledgments (X-Ray `Resource: *`, log streams `<logGroupArn>:*`).
 - Never run `cdk deploy` or `cdk destroy`. Run `cdk synth` and read-only commands.
 
 ## Tests

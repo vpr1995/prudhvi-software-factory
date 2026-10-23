@@ -7,15 +7,8 @@ import {
   ServicePrincipal,
 } from 'aws-cdk-lib/aws-iam';
 import type { IRole } from 'aws-cdk-lib/aws-iam';
-import {
-  Architecture,
-  Function as LambdaFunction,
-  LayerVersion,
-  Runtime,
-  RuntimeFamily,
-  Tracing,
-} from 'aws-cdk-lib/aws-lambda';
-import type { Code } from 'aws-cdk-lib/aws-lambda';
+import { Architecture, LayerVersion, Tracing } from 'aws-cdk-lib/aws-lambda';
+import type { Function as LambdaFunction, FunctionOptions } from 'aws-cdk-lib/aws-lambda';
 import { CfnLogGroup, LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import type { ILogGroup } from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
@@ -54,7 +47,7 @@ export const OTEL_SAMPLER_ARG_NON_PROD = '1.0';
 /** The share of root traces to sample in `prod`. */
 export const OTEL_SAMPLER_ARG_PROD = '0.1';
 
-/** Environment variables that `TracedFunction` owns. A caller cannot set them. */
+/** Environment variables that every traced function owns. A caller cannot set them. */
 export const RESERVED_ENVIRONMENT_KEYS = [
   'OTEL_SERVICE_NAME',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
@@ -67,18 +60,15 @@ export const RESERVED_ENVIRONMENT_KEYS = [
 const DEFAULT_MEMORY_MB = 512;
 const DEFAULT_TIMEOUT_SECONDS = 10;
 
-/** Settings for `TracedFunction`. */
-export type TracedFunctionProps = {
+/**
+ * Settings that all three traced functions share (`TracedNodeFunction`, `TracedGoFunction` and
+ * `TracedPythonFunction`).
+ */
+export type TracedFunctionBaseProps = {
   /** The service name. It becomes `OTEL_SERVICE_NAME`. */
   readonly serviceName: string;
   /** The deployment environment. It sets the trace sampling ratio: 1.0 in non-prod, 0.1 in prod. */
   readonly env: PlatformEnv;
-  /** The function code. */
-  readonly code: Code;
-  /** The handler. For `provided.al2023` use `bootstrap`. */
-  readonly handler: string;
-  /** A Node.js, Python or `provided.al2023` runtime. Other runtimes throw. */
-  readonly runtime: Runtime;
   /** Memory in MB. Defaults to 512. */
   readonly memorySize?: number;
   /** Timeout. Defaults to 10 seconds. */
@@ -90,27 +80,13 @@ export type TracedFunctionProps = {
 };
 
 /**
- * Checks that the runtime is a Node.js, Python or `provided.al2023` runtime.
- *
- * @param runtime - The runtime of the function.
- * @returns `true` when the function can use the collector layer in this repo.
- */
-function isSupportedRuntime(runtime: Runtime): boolean {
-  return (
-    runtime.family === RuntimeFamily.NODEJS ||
-    runtime.family === RuntimeFamily.PYTHON ||
-    runtime.name === Runtime.PROVIDED_AL2023.name
-  );
-}
-
-/**
  * Builds the OpenTelemetry environment variables of a function.
  *
  * @param props - The service name and the environment.
  * @returns The five `OTEL_*` variables.
  */
 function buildTelemetryEnvironment(
-  props: Pick<TracedFunctionProps, 'env' | 'serviceName'>,
+  props: Pick<TracedFunctionBaseProps, 'env' | 'serviceName'>,
 ): Record<string, string> {
   return {
     OTEL_SERVICE_NAME: props.serviceName,
@@ -123,39 +99,52 @@ function buildTelemetryEnvironment(
 }
 
 /**
- * The one Lambda construct for project code. It runs on arm64 with X-Ray active tracing, the ADOT
- * collector-only layer, the OpenTelemetry environment variables, its own log group with
- * retention, and an explicit role that can write only to that log group.
+ * The base of every Lambda construct for project code. It holds the logic that all three runtimes
+ * share, so it exists in one place:
+ *
+ * - arm64, X-Ray active tracing and the ADOT collector-only layer,
+ * - the OpenTelemetry environment variables (sampling 1.0 in non-prod, 0.1 in prod),
+ * - its own log group with retention, and an explicit role that can write only to that log group,
+ * - the two owner-approved `AwsSolutions-IAM5` acknowledgments.
  *
  * It sets no `AWS_LAMBDA_EXEC_WRAPPER`. The app starts the SDK itself (`initTelemetry`).
+ *
+ * Do not use this class directly. Use `TracedNodeFunction`, `TracedGoFunction` or
+ * `TracedPythonFunction`. A subclass creates its function with `this.functionOptions`, then
+ * calls `this.completeSetup()`.
  */
-export class TracedFunction extends Construct {
+export abstract class TracedFunctionBase extends Construct {
   /** The Lambda function. Use it for integrations and grants. */
-  public readonly function: LambdaFunction;
+  public abstract readonly function: LambdaFunction;
   /** The log group of the function. */
   public readonly logGroup: ILogGroup;
   /** The execution role of the function. */
   public readonly role: IRole;
 
   /**
+   * The function settings that all runtimes share. A subclass spreads them into the props of its
+   * function. They hold the architecture, tracing, layer, log group, role, environment, memory
+   * and timeout. They hold no runtime, code or handler.
+   */
+  protected readonly functionOptions: FunctionOptions;
+
+  private readonly ownLogGroup: LogGroup;
+  private readonly ownRole: Role;
+
+  /**
    * @param scope - The parent construct.
    * @param id - The construct ID, in PascalCase.
-   * @param props - The function settings.
+   * @param props - The settings that all runtimes share.
    */
-  public constructor(scope: Construct, id: string, props: TracedFunctionProps) {
+  protected constructor(scope: Construct, id: string, props: TracedFunctionBaseProps) {
     super(scope, id);
 
-    if (!isSupportedRuntime(props.runtime)) {
-      throw new Error(
-        `TracedFunction supports Node.js, Python and provided.al2023 runtimes, not ${props.runtime.name}.`,
-      );
-    }
     const reserved = RESERVED_ENVIRONMENT_KEYS.filter(
       (key) => props.environment !== undefined && key in props.environment,
     );
     if (reserved.length > 0) {
       throw new Error(
-        `TracedFunction sets these environment variables itself: ${reserved.join(', ')}.`,
+        `A traced function sets these environment variables itself: ${reserved.join(', ')}.`,
       );
     }
 
@@ -179,11 +168,8 @@ export class TracedFunction extends Construct {
       },
     });
 
-    this.function = new LambdaFunction(this, 'Function', {
-      runtime: props.runtime,
+    this.functionOptions = {
       architecture: Architecture.ARM_64,
-      code: props.code,
-      handler: props.handler,
       memorySize: props.memorySize ?? DEFAULT_MEMORY_MB,
       timeout: props.timeout ?? Duration.seconds(DEFAULT_TIMEOUT_SECONDS),
       tracing: Tracing.ACTIVE,
@@ -193,33 +179,34 @@ export class TracedFunction extends Construct {
         LayerVersion.fromLayerVersionArn(this, 'OtelCollectorLayer', ADOT_COLLECTOR_LAYER_ARN),
       ],
       environment: { ...props.environment, ...buildTelemetryEnvironment(props) },
-    });
+    };
     this.logGroup = logGroup;
     this.role = role;
-    this.acknowledgeIam5(logGroup, role);
+    this.ownLogGroup = logGroup;
+    this.ownRole = role;
   }
 
   /**
-   * Acknowledges the two AwsSolutions-IAM5 findings that this construct cannot remove. The repo
-   * owner approved both on 2026-10-22. They apply to this role only.
+   * Finishes the setup. A subclass calls it after it creates its function, because the X-Ray
+   * statement of the role exists only after that.
    *
-   * @param logGroup - The log group of the function.
-   * @param role - The execution role of the function.
+   * It acknowledges the two `AwsSolutions-IAM5` findings that this construct cannot remove. The
+   * repo owner approved both on 2026-10-22. They apply to this role only.
    */
-  private acknowledgeIam5(logGroup: LogGroup, role: Role): void {
+  protected completeSetup(): void {
     // cdk-nag names the finding after the logical ID of the log group, so build it from the ID.
-    const cfnLogGroup = logGroup.node.defaultChild;
+    const cfnLogGroup = this.ownLogGroup.node.defaultChild;
     if (!(cfnLogGroup instanceof CfnLogGroup)) {
       throw new TypeError('The log group has no CfnLogGroup child.');
     }
     const logGroupLogicalId = Stack.of(this).getLogicalId(cfnLogGroup);
-    Validations.of(role).acknowledge({
+    Validations.of(this.ownRole).acknowledge({
       id: `AwsSolutions-IAM5[Resource::<${logGroupLogicalId}.Arn>:*]`,
       reason:
         'Lambda log stream names are dynamic, so the log write needs the log group ARN with ":*". ' +
         'The policy is limited to the log group of this function. Owner approved 2026-10-22.',
     });
-    Validations.of(role.node.findChild('DefaultPolicy')).acknowledge({
+    Validations.of(this.ownRole.node.findChild('DefaultPolicy')).acknowledge({
       id: 'AwsSolutions-IAM5[Resource::*]',
       reason:
         'X-Ray PutTraceSegments and PutTelemetryRecords have no resource-level permission, so CDK ' +
