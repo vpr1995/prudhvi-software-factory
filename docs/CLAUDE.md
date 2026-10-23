@@ -2,15 +2,15 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## Where each document goes
 
-| Content | Folder |
-|---|---|
-| Rules for all code (naming, tests, security, Git, gates, risk, tracing) | `docs/standards/` |
-| How to work in one part (web, api, api-py, api-go, contracts, infra) | `docs/guides/` |
-| A decision with its reason | `docs/adr/` |
-| Steps for an incident or a rollback | `docs/runbooks/` |
-| Review templates for each part | `docs/templates/` |
-| An explainer for one slice of code | `docs/explainers/` (use the [explain-area](../.claude/skills/explain-area/SKILL.md) skill) |
-| Setup for a new machine | `docs/onboarding.md` |
+| Content                                                                 | Folder                                                                                     |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Rules for all code (naming, tests, security, Git, gates, risk, tracing) | `docs/standards/`                                                                          |
+| How to work in one part (web, api, api-py, api-go, contracts, infra)    | `docs/guides/`                                                                             |
+| A decision with its reason                                              | `docs/adr/`                                                                                |
+| Steps for an incident or a rollback                                     | `docs/runbooks/`                                                                           |
+| Review templates for each part                                          | `docs/templates/`                                                                          |
+| An explainer for one slice of code                                      | `docs/explainers/` (use the [explain-area](../.claude/skills/explain-area/SKILL.md) skill) |
+| Setup for a new machine                                                 | `docs/onboarding.md`                                                                       |
 
 Put detail here. Keep the root `CLAUDE.md` and the nested `CLAUDE.md` files short. They link to documents in this folder.
 

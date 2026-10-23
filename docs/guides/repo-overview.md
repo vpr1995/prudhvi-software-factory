@@ -54,17 +54,17 @@ Agents can propose edits to `CLAUDE.md` files, `REVIEW.md` files, `docs/guides/*
 
 ## 6. Where each rule lives
 
-| Topic | Document |
-|---|---|
-| Commands | [commands.md](commands.md) |
-| Naming, types, errors, logging, folders, comments | [coding-conventions.md](../standards/coding-conventions.md) |
-| Tests and coverage | [testing.md](../standards/testing.md) |
-| Tracing and log fields | [observability.md](../standards/observability.md) |
-| Secrets, SAST, dependencies, IaC | [security.md](../standards/security.md) |
-| Branches, commits, hooks | [git-workflow.md](../standards/git-workflow.md) |
-| Gate files and human unlock steps | [gates.md](../standards/gates.md) |
-| Risk tiers and approvals | [risk-tiers.md](../standards/risk-tiers.md) |
-| Review rules for the AI reviewer. Per-part templates are in `docs/templates/`. Project and platform `REVIEW.md` files sit beside each project. | [REVIEW.md](../../REVIEW.md) |
-| Setup for a new machine | [onboarding.md](../onboarding.md) |
-| Rollback steps | [rollback.md](../runbooks/rollback.md) |
-| Decisions | [ADRs](../adr/) |
+| Topic                                                                                                                                          | Document                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Commands                                                                                                                                       | [commands.md](commands.md)                                  |
+| Naming, types, errors, logging, folders, comments                                                                                              | [coding-conventions.md](../standards/coding-conventions.md) |
+| Tests and coverage                                                                                                                             | [testing.md](../standards/testing.md)                       |
+| Tracing and log fields                                                                                                                         | [observability.md](../standards/observability.md)           |
+| Secrets, SAST, dependencies, IaC                                                                                                               | [security.md](../standards/security.md)                     |
+| Branches, commits, hooks                                                                                                                       | [git-workflow.md](../standards/git-workflow.md)             |
+| Gate files and human unlock steps                                                                                                              | [gates.md](../standards/gates.md)                           |
+| Risk tiers and approvals                                                                                                                       | [risk-tiers.md](../standards/risk-tiers.md)                 |
+| Review rules for the AI reviewer. Per-part templates are in `docs/templates/`. Project and platform `REVIEW.md` files sit beside each project. | [REVIEW.md](../../REVIEW.md)                                |
+| Setup for a new machine                                                                                                                        | [onboarding.md](../onboarding.md)                           |
+| Rollback steps                                                                                                                                 | [rollback.md](../runbooks/rollback.md)                      |
+| Decisions                                                                                                                                      | [ADRs](../adr/)                                             |

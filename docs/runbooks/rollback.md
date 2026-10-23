@@ -4,11 +4,11 @@ Use this runbook when a change harms users, data, cost, or security after releas
 
 ## 1. Choose the step
 
-| Step | Use when | Time |
-|---|---|---|
-| A. Turn off the flag | The harm comes from a new behavior behind a flag. | Minutes |
-| B. Re-deploy the last good build | The harm comes from a deploy with no flag. | Minutes to one deploy |
-| C. Revert the PR | The harm stays after A or B, or the code must not stay on `main`. | One PR and one deploy |
+| Step                             | Use when                                                          | Time                  |
+| -------------------------------- | ----------------------------------------------------------------- | --------------------- |
+| A. Turn off the flag             | The harm comes from a new behavior behind a flag.                 | Minutes               |
+| B. Re-deploy the last good build | The harm comes from a deploy with no flag.                        | Minutes to one deploy |
+| C. Revert the PR                 | The harm stays after A or B, or the code must not stay on `main`. | One PR and one deploy |
 
 Start with A when a flag exists. Then do C so that `main` is correct.
 

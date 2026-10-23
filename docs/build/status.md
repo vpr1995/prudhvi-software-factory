@@ -8,13 +8,13 @@ The owner started Wave 3 on 2026-10-22.
 
 ## 1. Sources of truth
 
-| What | Where |
-|---|---|
+| What                                                               | Where                                                                                             |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | Approved plan (sections 1 to 12) and the pause status (section 13) | [plan.md](plan.md). The original file is `~/.claude/plans/i-want-to-build-inherited-starfish.md`. |
-| This resume guide | `docs/build/status.md` |
-| Task tracker (web page, auto-refresh) | `~/Desktop/Dev/monorepo-tracker/index.html`. Data: `tasks.json`. |
-| Code and decisions | Git history on `main`, and `docs/adr/` |
-| Gate list and known limits | [gates.md](../standards/gates.md) |
+| This resume guide                                                  | `docs/build/status.md`                                                                            |
+| Task tracker (web page, auto-refresh)                              | `~/Desktop/Dev/monorepo-tracker/index.html`. Data: `tasks.json`.                                  |
+| Code and decisions                                                 | Git history on `main`, and `docs/adr/`                                                            |
+| Gate list and known limits                                         | [gates.md](../standards/gates.md)                                                                 |
 
 Tracker commands:
 
@@ -78,21 +78,21 @@ Phase ids: `plan`, `w1`, `w2`, `w3`, `w4`.
 
 ### 3.2 Wave 2: code (done)
 
-| Area | Commits |
-|---|---|
-| Shared packages: `result`, `telemetry`, `logger`, `flags` | `1f7e4ee`, `0b7b59e`, `0aea4f1`, `5e28715` |
-| Contracts (sample-fullstack, sample-api-only) | `9a1ee7e`, `46dc66f` |
-| Fastify APIs on Lambda | `51f9afd`, `87a1ae3` |
-| Next.js web with Playwright and axe | `1f6e0a2` |
-| Bruno collections | `0fb077e`, `599c0ec` |
-| Python API (Powertools) and Go API | `477aa4f`, `e26bc2e` |
-| Local Jaeger, Rush registration, `.gitignore` | `2e38a14`, `ddee99b`, `3916f30` |
-| App bug fixes (bounded span flush, redaction, Go NaN, no `noqa`) | `8fed9b0`, `1e32bc1`, `f248859`, `508bdfc`, `0f118fa` |
-| Gate scripts | `2bd4b86`, `83e91fe`, `4e76d8d`, `6ebd994`, `30812db`, `5e9c15b` |
-| Hook wrappers and pending settings (not active) | `57ede5a` |
-| Gate table, skills handoff, docs-sync test | `92506b5` |
-| Git hooks call autoinstaller binaries (orchestrator edit, owner to review) | `ccf4b41` |
-| Owner-approved gate edits | `cbba49a`, `240f632`, `b4a1291` |
+| Area                                                                       | Commits                                                          |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Shared packages: `result`, `telemetry`, `logger`, `flags`                  | `1f7e4ee`, `0b7b59e`, `0aea4f1`, `5e28715`                       |
+| Contracts (sample-fullstack, sample-api-only)                              | `9a1ee7e`, `46dc66f`                                             |
+| Fastify APIs on Lambda                                                     | `51f9afd`, `87a1ae3`                                             |
+| Next.js web with Playwright and axe                                        | `1f6e0a2`                                                        |
+| Bruno collections                                                          | `0fb077e`, `599c0ec`                                             |
+| Python API (Powertools) and Go API                                         | `477aa4f`, `e26bc2e`                                             |
+| Local Jaeger, Rush registration, `.gitignore`                              | `2e38a14`, `ddee99b`, `3916f30`                                  |
+| App bug fixes (bounded span flush, redaction, Go NaN, no `noqa`)           | `8fed9b0`, `1e32bc1`, `f248859`, `508bdfc`, `0f118fa`            |
+| Gate scripts                                                               | `2bd4b86`, `83e91fe`, `4e76d8d`, `6ebd994`, `30812db`, `5e9c15b` |
+| Hook wrappers and pending settings (not active)                            | `57ede5a`                                                        |
+| Gate table, skills handoff, docs-sync test                                 | `92506b5`                                                        |
+| Git hooks call autoinstaller binaries (orchestrator edit, owner to review) | `ccf4b41`                                                        |
+| Owner-approved gate edits                                                  | `cbba49a`, `240f632`, `b4a1291`                                  |
 
 Proof at the pause:
 
@@ -104,31 +104,31 @@ Proof at the pause:
 
 ### 3.3 Owner decisions
 
-| Decision | Where |
-|---|---|
-| Rush.js, Next.js, Fastify, GitHub Actions, AWS CDK, Lambda first | plan sections 1 to 12 |
-| npm scope `@vprprudhvi/` | plan section 12.1 |
-| Audit: split runtime and dev policy | commit `6c5b2c6` |
-| Licenses: extra licenses for tooling only | commit `6d74f28` |
-| `caniuse-lite@1` is a named runtime license exception (expires 2027-10-22) | `cbba49a` |
-| `security/detect-non-literal-fs-filename` is off for `scripts/gates/lib/fs-io.mjs` only | `240f632` |
-| `pre-push` runs the coverage gates and anti-skip | `b4a1291` |
-| Coverage stays at 80 lines, statements, functions and 75 branches (TS), 80 (Python, Go) | this file |
-| The 90 percent diff-coverage check is a separate task after all waves. It is not in Wave 3. | this file |
-| Single-package projects: one `package.json` for each project. Layout: `bin/`, `lib/` (CDK), `src/contracts`, `src/api`, `src/api-py`, `src/api-go`, `web/`, `bruno/`. | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
-| One sample project, `projects/sample`, with every part. It replaces `sample-fullstack` and `sample-api-only`. | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
-| AWS region: `us-east-1` only. One wildcard certificate serves CloudFront and the HTTP API. | Wave 3 |
-| CDK bundles the Lambda code at synth with the CDK constructs: `NodejsFunction` (TS), `GoFunction` (`@aws-cdk/aws-lambda-go-alpha`), `PythonFunction` (`@aws-cdk/aws-lambda-python-alpha`). No custom bundler. Shared constructs: `TracedNodeFunction`, `TracedGoFunction`, `TracedPythonFunction`. Unit tests turn bundling off. Supersedes the `Code.fromAsset` decision. | Wave 3, owner 2026-10-22 |
-| API gateway: HTTP API. No catch-all route (`{proxy+}`, `$default`). Each route (method + path) is written by hand in the project CDK stack. A route has the JWT authorizer unless the stack marks it public. Routes are not built from the OpenAPI spec. The Zod contracts and `dist/openapi.json` stay (Python and Go codegen). | Wave 3, owner 2026-10-22 |
-| No Swagger UI and no docs Lambda. The Zod OpenAPI spec (`dist/openapi.json`) and the Bruno collection are the API documentation. | Wave 3, owner 2026-10-22 |
-| Python 3.14 everywhere: Lambda runtime, `.python-version`, mypy, ruff. | Wave 3, owner 2026-10-22 |
-| Alpha CDK packages pinned to the `aws-cdk-lib` version (`2.273.0-alpha.0`). `PythonFunction` needs Docker for a real synth. Unit tests skip bundling. | Wave 3 |
-| TS and JS unit tests live in `test/` at the package root and mirror the source path (`test/api/...`, `test/web/...`, `test/infra/...`). Python keeps `tests/`. Go keeps `_test.go` in the package. Playwright stays in `web/e2e/`. A `test-location` check enforces it. | Wave 3, owner 2026-10-22 |
-| CI waits. First every gate runs and works on the local machine (Claude hooks, git hooks, Rush phases), with gate fixtures as proof. CI workflows start after that, to avoid integration problems. | Wave 3, owner 2026-10-22 |
-| Imports stay as they are: `module: NodeNext`, ESM, relative imports with the `.js` extension. Extension-free imports need Bundler resolution or CommonJS output; the owner keeps the current setup. The `.ts` extension change is cancelled. | Wave 3, owner 2026-10-22 |
-| cdk-nag rules that cannot be met go in one acknowledgments file for each stack (cdk-nag 3 `Validations.of().acknowledge`), with a reason. The owner approves each entry. Approved: 2 IAM5 in `TracedFunctionBase` (X-Ray `Resource: *`, log streams). | Wave 3 |
-| OpenNext: own minimal construct in `shared-cdk-constructs`. No third-party construct. | Wave 3 |
-| CDK versions (3-day release age): `aws-cdk-lib` 2.273.0, `aws-cdk` 2.1145.0, `constructs` 10.8.1, `cdk-nag` 3.0.2, `@opennextjs/aws` 4.1.11. License check and audit passed. | Wave 3 |
+| Decision                                                                                                                                                                                                                                                                                                                                                                   | Where                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Rush.js, Next.js, Fastify, GitHub Actions, AWS CDK, Lambda first                                                                                                                                                                                                                                                                                                           | plan sections 1 to 12                      |
+| npm scope `@vprprudhvi/`                                                                                                                                                                                                                                                                                                                                                   | plan section 12.1                          |
+| Audit: split runtime and dev policy                                                                                                                                                                                                                                                                                                                                        | commit `6c5b2c6`                           |
+| Licenses: extra licenses for tooling only                                                                                                                                                                                                                                                                                                                                  | commit `6d74f28`                           |
+| `caniuse-lite@1` is a named runtime license exception (expires 2027-10-22)                                                                                                                                                                                                                                                                                                 | `cbba49a`                                  |
+| `security/detect-non-literal-fs-filename` is off for `scripts/gates/lib/fs-io.mjs` only                                                                                                                                                                                                                                                                                    | `240f632`                                  |
+| `pre-push` runs the coverage gates and anti-skip                                                                                                                                                                                                                                                                                                                           | `b4a1291`                                  |
+| Coverage stays at 80 lines, statements, functions and 75 branches (TS), 80 (Python, Go)                                                                                                                                                                                                                                                                                    | this file                                  |
+| The 90 percent diff-coverage check is a separate task after all waves. It is not in Wave 3.                                                                                                                                                                                                                                                                                | this file                                  |
+| Single-package projects: one `package.json` for each project. Layout: `bin/`, `lib/` (CDK), `src/contracts`, `src/api`, `src/api-py`, `src/api-go`, `web/`, `bruno/`.                                                                                                                                                                                                      | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
+| One sample project, `projects/sample`, with every part. It replaces `sample-fullstack` and `sample-api-only`.                                                                                                                                                                                                                                                              | ADR 0010 (`edd2627`, `fcd311a`, `8dfece4`) |
+| AWS region: `us-east-1` only. One wildcard certificate serves CloudFront and the HTTP API.                                                                                                                                                                                                                                                                                 | Wave 3                                     |
+| CDK bundles the Lambda code at synth with the CDK constructs: `NodejsFunction` (TS), `GoFunction` (`@aws-cdk/aws-lambda-go-alpha`), `PythonFunction` (`@aws-cdk/aws-lambda-python-alpha`). No custom bundler. Shared constructs: `TracedNodeFunction`, `TracedGoFunction`, `TracedPythonFunction`. Unit tests turn bundling off. Supersedes the `Code.fromAsset` decision. | Wave 3, owner 2026-10-22                   |
+| API gateway: HTTP API. No catch-all route (`{proxy+}`, `$default`). Each route (method + path) is written by hand in the project CDK stack. A route has the JWT authorizer unless the stack marks it public. Routes are not built from the OpenAPI spec. The Zod contracts and `dist/openapi.json` stay (Python and Go codegen).                                           | Wave 3, owner 2026-10-22                   |
+| No Swagger UI and no docs Lambda. The Zod OpenAPI spec (`dist/openapi.json`) and the Bruno collection are the API documentation.                                                                                                                                                                                                                                           | Wave 3, owner 2026-10-22                   |
+| Python 3.14 everywhere: Lambda runtime, `.python-version`, mypy, ruff.                                                                                                                                                                                                                                                                                                     | Wave 3, owner 2026-10-22                   |
+| Alpha CDK packages pinned to the `aws-cdk-lib` version (`2.273.0-alpha.0`). `PythonFunction` needs Docker for a real synth. Unit tests skip bundling.                                                                                                                                                                                                                      | Wave 3                                     |
+| TS and JS unit tests live in `test/` at the package root and mirror the source path (`test/api/...`, `test/web/...`, `test/infra/...`). Python keeps `tests/`. Go keeps `_test.go` in the package. Playwright stays in `web/e2e/`. A `test-location` check enforces it.                                                                                                    | Wave 3, owner 2026-10-22                   |
+| CI waits. First every gate runs and works on the local machine (Claude hooks, git hooks, Rush phases), with gate fixtures as proof. CI workflows start after that, to avoid integration problems.                                                                                                                                                                          | Wave 3, owner 2026-10-22                   |
+| Imports stay as they are: `module: NodeNext`, ESM, relative imports with the `.js` extension. Extension-free imports need Bundler resolution or CommonJS output; the owner keeps the current setup. The `.ts` extension change is cancelled.                                                                                                                               | Wave 3, owner 2026-10-22                   |
+| cdk-nag rules that cannot be met go in one acknowledgments file for each stack (cdk-nag 3 `Validations.of().acknowledge`), with a reason. The owner approves each entry. Approved: 2 IAM5 in `TracedFunctionBase` (X-Ray `Resource: *`, log streams).                                                                                                                      | Wave 3                                     |
+| OpenNext: own minimal construct in `shared-cdk-constructs`. No third-party construct.                                                                                                                                                                                                                                                                                      | Wave 3                                     |
+| CDK versions (3-day release age): `aws-cdk-lib` 2.273.0, `aws-cdk` 2.1145.0, `constructs` 10.8.1, `cdk-nag` 3.0.2, `@opennextjs/aws` 4.1.11. License check and audit passed.                                                                                                                                                                                               | Wave 3                                     |
 
 ### 3.4 Facts that differ from the first plan
 
@@ -178,13 +178,13 @@ Start only when the owner says so.
 
 Wave 3 scope:
 
-| Task id | Work | Owner of files |
-|---|---|---|
-| `w3-platform-cognito` | `platform/infra`: one Cognito user pool with Google sign-in (client id and secret in Secrets Manager `/platform/<env>/cognito/google-oauth`, created by the owner), a Cognito prefix domain, and the SSM parameters under `/platform/<env>/cognito/...`. Route53 and ACM are backlog (`bl-dns`). | `platform/**` |
-| `w3-project-infra` | `packages/cdk-constructs` (Lambda construct with the ADOT layer, tracing on, SSM read helpers) and `projects/sample/bin` + `lib` (API Gateway HTTP API, Lambda, OpenNext for web, own Cognito app client, DNS records). cdk-nag, assertion tests, snapshots. | `packages/cdk-constructs/**`, `projects/*/bin/**`, `projects/*/lib/**`, `projects/*/cdk.json` |
-| `w3-ci` | `.github/workflows`: `ci`, `sast`, `deps`, `infra`, `claude-review`, `risk-classify`, `nightly`, `release`, `rollback`, `scorecard`. Actions pinned by SHA. Least-privilege permissions. OIDC for AWS. | `.github/**` |
-| `w3-gates-scripts` | `scripts/check-gates` (reuse `scripts/gates/lib/gate-integrity.mjs`; disable count, test deletion, PR size) and `scripts/classify-risk`. No diff coverage yet. | `scripts/gates/check-gates.mjs`, `scripts/gates/classify-risk.mjs` |
-| `w3-gh-setup` | `scripts/gh-setup.sh`: ruleset, merge queue, environments. The owner runs it. | `scripts/gh-setup.sh` |
+| Task id               | Work                                                                                                                                                                                                                                                                                             | Owner of files                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `w3-platform-cognito` | `platform/infra`: one Cognito user pool with Google sign-in (client id and secret in Secrets Manager `/platform/<env>/cognito/google-oauth`, created by the owner), a Cognito prefix domain, and the SSM parameters under `/platform/<env>/cognito/...`. Route53 and ACM are backlog (`bl-dns`). | `platform/**`                                                                                 |
+| `w3-project-infra`    | `packages/cdk-constructs` (Lambda construct with the ADOT layer, tracing on, SSM read helpers) and `projects/sample/bin` + `lib` (API Gateway HTTP API, Lambda, OpenNext for web, own Cognito app client, DNS records). cdk-nag, assertion tests, snapshots.                                     | `packages/cdk-constructs/**`, `projects/*/bin/**`, `projects/*/lib/**`, `projects/*/cdk.json` |
+| `w3-ci`               | `.github/workflows`: `ci`, `sast`, `deps`, `infra`, `claude-review`, `risk-classify`, `nightly`, `release`, `rollback`, `scorecard`. Actions pinned by SHA. Least-privilege permissions. OIDC for AWS.                                                                                           | `.github/**`                                                                                  |
+| `w3-gates-scripts`    | `scripts/check-gates` (reuse `scripts/gates/lib/gate-integrity.mjs`; disable count, test deletion, PR size) and `scripts/classify-risk`. No diff coverage yet.                                                                                                                                   | `scripts/gates/check-gates.mjs`, `scripts/gates/classify-risk.mjs`                            |
+| `w3-gh-setup`         | `scripts/gh-setup.sh`: ruleset, merge queue, environments. The owner runs it.                                                                                                                                                                                                                    | `scripts/gh-setup.sh`                                                                         |
 
 Wave 3 rules:
 

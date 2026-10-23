@@ -18,12 +18,12 @@ Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, const
 
 CDK bundles the Lambda code at synth. Do not build code in a separate deploy step.
 
-| Part | Construct | Bundling |
-|---|---|---|
-| `src/api` (TypeScript) | `NodejsFunction` | esbuild, entry `src/api/lambda.ts` |
-| `src/api-go` | `Code.fromAsset` | Local bundling: `go build` for `linux/arm64`, output file `bootstrap`. Docker fallback. |
-| `src/api-py` | `Code.fromAsset` | Local bundling: `uv` installs the locked dependencies and copies the source. Docker fallback. |
-| `web` | OpenNext construct | Local bundling runs the OpenNext build. |
+| Part                   | Construct          | Bundling                                                                                      |
+| ---------------------- | ------------------ | --------------------------------------------------------------------------------------------- |
+| `src/api` (TypeScript) | `NodejsFunction`   | esbuild, entry `src/api/lambda.ts`                                                            |
+| `src/api-go`           | `Code.fromAsset`   | Local bundling: `go build` for `linux/arm64`, output file `bootstrap`. Docker fallback.       |
+| `src/api-py`           | `Code.fromAsset`   | Local bundling: `uv` installs the locked dependencies and copies the source. Docker fallback. |
+| `web`                  | OpenNext construct | Local bundling runs the OpenNext build.                                                       |
 
 - Unit tests turn bundling off, so `Template.fromStack` runs without Go, `uv`, Docker, or a web build. Use the `bundling` skip context value or a test-only asset.
 - Use local bundling first. Use Docker only when the local tool is missing.

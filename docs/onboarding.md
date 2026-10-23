@@ -34,12 +34,12 @@ Git hooks install only when you run `rush install`. If a hook is missing, run th
 
 The hooks call these tools. Install them on your `PATH`:
 
-| Tool | Used by | How to install |
-|---|---|---|
-| gitleaks | pre-commit, Stop hook | `brew install gitleaks` |
-| Opengrep | pre-push, Stop hook | Download from its GitHub release page. |
-| Checkov | pre-push when infra changed | `pip install checkov` |
-| osv-scanner | Dependency checks | `brew install osv-scanner` |
+| Tool        | Used by                     | How to install                         |
+| ----------- | --------------------------- | -------------------------------------- |
+| gitleaks    | pre-commit, Stop hook       | `brew install gitleaks`                |
+| Opengrep    | pre-push, Stop hook         | Download from its GitHub release page. |
+| Checkov     | pre-push when infra changed | `pip install checkov`                  |
+| osv-scanner | Dependency checks           | `brew install osv-scanner`             |
 
 Check each tool with its version flag, for example `gitleaks version`. Use the versions that the team pins. CI runs the same checks, so a missing tool does not change the CI result. It does block the local hook.
 
@@ -47,14 +47,14 @@ Check each tool with its version flag, for example `gitleaks version`. Use the v
 
 Install these only if you work on `api-py` or `api-go`.
 
-| Tool | Used for | How to install |
-|---|---|---|
-| uv | Python packages from `uv.lock`, ruff, mypy, pytest, bandit, pip-audit | `brew install uv` |
-| Go 1.25 or later | Go build, test, and module checks | `brew install go` |
-| golangci-lint | Go lint (gosec, errcheck, revive, and others) | `brew install golangci-lint` |
-| gofumpt and goimports | Go format | `go install mvdan.cc/gofumpt@latest` and `go install golang.org/x/tools/cmd/goimports@latest` |
-| govulncheck | Go vulnerability check | `go install golang.org/x/vuln/cmd/govulncheck@latest` |
-| go-licenses | Go license check | See its GitHub page. |
+| Tool                  | Used for                                                              | How to install                                                                                |
+| --------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| uv                    | Python packages from `uv.lock`, ruff, mypy, pytest, bandit, pip-audit | `brew install uv`                                                                             |
+| Go 1.25 or later      | Go build, test, and module checks                                     | `brew install go`                                                                             |
+| golangci-lint         | Go lint (gosec, errcheck, revive, and others)                         | `brew install golangci-lint`                                                                  |
+| gofumpt and goimports | Go format                                                             | `go install mvdan.cc/gofumpt@latest` and `go install golang.org/x/tools/cmd/goimports@latest` |
+| govulncheck           | Go vulnerability check                                                | `go install golang.org/x/vuln/cmd/govulncheck@latest`                                         |
+| go-licenses           | Go license check                                                      | See its GitHub page.                                                                          |
 
 Python tools come from `uv.lock`. Do not install ruff, mypy, pytest, or bandit globally. Run them through `uv run` or `rush`.
 
@@ -87,13 +87,13 @@ A new dependency needs a human approval. See `docs/standards/security.md`, secti
 
 Agents write most of the code. Agents follow these files:
 
-| File | What it sets |
-|---|---|
-| `CLAUDE.md` | Repo conventions and a routing table to guides and skills. Read first. Nested `CLAUDE.md` files cover `projects/`, `platform/`, `packages/`, `tooling/`, `docs/`, and `.github/`. |
-| `docs/guides/*.md` | How to work in one part: contracts, web, api, api-py, api-go, infra. |
-| `REVIEW.md` | Rules for the AI reviewer. |
-| `docs/standards/*.md` | Coding, testing, security, Git, gate, and risk rules. |
-| `.claude/settings.json` | Agent hooks and permissions. |
+| File                    | What it sets                                                                                                                                                                      |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLAUDE.md`             | Repo conventions and a routing table to guides and skills. Read first. Nested `CLAUDE.md` files cover `projects/`, `platform/`, `packages/`, `tooling/`, `docs/`, and `.github/`. |
+| `docs/guides/*.md`      | How to work in one part: contracts, web, api, api-py, api-go, infra.                                                                                                              |
+| `REVIEW.md`             | Rules for the AI reviewer.                                                                                                                                                        |
+| `docs/standards/*.md`   | Coding, testing, security, Git, gate, and risk rules.                                                                                                                             |
+| `.claude/settings.json` | Agent hooks and permissions.                                                                                                                                                      |
 
 The agent flow is:
 
