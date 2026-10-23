@@ -41,11 +41,11 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
    ```
 
 3. Put each photo file in `web/public/photos/<park-id>/`. Create the folder if it does not exist. The folder name must be the park id. Use a `.jpg`, `.jpeg`, `.png` or `.webp` file.
-4. Remove the location data from each photo. A photo can hold EXIF data with the GPS position where you took it. The site is public, so that data tells strangers where you stay. Do one of these:
-   - Run `exiftool -all= -overwrite_original web/public/photos/<park-id>/<file>`. Without `-overwrite_original`, exiftool keeps a copy with the EXIF data next to the photo.
+4. Remove the location data from each photo. A photo can hold EXIF or XMP metadata with the GPS position where you took it. Lightroom and Photoshop write the position into XMP too. The site is public, so that data tells strangers where you stay. Do one of these:
+   - Run `exiftool -all= -overwrite_original web/public/photos/<park-id>/<file>`. Without `-overwrite_original`, exiftool keeps a copy with the metadata next to the photo.
    - In Apple Photos, export the photo again with "Location Information" turned off.
 
-   The data test (`test/data/data.test.ts`) fails when a file under `web/public/photos/` has EXIF data. The message names the file.
+   The data test (`test/data/data.test.ts`) fails when a file under `web/public/photos/` has EXIF or XMP metadata: any JPEG APP1 segment, a PNG `eXIf` chunk or XMP text chunk, or a WebP `EXIF` or `XMP ` chunk. The message names the file.
 
 5. Run `node common/scripts/install-run-rush.js verify -o @vprprudhvi/national-parks-tracker`.
 

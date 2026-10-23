@@ -138,7 +138,7 @@ describe('owner photos', () => {
     expect(missing, 'Put each photo file in web/public/photos/<park-id>/').toEqual([]);
   });
 
-  it('has no EXIF data (GPS position) in any file under web/public/photos', async () => {
+  it('has no EXIF or XMP data (GPS position) in any file under web/public/photos', async () => {
     const problems: string[] = [];
     for (const file of await listOwnerPhotoFiles()) {
       const problem = findPhotoProblem(

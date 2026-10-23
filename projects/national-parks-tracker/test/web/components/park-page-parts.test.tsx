@@ -129,6 +129,23 @@ describe('header parts', () => {
     expect(screen.getByText('None yet')).toBeInTheDocument();
   });
 
+  it('shows a full, readable header with zero visits', () => {
+    const notVisited = fixtureSummaries.map((park) => ({
+      ...park,
+      isVisited: false,
+      tripCount: 0,
+    }));
+    render(<ProgressSummary stats={computeStats(notVisited)} />);
+    expect(screen.getByRole('progressbar', { name: '0 of 64 parks visited' })).toHaveAttribute(
+      'value',
+      '0',
+    );
+    const texts = (role: string) => screen.getAllByRole(role).map((item) => item.textContent);
+    expect(texts('term')).toEqual(['States visited', 'Trips', 'Latest visit']);
+    expect(texts('definition')).toEqual(['0', '0', 'None yet']);
+    expect(screen.queryByText(/undefined|NaN/)).not.toBeInTheDocument();
+  });
+
   it('uses the title as the main heading on the home page only', () => {
     const { unmount } = render(<SiteHeader isHome />);
     expect(

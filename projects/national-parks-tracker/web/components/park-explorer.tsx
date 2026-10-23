@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { MapView } from '../lib/regions';
 import { countByStatus, DEFAULT_LIST_STATE, selectParks } from '../lib/search';
-import type { ParkSummary } from '../lib/search';
+import type { ListState, ParkSummary } from '../lib/search';
 import { useListState } from '../lib/use-list-state';
 
 import { ListControls } from './list-controls';
@@ -31,6 +31,24 @@ const scrollMapIntoView = (element: HTMLElement | null): void => {
   element.scrollIntoView({ behavior: isReduced ? 'auto' : 'smooth', block: 'start' });
 };
 
+/** The text and the button label of an empty list. */
+type EmptyState = { readonly message: string; readonly action: string };
+
+/**
+ * Gives the text of an empty list. A search that finds nothing keeps the search text. A status
+ * filter alone gets a friendly text for the public site, for example before the first visit.
+ *
+ * @param state - The list state.
+ * @returns The text and the button label.
+ */
+function getEmptyState(state: ListState): EmptyState {
+  if (state.query.trim() !== '') {
+    return { message: 'No parks match your search and filter.', action: 'Clear filters' };
+  }
+  const message = state.status === 'visited' ? 'No parks visited yet.' : 'Every park is visited.';
+  return { message, action: 'Show all parks' };
+}
+
 /**
  * The park list and the map. The list is the main way to move around; the map follows it.
  * The first render (also the static HTML) shows all parks. The URL query applies after hydration.
@@ -47,6 +65,7 @@ export function ParkExplorer(props: ParkExplorerProps): React.JSX.Element {
 
   const visible = useMemo(() => selectParks(parks, listState), [parks, listState]);
   const counts = useMemo(() => countByStatus(parks, listState.query), [parks, listState.query]);
+  const emptyState = getEmptyState(listState);
 
   const select = useCallback((id: string, source: SelectionSource) => {
     setSelection((previous) => ({ id, source, token: (previous?.token ?? 0) + 1 }));
@@ -74,7 +93,7 @@ export function ParkExplorer(props: ParkExplorerProps): React.JSX.Element {
         </p>
         {visible.length === 0 ? (
           <div className={styles['empty']}>
-            <p>No parks match your search and filter.</p>
+            <p>{emptyState.message}</p>
             <button
               type="button"
               className={styles['clear']}
@@ -86,7 +105,7 @@ export function ParkExplorer(props: ParkExplorerProps): React.JSX.Element {
                 });
               }}
             >
-              Clear filters
+              {emptyState.action}
             </button>
           </div>
         ) : (

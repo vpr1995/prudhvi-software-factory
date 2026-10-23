@@ -1,16 +1,23 @@
-// Finds EXIF data in owner photos. EXIF can hold the GPS position where the photo was taken, and
-// that tells strangers where the owner stays. The site is public, so the data test rejects it.
+// Finds EXIF and XMP metadata in owner photos. Both can hold the GPS position where the photo was
+// taken (Lightroom and Photoshop write `exif:GPSLatitude` into XMP), and that tells strangers where
+// the owner stays. The site is public, so the data test rejects both.
 // It reads the file structure only (no dependencies): JPEG segments, PNG chunks and WebP chunks.
 
 /** The photo formats that the site accepts. */
 export type PhotoFormat = 'jpeg' | 'png' | 'webp';
 
+/**
+ * A metadata block that can hold a GPS position. `APP1` is a JPEG APP1 segment of another kind,
+ * for example extended XMP. The scan rejects every APP1 segment.
+ */
+export type PhotoMetadata = 'EXIF' | 'XMP' | 'APP1';
+
 /** What the scan found in a file. */
 export type PhotoScan = {
   /** The format, or undefined when the file is not a JPEG, PNG or WebP. */
   readonly format: PhotoFormat | undefined;
-  /** True when the file has an EXIF block. */
-  readonly hasExif: boolean;
+  /** The first metadata block, or undefined when the file has none. */
+  readonly metadata: PhotoMetadata | undefined;
 };
 
 const JPEG_START = [0xff, 0xd8];
@@ -25,6 +32,9 @@ const JPEG_RESTART_LAST = 0xd7;
 const JPEG_MARKER_SIZE = 2;
 const JPEG_LENGTH_SIZE = 2;
 const EXIF_HEADER = 'Exif\0\0';
+const XMP_NAMESPACE = 'http://ns.adobe.com/xap/1.0/\0';
+const PNG_XMP_KEYWORD = 'XML:com.adobe.xmp\0';
+const PNG_TEXT_CHUNKS: ReadonlySet<string> = new Set(['iTXt', 'tEXt', 'zTXt']);
 const PNG_CHUNK_HEADER = 8;
 const PNG_CRC_SIZE = 4;
 const RIFF_HEADER = 12;
@@ -45,17 +55,31 @@ const hasNoLength = (marker: number): boolean =>
   marker === JPEG_TEM || (marker >= JPEG_RESTART_FIRST && marker <= JPEG_RESTART_LAST);
 
 /**
- * Looks for an APP1 segment that starts with `Exif\0\0`, before the image data starts.
+ * Names the kind of a JPEG APP1 segment from the start of its payload.
  *
  * @param bytes - The JPEG file.
- * @returns True when the file has EXIF data.
+ * @param payload - The offset of the payload.
+ * @returns The kind.
  */
-function jpegHasExif(bytes: Uint8Array): boolean {
+function app1Kind(bytes: Uint8Array, payload: number): PhotoMetadata {
+  if (ascii(bytes, payload, EXIF_HEADER.length) === EXIF_HEADER) {
+    return 'EXIF';
+  }
+  return ascii(bytes, payload, XMP_NAMESPACE.length) === XMP_NAMESPACE ? 'XMP' : 'APP1';
+}
+
+/**
+ * Looks for an APP1 segment (EXIF, XMP or any other kind), before the image data starts.
+ *
+ * @param bytes - The JPEG file.
+ * @returns The first metadata block, or undefined.
+ */
+function jpegMetadata(bytes: Uint8Array): PhotoMetadata | undefined {
   const view = viewOf(bytes);
   let offset = JPEG_START.length;
   while (offset + JPEG_MARKER_SIZE + JPEG_LENGTH_SIZE <= bytes.length) {
     if (bytes[offset] !== MARKER_PREFIX) {
-      return false;
+      return undefined;
     }
     const marker = bytes[offset + 1] ?? JPEG_END;
     if (marker === MARKER_PREFIX) {
@@ -64,7 +88,7 @@ function jpegHasExif(bytes: Uint8Array): boolean {
       continue;
     }
     if (marker === JPEG_START_OF_SCAN || marker === JPEG_END) {
-      return false;
+      return undefined;
     }
     if (hasNoLength(marker)) {
       offset += JPEG_MARKER_SIZE;
@@ -72,55 +96,66 @@ function jpegHasExif(bytes: Uint8Array): boolean {
     }
     const length = view.getUint16(offset + JPEG_MARKER_SIZE);
     const payload = offset + JPEG_MARKER_SIZE + JPEG_LENGTH_SIZE;
-    if (marker === JPEG_APP1 && ascii(bytes, payload, EXIF_HEADER.length) === EXIF_HEADER) {
-      return true;
+    if (marker === JPEG_APP1) {
+      return app1Kind(bytes, payload);
     }
     offset += JPEG_MARKER_SIZE + length;
   }
-  return false;
+  return undefined;
 }
 
 /**
- * Looks for an `eXIf` chunk.
+ * Looks for an `eXIf` chunk, and for a text chunk (`iTXt`, `tEXt` or `zTXt`) with the XMP keyword.
  *
  * @param bytes - The PNG file.
- * @returns True when the file has EXIF data.
+ * @returns The first metadata block, or undefined.
  */
-function pngHasExif(bytes: Uint8Array): boolean {
+function pngMetadata(bytes: Uint8Array): PhotoMetadata | undefined {
   const view = viewOf(bytes);
   let offset = PNG_SIGNATURE.length;
   while (offset + PNG_CHUNK_HEADER <= bytes.length) {
     const length = view.getUint32(offset);
     const type = ascii(bytes, offset + FOURCC_SIZE, FOURCC_SIZE);
     if (type === 'eXIf') {
-      return true;
+      return 'EXIF';
+    }
+    const data = offset + PNG_CHUNK_HEADER;
+    if (
+      PNG_TEXT_CHUNKS.has(type) &&
+      ascii(bytes, data, PNG_XMP_KEYWORD.length) === PNG_XMP_KEYWORD
+    ) {
+      return 'XMP';
     }
     if (type === 'IEND') {
-      return false;
+      return undefined;
     }
     offset += PNG_CHUNK_HEADER + length + PNG_CRC_SIZE;
   }
-  return false;
+  return undefined;
 }
 
 /**
- * Looks for an `EXIF` chunk in the RIFF container.
+ * Looks for an `EXIF` or an `XMP ` chunk in the RIFF container.
  *
  * @param bytes - The WebP file.
- * @returns True when the file has EXIF data.
+ * @returns The first metadata block, or undefined.
  */
-function webpHasExif(bytes: Uint8Array): boolean {
+function webpMetadata(bytes: Uint8Array): PhotoMetadata | undefined {
   const view = viewOf(bytes);
   let offset = RIFF_HEADER;
   while (offset + RIFF_CHUNK_HEADER <= bytes.length) {
-    if (ascii(bytes, offset, FOURCC_SIZE) === 'EXIF') {
-      return true;
+    const fourcc = ascii(bytes, offset, FOURCC_SIZE);
+    if (fourcc === 'EXIF') {
+      return 'EXIF';
+    }
+    if (fourcc === 'XMP ') {
+      return 'XMP';
     }
     const size = view.getUint32(offset + FOURCC_SIZE, true);
     // RIFF chunks have an even size: an odd chunk has one padding byte.
     offset += RIFF_CHUNK_HEADER + size + (size % 2);
   }
-  return false;
+  return undefined;
 }
 
 const isWebp = (bytes: Uint8Array): boolean =>
@@ -128,22 +163,22 @@ const isWebp = (bytes: Uint8Array): boolean =>
   ascii(bytes, WEBP_FORMAT_OFFSET, FOURCC_SIZE) === 'WEBP';
 
 /**
- * Finds the format of a photo file and tells whether it has EXIF data.
+ * Finds the format of a photo file and its first EXIF or XMP block.
  *
  * @param bytes - The file content.
  * @returns The scan result.
  */
 export function scanPhoto(bytes: Uint8Array): PhotoScan {
   if (startsWith(bytes, JPEG_START)) {
-    return { format: 'jpeg', hasExif: jpegHasExif(bytes) };
+    return { format: 'jpeg', metadata: jpegMetadata(bytes) };
   }
   if (startsWith(bytes, PNG_SIGNATURE)) {
-    return { format: 'png', hasExif: pngHasExif(bytes) };
+    return { format: 'png', metadata: pngMetadata(bytes) };
   }
   if (isWebp(bytes)) {
-    return { format: 'webp', hasExif: webpHasExif(bytes) };
+    return { format: 'webp', metadata: webpMetadata(bytes) };
   }
-  return { format: undefined, hasExif: false };
+  return { format: undefined, metadata: undefined };
 }
 
 /**
@@ -157,6 +192,12 @@ export function isPhotoCandidate(name: string): boolean {
   return !name.startsWith('.');
 }
 
+const METADATA_NAMES: Readonly<Record<PhotoMetadata, string>> = {
+  EXIF: 'EXIF data',
+  XMP: 'XMP data',
+  APP1: 'an APP1 metadata block',
+};
+
 /**
  * Tells what is wrong with an owner photo, and how to fix it.
  *
@@ -169,11 +210,11 @@ export function findPhotoProblem(path: string, bytes: Uint8Array): string | unde
   if (scan.format === undefined) {
     return `${path}: this file is not a JPEG, PNG or WebP photo. Export it again as .jpg, .png or .webp.`;
   }
-  if (scan.hasExif) {
+  if (scan.metadata !== undefined) {
     return (
-      `${path}: this photo has EXIF data, which can hold the GPS position where you took it. ` +
-      `Remove it with \`exiftool -all= -overwrite_original ${path}\`, or export the photo again ` +
-      'from Apple Photos with "Location Information" turned off.'
+      `${path}: this photo has ${METADATA_NAMES[scan.metadata]}, which can hold the GPS position ` +
+      `where you took it. Remove all metadata with \`exiftool -all= -overwrite_original ${path}\`, ` +
+      'or export the photo again from Apple Photos with "Location Information" turned off.'
     );
   }
   return undefined;

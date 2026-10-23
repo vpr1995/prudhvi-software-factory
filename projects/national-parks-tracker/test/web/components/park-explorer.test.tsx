@@ -90,6 +90,41 @@ describe('ParkExplorer', () => {
     expect(window.location.search).toBe('?sort=rating');
   });
 
+  it('says "No parks visited yet" for "Visited (0)" before the first visit, with "Show all parks"', async () => {
+    const user = userEvent.setup();
+    const notVisited = fixtureSummaries.map((park) => ({
+      ...park,
+      isVisited: false,
+      lastVisit: undefined,
+      tripCount: 0,
+      rating: undefined,
+    }));
+    render(<ParkExplorer parks={notVisited} />);
+    await user.click(screen.getByRole('radio', { name: 'Visited (0)' }));
+    expect(screen.getByText('No parks visited yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/No parks match/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show all parks' }));
+    expect(rows()).toHaveLength(64);
+    expect(screen.getByRole('radio', { name: 'All (64)' })).toBeChecked();
+    expect(window.location.search).toBe('');
+  });
+
+  it('says "Every park is visited" for "Not yet (0)"', () => {
+    window.history.replaceState(null, '', '/?status=not-visited');
+    const allVisited = fixtureSummaries.map((park) => ({ ...park, isVisited: true }));
+    render(<ParkExplorer parks={allVisited} />);
+    expect(screen.getByText('Every park is visited.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show all parks' })).toBeInTheDocument();
+  });
+
+  it('keeps the search text when a search and a status filter find nothing', () => {
+    window.history.replaceState(null, '', '/?q=zion&status=not-visited');
+    render(<ParkExplorer parks={fixtureSummaries} />);
+    expect(screen.getByText('No parks match your search and filter.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
+  });
+
   it('reads the state from the URL and ignores invalid values', () => {
     window.history.replaceState(null, '', '/?q=hawaii&status=bad&sort=nope');
     render(<ParkExplorer parks={fixtureSummaries} />);
