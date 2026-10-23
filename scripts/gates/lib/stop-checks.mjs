@@ -16,6 +16,7 @@ import {
 } from './project-tools.mjs';
 import { findManifestDirectory, loadRushProjects, ownerProject } from './projects.mjs';
 import { formatFindings, scanFiles as scanSecrets } from './secrets.mjs';
+import { discoverEnvironments } from './synth-changed.mjs';
 
 /** @typedef {import('./rush-verify.mjs').Check} Check */
 
@@ -141,11 +142,15 @@ export function opengrepCheck(root, files) {
 }
 
 /**
- * Runs `cdk synth` for one infra folder.
+ * Runs `cdk synth` for one infra folder, once for each environment of the app. An app that reads
+ * the `env` context in `bin/` gets `-c env=<name>` for each key of the `configs` object in
+ * `lib/config/config.ts`. An app that does not read it gets one synth with no `-c env`. The
+ * environments come from `discoverEnvironments`, the same as the pre-push synth.
  *
  * @param {string} root - Repo root.
  * @param {string} folder - Infra folder from the repo root.
- * @returns {Check} The check. It skips when the CDK CLI is not installed there.
+ * @returns {Check} The check. It skips when the CDK CLI is not installed there. It fails on the
+ *   first environment that fails, and its name tells that environment.
  */
 export function cdkSynthCheck(root, folder) {
   const directory = path.join(root, folder);
@@ -159,14 +164,28 @@ export function cdkSynthCheck(root, folder) {
       degraded: true,
     };
   }
-  const result = run(binary, ['synth', '--quiet'], { cwd: directory, timeoutMs: CDK_TIMEOUT_MS });
-  return result.status === 0
-    ? { name, status: 'pass', detail: '' }
-    : {
-        name,
+  let environments;
+  try {
+    environments = discoverEnvironments(root, folder);
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error);
+    return { name, status: 'fail', detail: text };
+  }
+  for (const env of environments) {
+    const context = env === null ? [] : ['-c', `env=${env}`];
+    const result = run(binary, ['synth', '--quiet', ...context], {
+      cwd: directory,
+      timeoutMs: CDK_TIMEOUT_MS,
+    });
+    if (result.status !== 0) {
+      return {
+        name: env === null ? name : `${name} (env=${env})`,
         status: 'fail',
         detail: clipLines(stripAnsi(`${result.stdout}${result.stderr}`).trim(), LINT_LINES),
       };
+    }
+  }
+  return { name, status: 'pass', detail: '' };
 }
 
 /**

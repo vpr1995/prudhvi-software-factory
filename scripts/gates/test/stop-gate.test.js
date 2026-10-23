@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
+import { cdkSynthCheck } from '../lib/stop-checks.mjs';
+
 import { callHook, exec, makeRepository } from './harness.js';
 
 const SKIP_CALL = ['it', '.skip', "('later', () => {});\n"].join('');
@@ -383,5 +385,119 @@ describe('stop-gate', () => {
         fs.rmSync(root, { recursive: true, force: true });
       }
     });
+  });
+});
+
+// The stub cdk logs one line for each call (cwd|args) to cdk-calls.log next to itself, which is in
+// node_modules, so git ignores it. Like the real apps, it fails with "Got: undefined" when
+// bin/app.ts reads the env context and the call has no -c env. It also fails for the env that the
+// file fail-env next to it names.
+const CDK_STUB = `#!/bin/sh
+here="$(dirname "$0")"
+printf '%s|%s\\n' "$PWD" "$*" >> "$here/cdk-calls.log"
+case "$*" in
+  *"-c env="*) ;;
+  *)
+    if grep -q "tryGetContext('env')" bin/app.ts 2>/dev/null; then
+      echo "stub cdk: the env context must be a configs key. Got: undefined" >&2
+      exit 1
+    fi
+    ;;
+esac
+fail="$(cat "$here/fail-env" 2>/dev/null)"
+if [ -n "$fail" ]; then
+  case "$*" in
+    *"env=$fail"*) echo "stub cdk: synth error for env=$fail" >&2; exit 3 ;;
+  esac
+fi
+exit 0
+`;
+const ENV_BIN = "const env = app.node.tryGetContext('env');\naddStack(app, env);\n";
+const ENV_CONFIG = 'const configs = { local: localConfig, prod: productionConfig } as const;\n';
+
+describe('stop-gate: cdk synth for each environment', () => {
+  let repository;
+  let appFolder;
+
+  beforeEach(() => {
+    repository = makeRepository();
+    appFolder = path.join(repository.root, 'projects/app');
+    repository.write('projects/app/node_modules/.bin/cdk', CDK_STUB);
+    fs.chmodSync(path.join(appFolder, 'node_modules/.bin/cdk'), 0o755);
+  });
+
+  afterEach(() => repository.remove());
+
+  /** @returns {string[][]} The stub calls, each split into cwd and args. */
+  const cdkCalls = () =>
+    (repository.read('projects/app/node_modules/.bin/cdk-calls.log') ?? '')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split('|'));
+
+  it('runs one synth for each key of the configs object, with -c env=<name>', () => {
+    repository.write('projects/app/bin/app.ts', ENV_BIN);
+    repository.write('projects/app/lib/config/config.ts', ENV_CONFIG);
+    const check = cdkSynthCheck(repository.root, 'projects/app');
+    assert.deepEqual(check, { name: 'cdk synth: projects/app', status: 'pass', detail: '' });
+    assert.deepEqual(cdkCalls(), [
+      [appFolder, 'synth --quiet -c env=local'],
+      [appFolder, 'synth --quiet -c env=prod'],
+    ]);
+  });
+
+  it('runs one synth with no -c env when bin does not read the env context', () => {
+    repository.write('projects/app/bin/app.ts', 'new App().synth();\n');
+    const check = cdkSynthCheck(repository.root, 'projects/app');
+    assert.deepEqual(check, { name: 'cdk synth: projects/app', status: 'pass', detail: '' });
+    assert.deepEqual(cdkCalls(), [[appFolder, 'synth --quiet']]);
+  });
+
+  it('fails with a clear message and runs no synth when bin reads env and configs is missing', () => {
+    repository.write('projects/app/bin/app.ts', ENV_BIN);
+    const check = cdkSynthCheck(repository.root, 'projects/app');
+    assert.equal(check.name, 'cdk synth: projects/app');
+    assert.equal(check.status, 'fail');
+    assert.match(
+      check.detail,
+      /projects\/app\/bin reads the "env" context, but projects\/app\/lib\/config\/config\.ts has no "const configs = \{ <env>: \.\.\. \}" object/,
+    );
+    assert.match(check.detail, /environment names are unknown/);
+    assert.deepEqual(cdkCalls(), []);
+  });
+
+  it('stops at the first env that fails and names that env', () => {
+    repository.write('projects/app/bin/app.ts', ENV_BIN);
+    repository.write('projects/app/lib/config/config.ts', ENV_CONFIG);
+    repository.write('projects/app/node_modules/.bin/fail-env', 'local');
+    const check = cdkSynthCheck(repository.root, 'projects/app');
+    assert.equal(check.name, 'cdk synth: projects/app (env=local)');
+    assert.equal(check.status, 'fail');
+    assert.match(check.detail, /stub cdk: synth error for env=local/);
+    assert.deepEqual(cdkCalls(), [[appFolder, 'synth --quiet -c env=local']]);
+  });
+
+  it('still skips, degraded, when the app has no local cdk', () => {
+    fs.rmSync(path.join(appFolder, 'node_modules'), { recursive: true, force: true });
+    repository.write('projects/app/bin/app.ts', ENV_BIN);
+    const check = cdkSynthCheck(repository.root, 'projects/app');
+    assert.equal(check.status, 'skip');
+    assert.equal(check.degraded, true);
+    assert.match(check.detail, /cdk is not installed in this folder/);
+  });
+
+  it('lets the Stop hook pass after an infra change in an app that reads the env context', () => {
+    repository.write('projects/app/bin/app.ts', ENV_BIN);
+    repository.write('projects/app/lib/config/config.ts', ENV_CONFIG);
+    const result = callHook(
+      'stop-gate',
+      { hookEventName: 'Stop', stopHookActive: false },
+      { root: repository.root },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(
+      cdkCalls().map(([, args]) => args),
+      ['synth --quiet -c env=local', 'synth --quiet -c env=prod'],
+    );
   });
 });
