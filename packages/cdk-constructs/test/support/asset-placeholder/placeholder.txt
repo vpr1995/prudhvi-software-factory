@@ -1,0 +1,1 @@
+Placeholder Lambda code for captureAssetCall in test/support/assets.ts. The tests never run it.
