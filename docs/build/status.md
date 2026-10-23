@@ -124,7 +124,7 @@ Proof at the pause:
 | Python 3.14 everywhere: Lambda runtime, `.python-version`, mypy, ruff. | Wave 3, owner 2026-10-22 |
 | Alpha CDK packages pinned to the `aws-cdk-lib` version (`2.273.0-alpha.0`). `PythonFunction` needs Docker for a real synth. Unit tests skip bundling. | Wave 3 |
 | TS and JS unit tests live in `test/` at the package root and mirror the source path (`test/api/...`, `test/web/...`, `test/infra/...`). Python keeps `tests/`. Go keeps `_test.go` in the package. Playwright stays in `web/e2e/`. A `test-location` check enforces it. | Wave 3, owner 2026-10-22 |
-| Relative imports use the `.ts` extension (`./foo.ts`). `rewriteRelativeImportExtensions` writes `.js` in the build. A lint rule enforces it. Runs after the test move. | Wave 3, owner 2026-10-22 |
+| Imports stay as they are: `module: NodeNext`, ESM, relative imports with the `.js` extension. Extension-free imports need Bundler resolution or CommonJS output; the owner keeps the current setup. The `.ts` extension change is cancelled. | Wave 3, owner 2026-10-22 |
 | cdk-nag rules that cannot be met go in one acknowledgments file for each stack (cdk-nag 3 `Validations.of().acknowledge`), with a reason. The owner approves each entry. Approved: 2 IAM5 in `TracedFunction` (X-Ray `Resource: *`, log streams). | Wave 3 |
 | OpenNext: own minimal construct in `shared-cdk-constructs`. No third-party construct. | Wave 3 |
 | CDK versions (3-day release age): `aws-cdk-lib` 2.273.0, `aws-cdk` 2.1145.0, `constructs` 10.8.1, `cdk-nag` 3.0.2, `@opennextjs/aws` 4.1.11. License check and audit passed. | Wave 3 |
