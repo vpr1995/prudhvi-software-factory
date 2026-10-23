@@ -6,12 +6,14 @@
 # It runs the steps cheap first and stops at the first failure with "gates: FAIL <step>".
 # Base for the diff checks: scripts/gates/gates-base.mjs (GATES_BASE, origin/main, the upstream,
 # .claude/state/gates-base, then the root commit). With the root commit, `rush verify` runs in full.
-# After rush verify: cdk synth for the CDK apps whose infra changed (scripts/gates/synth-changed.mjs).
+# Before rush verify: Prettier on the files changed since the base
+# (scripts/gates/prettier-check.mjs). After rush verify: cdk synth for the CDK apps whose infra
+# changed (scripts/gates/synth-changed.mjs).
 # Dependency checks (scripts/gates/dep-checks.mjs): license checks run when a lock or the license
 # policy changed since the base. The audits do not run here: they belong to the nightly run.
 # Env: GATE_LABELS  PR labels for check-gates, separated by commas (no PR exists locally).
-#      GATES_FULL=1 every check: all license checks, the audits, all gate tests, the full rush verify,
-#                   cdk synth of every app.
+#      GATES_FULL=1 every check: all license checks, the audits, all gate tests, Prettier on every
+#                   tracked file, the full rush verify, cdk synth of every app.
 # Skips print "gates: SKIP <step> (<reason>)". `rush change --verify` skips only without a remote.
 set -euo pipefail
 
@@ -105,6 +107,11 @@ else
   step "gate tests" node scripts/gates/test-impacted.mjs --base "$base"
 fi
 step "gate lint" tooling/eslint-config/node_modules/.bin/eslint --max-warnings 0 scripts/gates
+
+# g2. Format: Prettier on the files that committed changes since the base touched (GATES_FULL=1:
+# all tracked files). The pre-commit hook formats staged code. This step finds the files that
+# reached a commit without it.
+step "prettier check" node scripts/gates/prettier-check.mjs --base "$base"
 
 # h. Build, lint, typecheck, test and e2e.
 if [ "$full" = "1" ]; then
