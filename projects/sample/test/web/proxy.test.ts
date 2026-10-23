@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { config, proxy } from './proxy';
+import { config, proxy } from '../../web/proxy';
 
 afterEach(() => {
   vi.unstubAllEnvs();

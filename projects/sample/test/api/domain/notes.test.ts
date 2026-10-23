@@ -2,15 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { isFail, isOk } from '@vprprudhvi/shared-result';
 
-import type { Note } from '../../contracts/index.js';
-
 import {
   createNote,
   DuplicateNoteTitleError,
   MAX_NOTES,
   NoteLimitReachedError,
   sortNotes,
-} from './notes.js';
+} from '../../../src/api/domain/notes.js';
+import type { Note } from '../../../src/contracts/index.js';
 
 const NOW = new Date('2026-01-02T03:04:05.000Z');
 const ID = '3f1b9a52-7d0e-4c1a-9b53-2a6f0e5d8c11';

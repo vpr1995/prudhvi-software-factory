@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createBrowserApiClient } from './browser-api';
+import { createBrowserApiClient } from '../../../web/lib/browser-api';
 
 const TRACEPARENT_PATTERN = /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/;
 const NOTE = {
@@ -33,7 +33,7 @@ describe('createBrowserApiClient', () => {
     vi.resetModules();
     const init = vi.fn((_options: Record<string, unknown>) => ({ fetch: globalThis.fetch }));
     vi.doMock('@vprprudhvi/shared-telemetry/browser', () => ({ initBrowserTelemetry: init }));
-    const { createBrowserApiClient: create } = await import('./browser-api');
+    const { createBrowserApiClient: create } = await import('../../../web/lib/browser-api');
 
     create({ apiBaseUrl: 'http://api.test', serviceVersion: '0', environment: 'prod' });
     create({

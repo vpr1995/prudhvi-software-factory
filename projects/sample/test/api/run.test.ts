@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { run } from './run.js';
+import { run } from '../../src/api/run.js';
 
 describe('run', () => {
   it('starts the server, and stop closes it and removes the signal handlers', async () => {

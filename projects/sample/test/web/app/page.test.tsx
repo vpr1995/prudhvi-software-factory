@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import HomePage from './page';
+import HomePage from '../../../web/app/page';
 
 vi.mock('next/server', () => ({ connection: () => Promise.resolve() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));

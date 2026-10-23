@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiClientError, createApiClient } from './api-client';
-import type { FetchFunction } from './api-client';
+import { ApiClientError, createApiClient } from '../../../web/lib/api-client';
+import type { FetchFunction } from '../../../web/lib/api-client';
 
 const NOTE = {
   id: '3f1b9a52-7d0e-4c1a-9b53-2a6f0e5d8c11',

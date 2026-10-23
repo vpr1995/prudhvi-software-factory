@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ROUTES } from '../contracts/index.js';
+import { createInMemoryNotesStore } from '../../src/api/adapters/notes-store.js';
+import { buildServer, startServer } from '../../src/api/server.js';
+import type { Server } from '../../src/api/server.js';
+import { ROUTES } from '../../src/contracts/index.js';
 
-import { createInMemoryNotesStore } from './adapters/notes-store.js';
-import { buildServer, startServer } from './server.js';
-import type { Server } from './server.js';
-import { makeCollectingLogger, makeTestConfig } from './test/support.js';
+import { makeCollectingLogger, makeTestConfig } from './support.js';
 
 const ORIGIN = 'http://localhost:4311';
 const UUID_PATTERN = /^[0-9a-f-]{36}$/;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isNodeRuntime, loadWebConfig } from './config';
+import { isNodeRuntime, loadWebConfig } from '../../web/config';
 
 describe('loadWebConfig', () => {
   it('uses defaults for an empty environment', () => {

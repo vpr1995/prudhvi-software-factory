@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type * as SharedLogger from '@vprprudhvi/shared-logger';
 
-import { FLUSH_TIMEOUT_MS, type handler as LambdaHandler } from './lambda.js';
+import { FLUSH_TIMEOUT_MS, type handler as LambdaHandler } from '../../src/api/lambda.js';
 
 const TRACE_ID = '4bf92f3577b34da6a3ce929d0e0e4736';
 const INCOMING = `00-${TRACE_ID}-00f067aa0ba902b7-01`;
@@ -50,7 +50,7 @@ const CONTEXT = {
 
 describe('Lambda handler', () => {
   it('answers an API Gateway HTTP API event and continues the trace', async () => {
-    const { handler } = await import('./lambda.js');
+    const { handler } = await import('../../src/api/lambda.js');
     const response = await handler(
       makeEvent('GET', '/v1/health', { traceparent: INCOMING }),
       CONTEXT,
@@ -98,7 +98,7 @@ describe('Lambda handler', () => {
             }),
         };
       });
-      const { handler } = await import('./lambda.js');
+      const { handler } = await import('../../src/api/lambda.js');
       return { handler, forceFlush, logLines };
     }
 

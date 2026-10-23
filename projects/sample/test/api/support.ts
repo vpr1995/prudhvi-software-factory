@@ -1,7 +1,7 @@
 import { createLogger } from '@vprprudhvi/shared-logger';
 
-import { loadConfig } from '../config.js';
-import type { Config } from '../config.js';
+import { loadConfig } from '../../src/api/config.js';
+import type { Config } from '../../src/api/config.js';
 
 /** Test helper: a config with a fixed version and optional overrides. */
 export function makeTestConfig(source: Readonly<Record<string, string | undefined>> = {}): Config {

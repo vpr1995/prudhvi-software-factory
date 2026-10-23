@@ -5,7 +5,7 @@ describe('main', () => {
     vi.stubEnv('SAMPLE_API_PORT', '0');
     vi.stubEnv('SAMPLE_API_LOG_LEVEL', 'silent');
     const before = process.listenerCount('SIGINT');
-    await import('./main.js');
+    await import('../../src/api/main.js');
     expect(process.listenerCount('SIGINT')).toBe(before + 1);
     process.emit('SIGINT');
     expect(process.listenerCount('SIGINT')).toBe(before);

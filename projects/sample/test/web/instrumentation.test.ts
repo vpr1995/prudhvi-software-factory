@@ -11,7 +11,7 @@ afterEach(() => {
 describe('register', () => {
   it('starts telemetry in the Node.js runtime', async () => {
     vi.stubEnv('NEXT_RUNTIME', 'nodejs');
-    const { register } = await import('./instrumentation');
+    const { register } = await import('../../web/instrumentation');
     await register();
     expect(initTelemetry).toHaveBeenCalledWith({
       serviceName: 'sample-web',
@@ -23,7 +23,7 @@ describe('register', () => {
   it('starts nothing in the Edge runtime', async () => {
     initTelemetry.mockClear();
     vi.stubEnv('NEXT_RUNTIME', 'edge');
-    const { register } = await import('./instrumentation');
+    const { register } = await import('../../web/instrumentation');
     await register();
     expect(initTelemetry).not.toHaveBeenCalled();
   });

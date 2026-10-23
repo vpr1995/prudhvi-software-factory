@@ -299,6 +299,18 @@ export const CASES = [
     expect: ['jsx-a11y/alt-text'],
   },
   {
+    name: 'dangerouslySetInnerHTML in a web test',
+    file: 'projects/sample/test/web/components/raw.tsx',
+    code: 'export function Raw({ html }: { readonly html: string }): React.JSX.Element {\n  return <div dangerouslySetInnerHTML={{ __html: html }} />;\n}\n',
+    expect: ['react/no-danger'],
+  },
+  {
+    name: 'img without alt in a web test',
+    file: 'projects/sample/test/web/components/image.tsx',
+    code: 'export function Image(): React.JSX.Element {\n  return <img src="/a.png" />;\n}\n',
+    expect: ['jsx-a11y/alt-text'],
+  },
+  {
     name: 'hook called conditionally',
     file: 'projects/sample/web/components/hook.tsx',
     code: "import { useState } from 'react';\n\nexport function Counter({ isShown }: { readonly isShown: boolean }): number | null {\n  if (!isShown) {\n    return null;\n  }\n  const [count] = useState(0);\n  return count;\n}\n",

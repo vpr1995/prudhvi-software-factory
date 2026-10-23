@@ -10,7 +10,7 @@ import {
   NoteSchema,
   ROUTES,
   SchemaRegistry,
-} from './index.js';
+} from '../../src/contracts/index.js';
 
 const NOTE = {
   id: '0f1d2c3b-4a59-4687-8a9b-0c1d2e3f4a5b',
@@ -112,7 +112,7 @@ type CreateNoteCase = {
 
 async function readCreateNoteCases(): Promise<CreateNoteCase[]> {
   const text = await readFile(
-    new URL('./fixtures/create-note-cases.json', import.meta.url),
+    new URL('../../src/contracts/fixtures/create-note-cases.json', import.meta.url),
     'utf8',
   );
   return (JSON.parse(text) as { cases: CreateNoteCase[] }).cases;

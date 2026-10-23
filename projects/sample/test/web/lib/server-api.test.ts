@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initTelemetry, withSpan } from '@vprprudhvi/shared-telemetry';
 import type { TelemetryHandle } from '@vprprudhvi/shared-telemetry';
 
-import { createServerApiClient } from './server-api';
+import { createServerApiClient } from '../../../web/lib/server-api';
 
 const TRACEPARENT_PATTERN = /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/;
 

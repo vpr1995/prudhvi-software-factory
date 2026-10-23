@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { NotesList } from './notes-list';
+import { NotesList } from '../../../web/components/notes-list';
 
 describe('NotesList', () => {
   it('shows a short text when there are no notes', () => {

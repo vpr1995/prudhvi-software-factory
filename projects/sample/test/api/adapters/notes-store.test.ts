@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createInMemoryNotesStore } from './notes-store.js';
+import { createInMemoryNotesStore } from '../../../src/api/adapters/notes-store.js';
 
 describe('createInMemoryNotesStore', () => {
   it('starts empty and keeps added notes', async () => {

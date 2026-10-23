@@ -3,8 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { initTelemetry } from '@vprprudhvi/shared-telemetry';
 import type { TelemetryHandle } from '@vprprudhvi/shared-telemetry';
 
-import { buildServer } from './server.js';
-import { makeCollectingLogger, makeTestConfig } from './test/support.js';
+import { buildServer } from '../../src/api/server.js';
+
+import { makeCollectingLogger, makeTestConfig } from './support.js';
 
 const TRACE_ID = '4bf92f3577b34da6a3ce929d0e0e4736';
 const PARENT_SPAN_ID = '00f067aa0ba902b7';

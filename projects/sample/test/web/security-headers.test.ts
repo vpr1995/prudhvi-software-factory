@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildContentSecurityPolicy, buildSecurityHeaders } from './security-headers';
+import { buildContentSecurityPolicy, buildSecurityHeaders } from '../../web/security-headers';
 
 const CONFIG = {
   apiBaseUrl: 'https://api.example.test:8443/base',

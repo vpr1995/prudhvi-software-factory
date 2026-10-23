@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadConfig, SERVICE_NAME } from './config.js';
+import { loadConfig, SERVICE_NAME } from '../../src/api/config.js';
 
 describe('loadConfig', () => {
   it('uses defaults for an empty environment', () => {

@@ -3,9 +3,9 @@ import { defineConfig } from 'vitest/config';
 import type { TestProjectInlineConfiguration } from 'vitest/config';
 
 // One config for the whole package. The shared factory gives the fixed settings and the coverage
-// thresholds. Two Vitest projects split the environments: `node` for src/**, and `web` (jsdom) for
-// web/**. Coverage runs once over both. The thresholds apply to the sum, and again to each folder,
-// so the web app cannot hide behind the API (or the reverse).
+// thresholds. Two Vitest projects split the environments: `node` for test/api and test/contracts,
+// and `web` (jsdom) for test/web. Coverage runs once over both. The thresholds apply to the sum,
+// and again to each folder, so the web app cannot hide behind the API (or the reverse).
 const shared = createVitestConfig().test ?? {};
 const { coverage = {}, reporters = ['default'], outputFile = {}, ...projectOptions } = shared;
 const { thresholds = {} } = coverage;
@@ -16,7 +16,7 @@ const nodeProject: TestProjectInlineConfiguration = {
     ...projectOptions,
     name: 'node',
     environment: 'node',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['test/api/**/*.test.{ts,tsx}', 'test/contracts/**/*.test.{ts,tsx}'],
     exclude: IGNORED_FILES,
   },
 };
@@ -28,8 +28,8 @@ const webProject: TestProjectInlineConfiguration = {
     ...projectOptions,
     name: 'web',
     environment: 'jsdom',
-    setupFiles: ['./web/test/setup.ts'],
-    include: ['web/**/*.test.{ts,tsx}'],
+    setupFiles: ['./test/web/setup.ts'],
+    include: ['test/web/**/*.test.{ts,tsx}'],
     exclude: IGNORED_FILES,
   },
 };
@@ -46,10 +46,8 @@ export default defineConfig({
       exclude: [
         '**/*.test.{ts,tsx,js,jsx}',
         '**/*.d.ts',
-        'src/api/test/**',
         'web/next.config.ts',
         'web/e2e/**',
-        'web/test/**',
         'web/.next/**',
       ],
       thresholds: {
