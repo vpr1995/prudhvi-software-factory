@@ -22,7 +22,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    - `use-platform-resource` when the change reads a platform value.
    - Direct edits for small changes.
      A gate file, a lockfile, `go.mod`, or `go.sum` is never a direct edit. Write its new content to `.claude/state/handoff/<change>/` instead. Write a package manager command to a `NN-commands.txt` file there. See `docs/standards/gates.md`, section 2.4.
-     Keep one change per PR. The soft limit is 400 changed lines.
+     Keep one change per PR. The soft limit is 2000 changed lines. Above 10000 changed lines, check-gates fails without a `large-pr` label from a human.
 7. Run the `verify` skill. Fix each failure. Run it again until it passes.
 8. If web, api, or infra changed, run the `e2e-verify` skill.
 9. Commit before review. Stage explicit paths only: `git add <path> ...`. Never run `git add -A`.

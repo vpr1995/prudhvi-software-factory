@@ -8,9 +8,13 @@
 //                               uv.lock, go.mod, go.sum or the project license scripts is checked there.
 //                               Rush cannot see tooling/license-allowlist.json (it is in no project), so
 //                               a change to it runs the project license scripts here.
-// Audits (rush audit, pip-audit, govulncheck) depend on new advisories, not on the change. They run
-// nightly in CI (not set up yet), with `local-gates.sh --audit-only`, or with GATES_FULL=1.
-// GATES_FULL=1 runs every check.
+// Audits run when their lock changed since the base, so a new dependency with a known advisory fails
+// the push (owner decision, 2026-10-23: agents run `rush add -p` themselves):
+//   rush audit                  common/config/rush/pnpm-lock.yaml
+//   pip-audit (security.sh)     projects/<name>/src/api-py/uv.lock, for that project
+//   govulncheck (security.sh)   projects/<name>/src/api-go/go.sum, for that module
+// A new advisory for a lock that did not change is found by the nightly run in CI (not set up yet),
+// by `local-gates.sh --audit-only`, or by GATES_FULL=1. GATES_FULL=1 runs every check.
 import path from 'node:path';
 
 import { gitOrThrow } from './proc.mjs';
@@ -27,6 +31,8 @@ export const NODE_LICENSE_INPUTS = Object.freeze([
   'scripts/security/license-check.sh',
 ]);
 export const AUDIT_ENTRY_POINT = 'bash scripts/gates/local-gates.sh --audit-only';
+/** The end of the reason of a skipped audit: where the audit of an unchanged lock runs. */
+export const AUDIT_LATER = `nightly in CI, not set up yet; run ${AUDIT_ENTRY_POINT} or GATES_FULL=1`;
 
 /**
  * @typedef {object} PlanInput
@@ -113,42 +119,56 @@ function licenseEntries(input) {
 }
 
 /**
- * Plans the audits.
+ * Lists the audits with the lock that each one reads.
  *
- * @param {PlanInput} input - The projects and the flags.
- * @returns {PlanEntry[]} The audits that run, or one skip line for all of them.
+ * @param {PlanInput} input - The projects.
+ * @returns {{ label: string, lock: string, command: string[] }[]} The audits in run order.
  */
-function auditEntries(input) {
-  if (!input.full && !input.auditOnly) {
-    return [
-      {
-        action: 'skip',
-        label: 'audits',
-        reason: `nightly in CI, not set up yet; run ${AUDIT_ENTRY_POINT} or GATES_FULL=1`,
-        command: [],
-      },
-    ];
-  }
-  const reason = input.full ? 'GATES_FULL=1' : 'audit only';
+function audits(input) {
   const security = (project, part) => [
     'bash',
     `projects/${project}/src/${part}/scripts/security.sh`,
   ];
   return [
-    { action: 'run', label: 'rush audit', reason, command: [...RUSH, 'audit'] },
+    { label: 'rush audit', lock: PNPM_LOCK, command: [...RUSH, 'audit'] },
     ...input.pyProjects.map((project) => ({
-      action: /** @type {const} */ ('run'),
       label: `pip-audit (projects/${project}, security.sh)`,
-      reason,
+      lock: `projects/${project}/src/api-py/uv.lock`,
       command: security(project, 'api-py'),
     })),
     ...input.goProjects.map((project) => ({
-      action: /** @type {const} */ ('run'),
       label: `govulncheck (projects/${project}, security.sh)`,
-      reason,
+      lock: `projects/${project}/src/api-go/go.sum`,
       command: security(project, 'api-go'),
     })),
   ];
+}
+
+/**
+ * Plans the audits. Each audit runs when its lock changed since the base. All of them run with
+ * GATES_FULL=1 or `auditOnly`.
+ *
+ * @param {PlanInput} input - The change, the projects and the flags.
+ * @returns {PlanEntry[]} One entry for each audit.
+ */
+function auditEntries(input) {
+  const changedSet = new Set(input.changed);
+  const short = input.base.slice(0, 12);
+  return audits(input).map(({ label, lock, command }) => {
+    if (input.full || input.auditOnly) {
+      return { action: 'run', label, reason: input.full ? 'GATES_FULL=1' : 'audit only', command };
+    }
+    if (changedSet.has(lock)) {
+      return { action: 'run', label, reason: changedText([lock]), command };
+    }
+    const name = path.posix.basename(lock);
+    return {
+      action: 'skip',
+      label,
+      reason: `no ${name} change since ${short}; ${AUDIT_LATER}`,
+      command: [],
+    };
+  });
 }
 
 /**

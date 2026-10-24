@@ -2,6 +2,8 @@
 //   stop-gate.mjs                    Stop hook (all checks, loop guard, writes the verify state)
 //   stop-gate.mjs --fast             SubagentStop hook (quick checks, no state)
 //   stop-gate.mjs --write-state-only run all checks, write the verify state, exit 0 pass or 1 fail
+// A failed full run (Stop hook or --write-state-only) keeps the rush-logs and test-results folders in
+// .claude/state/failure-logs/ (lib/failure-logs.mjs), and the report names that folder.
 import {
   committedSinceSession,
   committedWarning,
@@ -21,6 +23,7 @@ import { blockWith, runHook } from '../lib/hook-io.mjs';
 import {
   collectChecks,
   failedChecks,
+  failureReportWithLogs,
   formatFailureReport,
   stateFileName,
   writeVerifyState,
@@ -102,7 +105,7 @@ function writeStateOnly(context) {
   }
   return {
     exitCode: 1,
-    stderr: `${formatFailureReport(failedChecks(run.checks))}\nState saved in ${stateFileName(context.root)} with status fail.`,
+    stderr: `${failureReportWithLogs(context.root, failedChecks(run.checks), 'verify')}\nState saved in ${stateFileName(context.root)} with status fail.`,
   };
 }
 
@@ -197,7 +200,7 @@ function guardedStop(context, counterFile) {
     return passResult(warning);
   }
   writeCounter(counterFile, attempt);
-  const report = formatFailureReport(failedChecks(run.checks));
+  const report = failureReportWithLogs(root, failedChecks(run.checks), 'stop');
   return blockWith(
     withWarning(attempt >= STOP_ATTEMPT_LIMIT ? `${report}\n\n${LAST_RETRY}` : report, warning),
   );

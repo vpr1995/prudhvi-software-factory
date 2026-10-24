@@ -86,6 +86,11 @@ describe('pr-size helpers', () => {
     assert.deepEqual(parseLabels(''), []);
   });
 
+  it('uses the limits that the owner set: warn above 2000, fail above 10000', () => {
+    assert.equal(SIZE_WARN_LINES, 2000);
+    assert.equal(SIZE_FAIL_LINES, 10000);
+  });
+
   it('judges the size limits', () => {
     assert.equal(judgeSize(0, []).status, 'pass');
     assert.equal(judgeSize(SIZE_WARN_LINES, []).status, 'pass');
@@ -231,7 +236,7 @@ describe('check-gates', () => {
       assert.equal(sizeOf(report).details.lines, SIZE_WARN_LINES);
     });
 
-    it('warns above 400 lines and exits 0', () => {
+    it('warns above 2000 lines and exits 0', () => {
       repository.write('src/big.ts', lines(SIZE_WARN_LINES + 1));
       commit();
       const { result, report } = checkJson();
@@ -240,7 +245,7 @@ describe('check-gates', () => {
       assert.equal(report.failed, false);
     });
 
-    it('warns at 1000 lines', () => {
+    it('warns at 10000 lines', () => {
       repository.write('src/big.ts', lines(SIZE_FAIL_LINES));
       commit();
       const { result, report } = checkJson();
@@ -248,7 +253,7 @@ describe('check-gates', () => {
       assert.equal(sizeOf(report).status, 'warn');
     });
 
-    it('fails above 1000 lines and exits 1', () => {
+    it('fails above 10000 lines and exits 1', () => {
       repository.write('src/big.ts', lines(SIZE_FAIL_LINES + 1));
       commit();
       const { result, report } = checkJson();
@@ -263,11 +268,11 @@ describe('check-gates', () => {
       commit();
       const result = check();
       assert.equal(result.status, 1);
-      assert.match(result.stdout, /^FAIL pr-size: 1001 changed lines, above 1000/m);
+      assert.match(result.stdout, /^FAIL pr-size: 10001 changed lines, above 10000/m);
       assert.match(result.stdout, /check-gates: FAILED/);
     });
 
-    it('allows more than 1000 lines with the large-pr label', () => {
+    it('allows more than 10000 lines with the large-pr label', () => {
       repository.write('src/big.ts', lines(SIZE_FAIL_LINES + 1));
       commit();
       const { result, report } = checkJson(['--labels', 'risk:low, large-pr']);
@@ -405,6 +410,10 @@ describe('check-gates', () => {
       const result = exec('node', [CLI, '--help']);
       assert.equal(result.status, 0);
       assert.match(result.stdout, /Usage:/);
+      assert.match(
+        result.stdout,
+        /Above 2000: warning\. Above 10000: fail, unless the label large-pr/,
+      );
     });
   });
 });

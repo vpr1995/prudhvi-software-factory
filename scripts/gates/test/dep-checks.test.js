@@ -1,5 +1,6 @@
 // Tests for the plan of the dependency checks (lib/dep-checks.mjs, dep-checks.mjs): license checks on
-// lock and policy changes, audits only with GATES_FULL=1 or --audit-only.
+// lock and policy changes, the audit of each lock that changed, and every audit with GATES_FULL=1 or
+// --audit-only.
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -17,8 +18,10 @@ import { exec, GATES, makeRepository } from './harness.js';
 const CLI = path.join(GATES, 'dep-checks.mjs');
 const BASE = '0123456789abcdef0123456789abcdef01234567';
 const SHORT = BASE.slice(0, 12);
-const AUDIT_SKIP =
+const AUDIT_LATER =
   'nightly in CI, not set up yet; run bash scripts/gates/local-gates.sh --audit-only or GATES_FULL=1';
+const PY_LOCK = 'projects/sample/src/api-py/uv.lock';
+const GO_SUM = 'projects/sample/src/api-go/go.sum';
 
 /**
  * Plans with the sample project (api-py and api-go) and no flags, unless overridden.
@@ -39,36 +42,53 @@ function plan(input) {
 }
 
 describe('dependency check plan', () => {
-  it('skips every license check and the audits when nothing changed', () => {
+  it('skips every license check and every audit when nothing changed', () => {
     assert.deepEqual(plan({}), [
       `skip license-check (no lock or policy change since ${SHORT})`,
       `skip license-check api-py (projects/sample) (uv.lock changes run in _phase:lint of rush verify; no policy change since ${SHORT})`,
       `skip license-check api-go (projects/sample) (go.mod and go.sum changes run in _phase:lint of rush verify; no policy change since ${SHORT})`,
-      `skip audits (${AUDIT_SKIP})`,
+      `skip rush audit (no pnpm-lock.yaml change since ${SHORT}; ${AUDIT_LATER})`,
+      `skip pip-audit (projects/sample, security.sh) (no uv.lock change since ${SHORT}; ${AUDIT_LATER})`,
+      `skip govulncheck (projects/sample, security.sh) (no go.sum change since ${SHORT}; ${AUDIT_LATER})`,
     ]);
   });
 
-  it('runs the Node license check when pnpm-lock.yaml changed, and no audit', () => {
+  it('runs the Node license check and rush audit when pnpm-lock.yaml changed', () => {
     const entries = plan({ changed: ['common/config/rush/pnpm-lock.yaml', 'README.md'] });
     assert.equal(entries[0], 'run license-check (pnpm-lock.yaml changed)');
     assert.match(entries[1] ?? '', /^skip license-check api-py/);
     assert.match(entries[2] ?? '', /^skip license-check api-go/);
-    assert.equal(entries[3], `skip audits (${AUDIT_SKIP})`);
-  });
-
-  it('runs the Node license check when its script changed', () => {
-    assert.equal(
-      plan({ changed: ['scripts/security/license-check.sh'] })[0],
-      'run license-check (license-check.sh changed)',
+    assert.equal(entries[3], 'run rush audit (pnpm-lock.yaml changed)');
+    assert.match(
+      entries[4] ?? '',
+      /^skip pip-audit \(projects\/sample, security\.sh\) \(no uv\.lock/,
+    );
+    assert.match(
+      entries[5] ?? '',
+      /^skip govulncheck \(projects\/sample, security\.sh\) \(no go\.sum/,
     );
   });
 
-  it('runs every license check when the license policy changed', () => {
-    assert.deepEqual(plan({ changed: ['tooling/license-allowlist.json'] }).slice(0, 3), [
+  it('runs the Node license check when its script changed, and no audit', () => {
+    const entries = plan({ changed: ['scripts/security/license-check.sh'] });
+    assert.equal(entries[0], 'run license-check (license-check.sh changed)');
+    assert.ok(
+      entries.slice(3).every((entry) => entry.startsWith('skip ')),
+      entries.join('\n'),
+    );
+  });
+
+  it('runs every license check when the license policy changed, and no audit', () => {
+    const entries = plan({ changed: ['tooling/license-allowlist.json'] });
+    assert.deepEqual(entries.slice(0, 3), [
       'run license-check (license-allowlist.json changed)',
       'run license-check api-py (projects/sample) (license-allowlist.json changed)',
       'run license-check api-go (projects/sample) (license-allowlist.json changed)',
     ]);
+    assert.ok(
+      entries.slice(3).every((entry) => entry.startsWith('skip ')),
+      entries.join('\n'),
+    );
   });
 
   it('names two changed inputs, and counts the rest', () => {
@@ -82,13 +102,9 @@ describe('dependency check plan', () => {
     );
   });
 
-  it('leaves uv.lock, go.mod and go.sum changes to _phase:lint (no second run)', () => {
+  it('leaves uv.lock, go.mod and go.sum license checks to _phase:lint (no second run)', () => {
     const entries = plan({
-      changed: [
-        'projects/sample/src/api-py/uv.lock',
-        'projects/sample/src/api-go/go.mod',
-        'projects/sample/src/api-go/go.sum',
-      ],
+      changed: [PY_LOCK, 'projects/sample/src/api-go/go.mod', GO_SUM],
     });
     assert.ok(
       entries.slice(0, 3).every((entry) => entry.startsWith('skip ')),
@@ -96,12 +112,41 @@ describe('dependency check plan', () => {
     );
   });
 
-  it('a lock change never runs an audit', () => {
+  it('runs pip-audit when the uv.lock of the project changed', () => {
+    assert.deepEqual(plan({ changed: [PY_LOCK] }).slice(3), [
+      `skip rush audit (no pnpm-lock.yaml change since ${SHORT}; ${AUDIT_LATER})`,
+      'run pip-audit (projects/sample, security.sh) (uv.lock changed)',
+      `skip govulncheck (projects/sample, security.sh) (no go.sum change since ${SHORT}; ${AUDIT_LATER})`,
+    ]);
+  });
+
+  it('runs govulncheck when the go.sum of the module changed, and not for go.mod alone', () => {
+    assert.equal(
+      plan({ changed: [GO_SUM] }).at(-1),
+      'run govulncheck (projects/sample, security.sh) (go.sum changed)',
+    );
+    assert.match(
+      plan({ changed: ['projects/sample/src/api-go/go.mod'] }).at(-1) ?? '',
+      /^skip govulncheck/,
+    );
+  });
+
+  it('runs the audit of each changed lock, and nothing for a lock in another folder', () => {
     const entries = plan({
-      changed: ['common/config/rush/pnpm-lock.yaml', 'projects/sample/src/api-py/uv.lock'],
+      changed: ['common/config/rush/pnpm-lock.yaml', PY_LOCK, GO_SUM],
     });
-    assert.equal(entries.at(-1), `skip audits (${AUDIT_SKIP})`);
-    assert.ok(!entries.some((entry) => /audit \(|pip-audit|govulncheck/.test(entry)));
+    assert.deepEqual(entries.slice(3), [
+      'run rush audit (pnpm-lock.yaml changed)',
+      'run pip-audit (projects/sample, security.sh) (uv.lock changed)',
+      'run govulncheck (projects/sample, security.sh) (go.sum changed)',
+    ]);
+    const elsewhere = plan({
+      changed: ['projects/sample/uv.lock', 'projects/other/src/api-go/go.sum', 'pnpm-lock.yaml'],
+    });
+    assert.ok(
+      elsewhere.slice(3).every((entry) => entry.startsWith('skip ')),
+      elsewhere.join('\n'),
+    );
   });
 
   it('GATES_FULL runs every license check and every audit', () => {
@@ -137,6 +182,21 @@ describe('dependency check plan', () => {
     assert.ok(!entries.some((entry) => entry.includes('api-go') || entry.includes('govulncheck')));
   });
 
+  it('runs pip-audit only for the project whose uv.lock changed', () => {
+    const entries = plan({
+      pyProjects: ['a', 'b'],
+      goProjects: [],
+      changed: ['projects/b/src/api-py/uv.lock'],
+    });
+    assert.deepEqual(
+      entries.filter((entry) => entry.includes('pip-audit')),
+      [
+        `skip pip-audit (projects/a, security.sh) (no uv.lock change since ${SHORT}; ${AUDIT_LATER})`,
+        'run pip-audit (projects/b, security.sh) (uv.lock changed)',
+      ],
+    );
+  });
+
   it('gives the commands of the checks', () => {
     const entries = planDependencyChecks({
       changed: [],
@@ -156,6 +216,21 @@ describe('dependency check plan', () => {
         'bash projects/sample/src/api-py/scripts/security.sh',
         'bash projects/sample/src/api-go/scripts/security.sh',
       ],
+    );
+  });
+
+  it('gives the audit commands for a lock change, and no command for a skip', () => {
+    const entries = planDependencyChecks({
+      changed: [PY_LOCK],
+      pyProjects: ['sample'],
+      goProjects: ['sample'],
+      full: false,
+      auditOnly: false,
+      base: BASE,
+    });
+    assert.deepEqual(
+      entries.slice(3).map((entry) => entry.command.join(' ')),
+      ['', 'bash projects/sample/src/api-py/scripts/security.sh', ''],
     );
   });
 
@@ -220,6 +295,18 @@ describe('dependency check plan in a repo', () => {
     );
   });
 
+  it('plans the audit of a committed lock change', () => {
+    repository.write('common/config/rush/pnpm-lock.yaml', 'lockfileVersion: 9\n');
+    repository.write('projects/p/src/api-go/go.sum', 'example.com/m v1.0.0 h1:x=\n');
+    repository.git('add', '-A');
+    repository.git('commit', '-q', '-m', 'locks');
+    const entries = planForRepository(repository.root, { base, full: false, auditOnly: false });
+    assert.deepEqual(
+      entries.filter((entry) => entry.action === 'run').map((entry) => entry.label),
+      ['license-check', 'rush audit', 'govulncheck (projects/p, security.sh)'],
+    );
+  });
+
   it('CLI prints the plan, and reads GATES_FULL', () => {
     repository.write('tooling/license-allowlist.json', '{}\n');
     const result = exec('node', [CLI, '--root', repository.root, '--base', base], {
@@ -235,11 +322,26 @@ describe('dependency check plan in a repo', () => {
       'common/scripts/install-run-rush.js',
       'license-check',
     ]);
-    assert.equal(lines.at(-1), `skip\taudits\t${AUDIT_SKIP}`);
+    assert.equal(
+      lines.at(-1),
+      `skip\tgovulncheck (projects/p, security.sh)\tno go.sum change since ${base.slice(0, 12)}; ${AUDIT_LATER}`,
+    );
     const full = exec('node', [CLI, '--root', repository.root, '--base', base], {
       env: { GATES_FULL: '1' },
     });
     assert.match(full.stdout, /^run\trush audit\tGATES_FULL=1\t/m);
+  });
+
+  it('CLI runs rush audit for an uncommitted pnpm-lock.yaml change', () => {
+    repository.write('common/config/rush/pnpm-lock.yaml', 'lockfileVersion: 9\n');
+    const result = exec('node', [CLI, '--root', repository.root, '--base', base], {
+      env: { GATES_FULL: '' },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(
+      result.stdout,
+      /^run\trush audit\tpnpm-lock\.yaml changed\tnode\tcommon\/scripts\/install-run-rush\.js\taudit$/m,
+    );
   });
 
   it('CLI needs --base without --audit-only, and exits 2 on a bad base', () => {

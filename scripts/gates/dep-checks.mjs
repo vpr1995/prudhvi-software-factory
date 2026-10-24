@@ -10,7 +10,10 @@ Usage:
   node scripts/gates/dep-checks.mjs --audit-only [--root <dir>]
 
   --base <commit>  license checks run when a lock or the license policy changed since the commit
-                   (committed, staged, unstaged and untracked changes). The audits skip.
+                   (committed, staged, unstaged and untracked changes). An audit runs when its lock
+                   changed: rush audit for common/config/rush/pnpm-lock.yaml, pip-audit for
+                   projects/<name>/src/api-py/uv.lock, govulncheck for projects/<name>/src/api-go/go.sum.
+                   The audits of unchanged locks skip.
   --audit-only     the audits only (rush audit, pip-audit, govulncheck), every one of them.
 Env: GATES_FULL=1 runs every license check and every audit.
 

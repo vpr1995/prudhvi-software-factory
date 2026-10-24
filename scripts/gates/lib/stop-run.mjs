@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { keepFailureLogsNote } from './failure-logs.mjs';
 import { writeText } from './fs-io.mjs';
 import { isCi, MAX_REPORT_LINES } from './gates.config.mjs';
 import {
@@ -95,14 +96,33 @@ export function failedChecks(checks) {
  * Formats the failure report for Claude.
  *
  * @param {Check[]} failed - Failed checks.
+ * @param {string} [logsNote] - The line that tells where the logs are kept. It goes before the footer.
  * @returns {string} The report.
  */
-export function formatFailureReport(failed) {
+export function formatFailureReport(failed, logsNote = '') {
   const parts = failed.map(
     (check, index) =>
       `${String(index + 1)}. ${check.name}\n${clipLines(check.detail, MAX_REPORT_LINES)}`,
   );
-  return `STOP BLOCKED: ${String(failed.length)} check${failed.length === 1 ? '' : 's'} failed.\n\n${parts.join('\n\n')}\n\n${FOOTER}`;
+  const logs = logsNote === '' ? '' : `${logsNote}\n\n`;
+  return `STOP BLOCKED: ${String(failed.length)} check${failed.length === 1 ? '' : 's'} failed.\n\n${parts.join('\n\n')}\n\n${logs}${FOOTER}`;
+}
+
+/**
+ * Keeps the logs of the failed checks (lib/failure-logs.mjs), then formats the failure report with
+ * the line that tells where the logs are.
+ *
+ * @param {string} root - Repo root.
+ * @param {Check[]} failed - Failed checks.
+ * @param {string} caller - Who stops: `stop` or `verify`. It is the first word of the step name.
+ * @returns {string} The report.
+ */
+export function failureReportWithLogs(root, failed, caller) {
+  const note = keepFailureLogsNote(root, {
+    step: `${caller} ${failed[0]?.name ?? 'checks'}`,
+    report: formatFailureReport(failed),
+  });
+  return formatFailureReport(failed, note);
 }
 
 /**

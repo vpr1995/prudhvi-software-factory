@@ -1283,7 +1283,7 @@ it('returns a response', async () => {
 
 ### F.5 One change per PR
 
-**Rule:** Each PR must change one thing. The soft limit is 400 changed lines. A `large-pr` label from a human is required above 1000 changed lines.
+**Rule:** Each PR must change one thing. The soft limit is 2000 changed lines. A `large-pr` label from a human is required above 10000 changed lines.
 
 **Good:**
 

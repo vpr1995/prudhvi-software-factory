@@ -1,6 +1,7 @@
 // All file reads and writes with a path that is not a literal live in this one module.
 // `security/detect-non-literal-fs-filename` is off for this one file (tooling/eslint-config/src/monorepo.js).
 import {
+  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -71,6 +72,19 @@ export function readJson(file) {
 export function writeText(file, text) {
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, text);
+}
+
+/**
+ * Copies a folder and everything in it, and creates the parent folders of the target. A symbolic
+ * link is copied as a link with its text as it is: the copy does not follow it.
+ *
+ * @param {string} source - Folder to copy.
+ * @param {string} target - New folder path.
+ * @returns {void} It throws when the copy fails.
+ */
+export function copyTree(source, target) {
+  mkdirSync(path.dirname(target), { recursive: true });
+  cpSync(source, target, { recursive: true, verbatimSymlinks: true, errorOnExist: false });
 }
 
 /**

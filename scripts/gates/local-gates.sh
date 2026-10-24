@@ -2,7 +2,7 @@
 # Local gate runner: the pre-push suite in one place. Callers:
 #   node common/scripts/install-run-rush.js gates   (Rush global command, for humans)
 #   common/git-hooks/pre-push                       (when a remote exists)
-#   bash scripts/gates/local-gates.sh --audit-only  (the audits only: CI nightly later, or by hand)
+#   bash scripts/gates/local-gates.sh --audit-only  (all the audits: CI nightly later, or by hand)
 # It runs the steps cheap first and stops at the first failure with "gates: FAIL <step>".
 # Base for the diff checks: scripts/gates/gates-base.mjs (GATES_BASE, origin/main, the upstream,
 # .claude/state/gates-base, then the root commit). With the root commit, `rush verify` runs in full.
@@ -10,7 +10,11 @@
 # (scripts/gates/prettier-check.mjs). After rush verify: cdk synth for the CDK apps whose infra
 # changed (scripts/gates/synth-changed.mjs).
 # Dependency checks (scripts/gates/dep-checks.mjs): license checks run when a lock or the license
-# policy changed since the base. The audits do not run here: they belong to the nightly run.
+# policy changed since the base. An audit runs when its lock changed since the base: rush audit for
+# common/config/rush/pnpm-lock.yaml, pip-audit for a uv.lock, govulncheck for a go.sum. The audits of
+# unchanged locks belong to the nightly run.
+# A failed step keeps its logs (scripts/gates/keep-failure-logs.mjs): the rush-logs and test-results
+# folders go to .claude/state/failure-logs/<UTC time>-<step>/, so a rerun does not erase them.
 # Env: GATE_LABELS  PR labels for check-gates, separated by commas (no PR exists locally).
 #      GATES_FULL=1 every check: all license checks, the audits, all gate tests, Prettier on every
 #                   tracked file, the full rush verify, cdk synth of every app.
@@ -35,7 +39,8 @@ rush() {
   node common/scripts/install-run-rush.js "$@"
 }
 
-# step <name> <command...>: runs the command (stdin closed). A failure stops the run.
+# step <name> <command...>: runs the command (stdin closed). A failure keeps the logs and stops the
+# run. A failure to keep the logs never changes the result.
 step() {
   local name="$1"
   shift
@@ -45,6 +50,8 @@ step() {
   else
     local status=$?
     echo "gates: FAIL $name (exit $status)" >&2
+    node scripts/gates/keep-failure-logs.mjs --step "$name" --note "exit $status" </dev/null >&2 ||
+      echo "gates: the failure logs were not kept (see the message above)" >&2
     exit 1
   fi
 }
@@ -92,7 +99,8 @@ else
   echo "gates: SKIP rush change --verify (no origin remote; rush change needs a remote)"
 fi
 
-# b. Licenses when a lock or the policy changed. Audits only with GATES_FULL=1.
+# b. Licenses when a lock or the policy changed. The audit of each lock that changed. Every audit
+# with GATES_FULL=1.
 dep_checks --base "$base"
 
 # c. SAST. The script picks its own file list (L2 changes it).

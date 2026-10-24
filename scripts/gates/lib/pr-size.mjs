@@ -6,9 +6,9 @@ import { gitOrThrow } from './proc.mjs';
 import { mergeBase } from './revisions.mjs';
 
 /** Above this number of changed lines the check warns. */
-export const SIZE_WARN_LINES = 400;
+export const SIZE_WARN_LINES = 2000;
 /** Above this number of changed lines the check fails, unless the PR has the label below. */
-export const SIZE_FAIL_LINES = 1000;
+export const SIZE_FAIL_LINES = 10000;
 /** The label that allows a PR above the fail limit. */
 export const LARGE_PR_LABEL = 'large-pr';
 

@@ -42,7 +42,7 @@ A gate file controls quality, security, or release. Agents must not edit a gate 
 | `common/config/rush/**`                | Rush config, command list and `pnpm-lock.yaml`.                                                                   |
 | `common/git-hooks/**`                  | Git hook scripts.                                                                                                 |
 | `common/autoinstallers/**`             | Tool versions for hooks and CI.                                                                                   |
-| `rush.json`                            | Rush project list and tool versions.                                                                              |
+| `rush.json`                            | Rush project list and tool versions. Add a project only with `register-project.mjs` (section 6.8).                |
 | `**/REVIEW.md`                         | Review rules for the AI reviewer. This covers the root, project and platform files.                               |
 | `platform/infra/**`                    | Shared AWS resources for every project.                                                                           |
 | `**/rush-project.json`                 | Per-project Rush build settings and cache rules.                                                                  |
@@ -56,9 +56,9 @@ A gate file controls quality, security, or release. Agents must not edit a gate 
 | `**/.golangci.yml`                     | Go lint rules.                                                                                                    |
 | `**/uv.lock`                           | Python dependency lock.                                                                                           |
 | `**/go.sum`                            | Go dependency checksums.                                                                                          |
-| `**/pnpm-lock.yaml`                    | Dependency lockfile. Use `rush add -p <pkg>`, then a human commits the change.                                    |
-| `**/package-lock.json`                 | Dependency lockfile. Use `rush add -p <pkg>`, then a human commits the change.                                    |
-| `**/yarn.lock`                         | Dependency lockfile. Use `rush add -p <pkg>`, then a human commits the change.                                    |
+| `**/pnpm-lock.yaml`                    | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. A human pushes it.                |
+| `**/package-lock.json`                 | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. A human pushes it.                |
+| `**/yarn.lock`                         | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. A human pushes it.                |
 | `scripts/gates/**`                     | Gate scripts: the shared gate list, anti-skip scanner, coverage gates, check-gates, classify-risk and hook logic. |
 | `scripts/security/**`                  | Security scan scripts that git hooks and CI call.                                                                 |
 | `scripts/git/**`                       | Git hook helper scripts.                                                                                          |
@@ -126,7 +126,10 @@ An agent cannot change a gate file. When a task needs a gate file change, the ag
 - Write one file for each target. Name it `NN-<target path with / replaced by __>.txt`.
 - The first line of the file is `TARGET: <path>`. The rest of the file is the full new content.
 - A human copies the file to its target path. The human reviews the change and commits it through a PR (section 6.1).
-- Write each package manager command, such as `rush add -p`, `uv add`, `go get`, or `go mod tidy`, to a file named `NN-commands.txt`. A human runs the commands. These commands change lockfiles, `go.mod`, or `go.sum`, which are gate files.
+- The agent runs `rush add -p <pkg>` and `rush update` itself, after the human approves the dependency (section 6.6).
+- Write each other package manager command, such as `uv add`, `go get`, or `go mod tidy`, to a file named `NN-commands.txt`. A human runs the commands. These commands change `uv.lock`, `go.mod`, or `go.sum`, which are gate files.
+- To add a project to `rush.json`, run `node scripts/gates/register-project.mjs <name>` (section 6.8). Do not change `rush.json` in another way.
+- Commit `rush.json` and each file that `rush add` or `rush update` changed under `common/config/rush/` (for example `pnpm-lock.yaml` and `repo-state.json`) together with the change that needs them. Check with `git status --short`. The Stop hook blocks a stop while a gate file has an uncommitted change (section 3.1). A human pushes the commit.
 - Do not write a gate file with `cp`, `mv`, or a shell redirect into `.claude/state`. Write the file with the Write tool.
 
 ## 3. Layers that protect the gates
@@ -171,7 +174,7 @@ The agent Bash guard reads the text of a command. It does not run the command. A
 The local gate runner (section 4.3.1) has these limits:
 
 - `GATES_BASE` and `.claude/state/gates-base` are not protected (backlog `bl-gates-base-guard`).
-- Audits run only nightly, so a new dependency with a known CVE passes the push until the nightly audit.
+- An audit runs only when its lock changed since the base. A new advisory for a lock that did not change shows only in the planned nightly audit, or with `--audit-only`.
 
 The gate integrity check, CODEOWNERS, and CI are the real controls. The Bash guard is a fast check. It does not replace them.
 
@@ -200,6 +203,8 @@ The Stop hook runs these checks on the session diff. It blocks the stop when a c
 | `cdk synth` and cdk-nag for each environment of a changed CDK app  | Stop blocked.                                                                                                                                                      |
 | `rush e2e` for impacted web and api parts (Bruno, Playwright, axe) | Stop blocked.                                                                                                                                                      |
 
+A failed Stop hook run keeps the logs in `.claude/state/failure-logs/` and names the folder in the block message. A failed `verify` skill run (`stop-gate.mjs --write-state-only`) does the same. The SubagentStop hook (`--fast`) does not keep logs. See **Failure logs** in section 4.3.1.
+
 ### 4.3 Commit and push time
 
 | Hook                          | Check                                                                                                                                                                                                                                                     | Blocks when                                         |
@@ -220,7 +225,7 @@ Two callers run the local gate runner, `scripts/gates/local-gates.sh`:
 - `node common/scripts/install-run-rush.js gates`. This is the Rush global command `gates`.
 - `common/git-hooks/pre-push`.
 
-Each step prints `gates: RUN`, `gates: PASS`, `gates: FAIL`, or `gates: SKIP <step> (<reason>)`. The runner stops at the first failure.
+Each step prints `gates: RUN`, `gates: PASS`, `gates: FAIL`, or `gates: SKIP <step> (<reason>)`. The runner stops at the first failure. A failed step keeps its logs (see **Failure logs** below).
 
 **Steps.** The steps run in this order.
 
@@ -229,7 +234,7 @@ Each step prints `gates: RUN`, `gates: PASS`, `gates: FAIL`, or `gates: SKIP <st
 | a    | `rush change --verify --no-fetch`                                              | Every run. SKIP only when no `origin` remote exists.                                                                                                                      |
 | b    | Node license check (`rush license-check`), from `scripts/gates/dep-checks.mjs` | `common/config/rush/pnpm-lock.yaml`, `tooling/license-allowlist.json` or `scripts/security/license-check.sh` changed since the base.                                      |
 | b    | Python and Go license checks                                                   | Run in the `_phase:lint` of `rush verify` when `uv.lock`, `go.mod` or `go.sum` changed. The runner runs them directly only when `tooling/license-allowlist.json` changed. |
-| b    | Audits: `rush audit`, pip-audit and govulncheck                                | Run only with `--audit-only` or `GATES_FULL=1`. Otherwise the runner prints a `gates: SKIP audits` line. See the audit text below.                                        |
+| b    | Audits: `rush audit`, pip-audit and govulncheck                                | Each audit runs when its lock changed since the base. Otherwise the runner prints a `gates: SKIP <audit>` line. A failed audit fails the run. See the audit text below.   |
 | c    | Opengrep on changed files (`scripts/security/opengrep-changed.sh`)             | Changed files. JS and TS rules only. Python and Go rules are backlog item `bl-opengrep-py-go`.                                                                            |
 | d    | Anti-skip scan (`scripts/gates/anti-skip.mjs --range <base>...HEAD`)           | Every run.                                                                                                                                                                |
 | e    | Gate check (`scripts/gates/check-gates.mjs`)                                   | Every run. Checks pr-size, disable-count, gate-files, test-deletion and test-location.                                                                                    |
@@ -260,21 +265,37 @@ The runner prints `gates: base <sha> (<source>: <detail>)`. A bad value fails th
 GATES_FULL=1 node common/scripts/install-run-rush.js gates
 ```
 
-**Audits.** Audits do not run in a normal run. Run them with `bash scripts/gates/local-gates.sh --audit-only`, or with `GATES_FULL=1`. The planned nightly CI job calls `--audit-only` (owner decision, 2026-10-23).
+**Audits.** Each audit runs when its lock changed since the base (owner decision, 2026-10-23):
+
+- `rush audit` (`bash scripts/security/audit.sh`) runs when `common/config/rush/pnpm-lock.yaml` changed.
+- pip-audit runs for one project when `projects/<name>/src/api-py/uv.lock` changed. The runner calls the `security.sh` script of that part.
+- govulncheck runs for one module when `projects/<name>/src/api-go/go.sum` changed. The runner calls the `security.sh` script of that part.
+
+A failed audit fails the run. The audit of a lock that did not change skips. Run every audit with `bash scripts/gates/local-gates.sh --audit-only`, or with `GATES_FULL=1`. The planned nightly CI job calls `--audit-only`.
+
+**Failure logs.** A failed runner step, a failed Stop hook run, and a failed `verify` skill run copy the logs to `.claude/state/failure-logs/<UTC time>-<step>/`. The time has the form `yyyymmddThhmmssZ`. The step part is the step name in lower case, with a `-` for each run of other characters.
+
+- The folder holds a copy of each `rush-logs` folder (in `projects/`, `packages/`, `platform/` and `tooling/`) and each `test-results` folder (in `projects/`). Each copy keeps its path from the repo root.
+- The file `failure.txt` holds the step name, the time, the copied folders, and the report.
+- Only the 10 newest folders stay. The script deletes older folders.
+- The message is `Logs kept in <path>. Read them before you rerun.` Read the logs before you run the step again.
+- A failure to keep the logs never changes the result of the step.
+
+The code is `scripts/gates/lib/failure-logs.mjs`. The runner calls `scripts/gates/keep-failure-logs.mjs`. `.gitignore` covers `.claude/state/`, so git does not track the logs.
 
 **Push rules.** The `pre-push` hook applies these rules:
 
 - Every pushed ref must be the checked-out commit. Otherwise the push fails with `push the checked-out commit only (git push origin HEAD:main)`.
 - Tracked files must have no uncommitted change.
 - A ref delete is allowed.
-- Push one commit at a time. check-gates counts all unpushed commits as one PR. The pr-size limit is 1000 lines.
+- Push one commit at a time. check-gates counts all unpushed commits as one PR. The pr-size limit is 10000 lines.
 
 **Remote.** The `origin` remote is a local bare repository at `/Users/PrudhviGenie/Desktop/Dev/projects-monorepo.git`. The `repository.url` in `rush.json` is that path. `git push origin HEAD:main` runs the pre-push hook. `origin/main` moves only when the gates pass. A GitHub URL replaces this remote later. Run `git remote set-url origin <url>`.
 
 **Not installed.** The owner decided not to install these tools. They do not run locally:
 
 - TruffleHog: gitleaks covers secrets.
-- OSV-Scanner: audit-ci, pip-audit and govulncheck cover dependencies, nightly.
+- OSV-Scanner: audit-ci, pip-audit and govulncheck cover dependencies, on each lock change and nightly.
 - Checkov and cfn-lint: cdk-nag runs at `cdk synth`.
 - njsscan: `eslint-plugin-security` and Opengrep cover it.
 - dependency-cruiser: ESLint boundaries cover it.
@@ -325,7 +346,7 @@ A label is a signal from a human or from a workflow. Only the listed setter can 
 | `risk:high`      | `risk-classify.yml` or `check-gates` | Auth, billing, infra, `platform/**`, shared packages, dependencies, `.github/**`, or a gate file. |
 | `lint-exception` | Human only                           | Allows the lint disable count to rise.                                                            |
 | `test-removal`   | Human only                           | Allows a PR to delete a test file or a test case.                                                 |
-| `large-pr`       | Human only                           | Allows a PR above 1000 changed lines.                                                             |
+| `large-pr`       | Human only                           | Allows a PR above 10000 changed lines.                                                            |
 
 Agents must not add or remove these labels.
 
@@ -354,7 +375,9 @@ Use the matching procedure. Do not use a procedure that is not listed.
 2. Restore the test if the behavior is still needed.
 3. If the removal is correct, add the `test-removal` label. Write the reason in the PR.
 
-### 6.4 A PR is larger than 1000 lines
+### 6.4 A PR is larger than 10000 lines
+
+check-gates warns above 2000 changed lines and fails above 10000 changed lines. The limits are in `scripts/gates/lib/pr-size.mjs`. Lockfiles, generated code and snapshots do not count.
 
 1. Ask the author to split the PR into smaller PRs. Each PR must change one thing.
 2. If the split is not possible, add the `large-pr` label. Write the reason in the PR.
@@ -370,21 +393,39 @@ Agents must not add an allowlist entry. See `docs/standards/security.md`.
 
 ### 6.6 A dependency must be added
 
-1. The agent writes the `rush add -p <package>` command to a handoff file (`NN-commands.txt`, section 2.4). Use `rush add`, not `npm` or `pnpm` directly. The agent does not run the command.
-2. A human runs the command after the human approves the dependency.
-3. Read the new-dependency report in the PR comment.
-4. Check the license, the age, and the maintainers.
-5. Approve as a code owner. The lockfile change needs a human.
+1. The agent shows the human each new package with its version, its license, and the reason. The agent waits for approval.
+2. After approval, the agent runs `node common/scripts/install-run-rush.js add -p <package>` in the project folder. Use `rush add`, not `npm`, `pnpm` or `yarn` directly.
+3. The agent commits the `package.json` change and each file that the command changed under `common/config/rush/` (for example `pnpm-lock.yaml` and `repo-state.json`) together with the change that needs them. Check with `git status --short`.
+4. The local gate runner runs `rush audit`, because `pnpm-lock.yaml` changed (section 4.3.1). A failed audit fails the push. Do not add an allowlist entry to pass it (section 6.5).
+5. A human reads the lockfile diff and the new-dependency report. The human checks the license, the age, and the maintainers.
+6. A human pushes the commit. The agent cannot push a gate change (section 3.1).
+
+For Python and Go, the agent writes the `uv add`, `go get` or `go mod tidy` command to a handoff file (`NN-commands.txt`, section 2.4). A human runs the command. The runner runs pip-audit or govulncheck when `uv.lock` or `go.sum` changed.
 
 ### 6.7 A release must stop
 
 Use `docs/runbooks/rollback.md`.
 
+### 6.8 A project must be added to `rush.json`
+
+The agent adds a project with the script `scripts/gates/register-project.mjs`. The agent does not edit `rush.json` in another way.
+
+1. Make `projects/<name>/package.json` with the name `@vprprudhvi/<name>`. The name must match `^[a-z][a-z0-9-]{1,40}$`.
+2. Run `node scripts/gates/register-project.mjs <name>`.
+3. The script adds `{ "packageName": "@vprprudhvi/<name>", "projectFolder": "projects/<name>", "shouldPublish": false, "tags": ["project/<name>"] }` to the `projects` list in sorted order. It keeps all comments. It reads the file again to check the result.
+4. The script refuses a duplicate name or folder, a missing folder, a missing `package.json`, or a wrong package name. Then `rush.json` does not change. Exit code: 0 done, 1 refused, 2 bad usage or a bad name.
+5. Run `node common/scripts/install-run-rush.js update`. The script prints this command as the next step.
+6. Commit `rush.json` and each file that `rush update` changed under `common/config/rush/` together with the project. Check with `git status --short`. A human pushes the commit.
+
+To remove an entry, run `node scripts/gates/register-project.mjs --remove <name>`.
+
 ## 7. Rules for agents
 
 - Do not edit a gate file. The hook blocks the edit.
 - Write the new content of a gate file to the handoff folder (section 2.4).
-- Do not run a package manager command that changes a lockfile. Write the command to the handoff folder.
+- Run `rush add -p <pkg>` and `rush update` only after the human approves the dependency (section 6.6). Write `uv add`, `go get` and `go mod tidy` to the handoff folder.
+- Change `rush.json` only with `node scripts/gates/register-project.mjs` (section 6.8).
+- When a gate fails, read the folder in the `Logs kept in <path>` line before you run the gate again.
 - Open a PR for a change to a file in section 2.2 or 2.3. Do not merge it.
 - Do not add `--no-verify` to a git command.
 - Do not add a skip, a focused test, or a disable comment to pass a check.

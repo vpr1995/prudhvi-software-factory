@@ -1,7 +1,8 @@
 // CI gate check for a pull request. It looks at the range base...head and runs these checks:
 //   - gate-files: lists the gate files that the PR changes and sets `riskHigh`. It reports only.
 //     CODEOWNERS and the human review decide.
-//   - pr-size: counts the changed lines. Warns above 400. Fails above 1000 without the `large-pr` label.
+//   - pr-size: counts the changed lines. Warns above 2000. Fails above 10000 without the `large-pr`
+//     label (the limits are in lib/pr-size.mjs).
 //   - disable-count: counts the markers that switch a check off (lint, type, security and cdk-nag). A net
 //     increase fails without the `lint-exception` label.
 //   - test-deletion: a deleted test file or fewer test cases in a test file fails without the

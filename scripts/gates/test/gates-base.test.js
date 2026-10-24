@@ -157,6 +157,23 @@ describe('gates base', () => {
   });
 });
 
+/**
+ * A Rush stub that fails only the `audit` command. It logs each call like the stub of the harness.
+ */
+const AUDIT_FAIL_STUB = `const fs = require('node:fs');
+const path = require('node:path');
+const temp = path.join(__dirname, '..', 'temp');
+fs.appendFileSync(path.join(temp, 'stub-calls.log'), process.argv.slice(2).join(' ') + '\\n');
+if (process.argv[2] === 'audit') {
+  console.log('stub advisory: a dependency has a known vulnerability');
+  process.exit(1);
+}
+console.log('rush stub ok');
+`;
+
+const KEPT_LINE =
+  /Logs kept in (\.claude\/state\/failure-logs\/\d{8}T\d{6}Z-[a-z0-9-]+)\. Read them before you rerun\./;
+
 describe('local-gates.sh runner', () => {
   /** @type {ReturnType<typeof makeRepository>} */
   let repository;
@@ -216,7 +233,7 @@ describe('local-gates.sh runner', () => {
     assert.match(result.stdout, /gates: RUN license-check \(pnpm-lock\.yaml changed\)/);
     assert.match(result.stderr, /gates: FAIL license-check \(pnpm-lock\.yaml changed\) \(exit 1\)/);
     assert.deepEqual(rushCalls(), ['license-check']);
-    assert.doesNotMatch(result.stdout, /gates: (?:RUN|SKIP) audits/);
+    assert.doesNotMatch(result.stdout, /gates: (?:RUN|SKIP) rush audit/);
   });
 
   it('skips the license check and the audits with no lock change, then fails a missing script', () => {
@@ -228,13 +245,55 @@ describe('local-gates.sh runner', () => {
     assert.ok(
       result.stdout.includes(
         `gates: SKIP license-check (no lock or policy change since ${root.slice(0, 12)})\n` +
-          'gates: SKIP audits (nightly in CI, not set up yet; run bash scripts/gates/local-gates.sh --audit-only or GATES_FULL=1)\n' +
+          `gates: SKIP rush audit (no pnpm-lock.yaml change since ${root.slice(0, 12)}; nightly in CI, not set up yet; run bash scripts/gates/local-gates.sh --audit-only or GATES_FULL=1)\n` +
           'gates: RUN opengrep\n',
       ),
       result.stdout,
     );
     assert.match(result.stderr, /gates: FAIL opengrep/);
     assert.doesNotMatch(result.stdout, /gates: RUN anti-skip/);
+  });
+
+  it('runs the rush audit when pnpm-lock.yaml changed', () => {
+    repository.write('common/config/rush/pnpm-lock.yaml', 'lockfileVersion: 9\n');
+    const result = runGates();
+    assert.equal(result.status, 1);
+    assert.deepEqual(rushCalls(), ['license-check', 'audit']);
+    assert.match(result.stdout, /gates: PASS license-check \(pnpm-lock\.yaml changed\)/);
+    assert.match(result.stdout, /gates: RUN rush audit \(pnpm-lock\.yaml changed\)/);
+    assert.match(result.stdout, /gates: PASS rush audit \(pnpm-lock\.yaml changed\)/);
+    assert.match(result.stderr, /gates: FAIL opengrep/);
+  });
+
+  it('fails the gates when the audit of a changed lock fails', () => {
+    repository.write('common/scripts/install-run-rush.js', AUDIT_FAIL_STUB);
+    repository.write('common/config/rush/pnpm-lock.yaml', 'lockfileVersion: 9\n');
+    const result = runGates();
+    assert.equal(result.status, 1);
+    assert.deepEqual(rushCalls(), ['license-check', 'audit']);
+    assert.match(result.stdout, /gates: PASS license-check \(pnpm-lock\.yaml changed\)/);
+    assert.match(result.stderr, /gates: FAIL rush audit \(pnpm-lock\.yaml changed\) \(exit 1\)/);
+    assert.doesNotMatch(result.stdout, /gates: RUN opengrep/);
+  });
+
+  it('keeps the logs of a failed step and names the folder', () => {
+    repository.write('packages/a/rush-logs/a.build.log', 'build log of the failed run');
+    repository.write('common/config/rush/pnpm-lock.yaml', 'lockfileVersion: 9\n');
+    repository.write('common/temp/stub-fail', '');
+    const result = runGates();
+    assert.equal(result.status, 1);
+    const match = KEPT_LINE.exec(result.stderr);
+    assert.ok(match, result.stderr);
+    const folder = match[1] ?? '';
+    assert.match(folder, /-license-check-pnpm-lock-yaml-changed$/);
+    assert.equal(
+      repository.read(`${folder}/packages/a/rush-logs/a.build.log`),
+      'build log of the failed run',
+    );
+    assert.match(
+      repository.read(`${folder}/failure.txt`) ?? '',
+      /Step: license-check \(pnpm-lock\.yaml changed\)[\s\S]*exit 1/,
+    );
   });
 
   it('runs every license check and the audits with GATES_FULL=1', () => {
