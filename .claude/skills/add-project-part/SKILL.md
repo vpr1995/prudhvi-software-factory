@@ -41,15 +41,16 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
 ## Phase B (only after the human says "gates applied")
 
 9. Check the files exist, and the project `package.json` runs the new part in each phase.
-10. Add dependencies. Show the list and wait for approval first. Do not run these commands yourself. They change lockfiles, `go.mod`, and `go.sum`, which are gate files. Write the commands to `.claude/state/handoff/<name>-<part>/NN-commands.txt`, one per line, with the folder for each. A human runs them, then replies "deps applied".
+10. Add dependencies. Show each new package with its version, its license, and the reason. Wait for approval (`docs/standards/gates.md`, section 6.6).
 
-- TypeScript parts: `rush add -p <pkg> [--dev]` from `projects/<name>`.
-- web: `@playwright/test` and `@axe-core/playwright` (dev), then `npx playwright install chromium`.
-- api-py: `uv add --dev <pkg>` from `projects/<name>/src/api-py`. api-go: `go get <module>` and `go mod tidy` from `projects/<name>/src/api-go`.
+- TypeScript parts: after approval, run `rush add -p <pkg> [--dev]` yourself from `projects/<name>`. Never run `npm`, `pnpm` or `yarn` to add a package.
+- web: `@playwright/test` and `@axe-core/playwright` (dev). Then run `npx playwright install chromium`.
+- api-py: `uv add --dev <pkg>` from `projects/<name>/src/api-py`. api-go: `go get <module>` and `go mod tidy` from `projects/<name>/src/api-go`. Do not run these yourself. They change `uv.lock`, `go.mod`, and `go.sum`, which are gate files. Write the commands to `.claude/state/handoff/<name>-<part>/NN-commands.txt`, one per line, with the folder for each. A human runs them, then replies "deps applied".
 
-11. Run `rush build --only @vprprudhvi/<name>` and paste the output.
-12. Run `rush e2e --only @vprprudhvi/<name>` and paste the output.
-13. Run the `verify` skill, then `e2e-verify`.
+11. If you ran `rush add`, commit `projects/<name>/package.json` and each file that the command changed under `common/config/rush/` (for example `pnpm-lock.yaml` and `repo-state.json`), together with the change that needs them. Check with `git status --short`. Tell the human: "The commit changes the lockfile. Read the lockfile diff and push the commit."
+12. Run `rush build --only @vprprudhvi/<name>` and paste the output.
+13. Run `rush e2e --only @vprprudhvi/<name>` and paste the output.
+14. Run the `verify` skill, then `e2e-verify`.
 
 ## Handoff files
 
@@ -70,9 +71,10 @@ High-risk file (not a gate glob, sent to handoff for the human review in gates.m
 
 - `projects/<name>/lib/<name>-stack.ts`: the updated stack, when `lib/` exists.
 
-Lockfiles and Go module files (not copied from handoff. A human runs the commands in `NN-commands.txt`, and the package manager writes these files):
+Lockfiles and Go module files (not copied from handoff):
 
-- `common/config/rush/pnpm-lock.yaml`, `projects/<name>/src/api-py/uv.lock`, `projects/<name>/src/api-go/go.mod`, `projects/<name>/src/api-go/go.sum`.
+- `common/config/rush/pnpm-lock.yaml` and the other files under `common/config/rush/`: `rush add -p` writes them. The agent runs it after approval and commits them (Phase B, step 11).
+- `projects/<name>/src/api-py/uv.lock`, `projects/<name>/src/api-go/go.mod`, `projects/<name>/src/api-go/go.sum`: a human runs the commands in `NN-commands.txt`, and the package manager writes these files.
 
 ## Done when
 
@@ -91,13 +93,14 @@ Lockfiles and Go module files (not copied from handoff. A human runs the command
 - Add a second `package.json` or a second Rush project for the part.
 - Overwrite existing sections of `REVIEW.md`.
 - Add a dependency or a lockfile change without human approval.
-- Run `rush add`, `uv add`, `go get`, or `go mod tidy` yourself. Write the command to `NN-commands.txt`.
+- Run `rush add -p` before the human approves the dependency.
+- Run `uv add`, `go get`, or `go mod tidy` yourself. Write the command to `NN-commands.txt`.
 - Make the new part import from another project.
 - Put a secret value in a Bruno environment file. Use `{{process.env.X}}`.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings*.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `**/go.mod`, `**/bruno.json`, `**/playwright.config.*`, `**/scripts/*.sh`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`.
-- Run `npm install` or `pnpm install`. Use `rush add` only when a human runs it.
+- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings*.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `**/go.mod`, `**/bruno.json`, `**/playwright.config.*`, `**/scripts/*.sh`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`. One exception: `pnpm-lock.yaml` changes through `rush add -p` and `rush update`.
+- Run `npm install` or `pnpm install`. Use `rush add -p` only after the human approves the dependency.
 - Run `cdk deploy`.
 - Use `--no-verify`.

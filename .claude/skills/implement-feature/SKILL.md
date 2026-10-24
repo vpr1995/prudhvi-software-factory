@@ -21,7 +21,8 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    - `new-cdk-construct` for an infra construct.
    - `use-platform-resource` when the change reads a platform value.
    - Direct edits for small changes.
-     A gate file, a lockfile, `go.mod`, or `go.sum` is never a direct edit. Write its new content to `.claude/state/handoff/<change>/` instead. Write a package manager command to a `NN-commands.txt` file there. See `docs/standards/gates.md`, section 2.4.
+     A gate file, `uv.lock`, `go.mod`, or `go.sum` is never a direct edit. Write its new content to `.claude/state/handoff/<change>/` instead. Write a `uv add`, `go get`, or `go mod tidy` command to a `NN-commands.txt` file there. See `docs/standards/gates.md`, section 2.4.
+     A new dependency needs approval. Show each new package with its version, its license, and the reason. Wait for approval (`docs/standards/gates.md`, section 6.6). After approval, run `rush add -p <pkg>` yourself from the project folder. Then stage `package.json` and each file that the command changed under `common/config/rush/`.
      Keep one change per PR. The soft limit is 2000 changed lines. Above 10000 changed lines, check-gates fails without a `large-pr` label from a human.
 7. Run the `verify` skill. Fix each failure. Run it again until it passes.
 8. If web, api, or infra changed, run the `e2e-verify` skill.
@@ -45,7 +46,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 - Open a PR while verify fails.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`.
-- Run `npm install` or `pnpm install`. Use `rush install`, or `rush add` after approval.
+- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`. One exception: `pnpm-lock.yaml` changes through `rush add -p` and `rush update`.
+- Run `npm install` or `pnpm install`. Use `rush install`. Use `rush add -p` only after the human approves the dependency.
 - Run `cdk deploy`.
 - Use `--no-verify`.

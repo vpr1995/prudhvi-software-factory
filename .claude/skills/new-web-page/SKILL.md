@@ -42,7 +42,7 @@ Rules:
      expect(results.violations).toEqual([]);
    });
    ```
-   If `@playwright/test` or `@axe-core/playwright` is not in the project `package.json`, stop. A new dependency needs approval. After approval, write `rush add -p <pkg> --dev` (run from `projects/<name>`) to `.claude/state/handoff/<name>/NN-commands.txt`. A human runs it. It changes the lockfile, which is a gate file.
+   If `@playwright/test` or `@axe-core/playwright` is not in the project `package.json`, stop. A new dependency needs approval. Show each new package with its version, its license, and the reason. Wait for approval (`docs/standards/gates.md`, section 6.6). After approval, run `rush add -p <pkg> --dev` yourself from `projects/<name>`. Stage `package.json` and each file under `common/config/rush/` that the command changed. They go in the same commit as the page. Check with `git status --short`.
 10. Run `rush test --to @vprprudhvi/<name>` and paste the output.
 11. Run `rush e2e --only @vprprudhvi/<name>` and paste the output. It builds the app, starts `next start`, and runs Playwright.
 12. Run the `verify` skill. Then run the `e2e-verify` skill and look at the screenshot of the new page.
@@ -63,8 +63,8 @@ Rules:
 - Read `process.env` in a component. Use the config module.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`.
-- Write a gate file in place, such as `**/playwright.config.*` or a lockfile. Write it to `.claude/state/handoff/<name>/` (`docs/standards/gates.md`, section 2.4).
+- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`. One exception: `pnpm-lock.yaml` changes through `rush add -p` and `rush update`.
+- Write a gate file in place, such as `**/playwright.config.*`. Write it to `.claude/state/handoff/<name>/` (`docs/standards/gates.md`, section 2.4). Do not edit a lockfile by hand. `rush add -p` writes `pnpm-lock.yaml`.
 - Run `npm install` or `pnpm install`.
 - Run `cdk deploy`.
 - Use `--no-verify`.

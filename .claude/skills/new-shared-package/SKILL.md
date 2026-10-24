@@ -18,7 +18,7 @@ Rules: `packages/*` never import from `projects/*`. Shared packages publish (`sh
    - `name`: `@vprprudhvi/shared-<pkg>`, `version`: `0.0.0`, `type`: `module`.
    - `main`: `dist/index.js`, `types`: `dist/index.d.ts`.
    - `scripts`: `_phase:build`, `_phase:lint`, `_phase:typecheck`, `_phase:test`. The build runs `tsc -b`. The test runs `vitest run --coverage`.
-   - No dependencies yet. Add them later with `rush add`, run by a human (step 9).
+   - No dependencies yet. Add them later with `rush add -p`, run by the agent after approval (step 9).
 5. Write `packages/<pkg>/src/index.ts`. This is the one allowed index file, at the package root.
 6. Write tests in `test/`. The path mirrors `src/`: `test/<name>.test.ts`. See `docs/standards/testing.md`, section 1.
 7. Write each gate file to the handoff folder `.claude/state/handoff/<pkg>/`. Use the Write tool. Use the `.txt` suffix on each file. Name each file `NN-<target path with / replaced by __>.txt`. The first line of each file is `TARGET: <path>`. The list is in "Handoff files" below.
@@ -27,9 +27,11 @@ Rules: `packages/*` never import from `projects/*`. Shared packages publish (`sh
    - `02-...`: the config files. Each one extends the base config in `tooling/`. Read the exact names in `tooling/` first.
 8. Stop. Tell the human: "Copy each handoff file to its TARGET path. Add the rush.json entry. Reply 'gates applied' and approve any new dependency."
 9. After the human replies, check that the files exist. Then:
-   - Add each dependency. Show the list of new dependencies and their licenses first. Wait for approval. Do not run `rush add` yourself. It changes the lockfile, which is a gate file. Write the command to `.claude/state/handoff/<pkg>/NN-commands.txt`, with `rush add -p <pkg>` run from `packages/<pkg>`. A human runs it and replies "deps applied".
+   - Run `rush update`. The `rush.json` entry from the handoff must be in place.
+   - Add each dependency. Show each new package with its version, its license, and the reason. Wait for approval (`docs/standards/gates.md`, section 6.6). After approval, run `rush add -p <pkg> [--dev]` yourself from `packages/<pkg>`. Never run `npm`, `pnpm` or `yarn` to add a package.
    - Run `rush build --only @vprprudhvi/shared-<pkg>` and paste the output.
    - Run `rush change --bulk --bump-type patch --message "<what changed>"`. Then run `rush change --verify`.
+   - Commit `packages/<pkg>/`, `rush.json`, the change file under `common/changes/`, and each file under `common/config/rush/` that `rush update` or `rush add -p` changed (for example `pnpm-lock.yaml` and `repo-state.json`). Put them in one commit. Check with `git status --short`. Tell the human: "The commit changes the Rush project list and the lockfile. Read the lockfile diff and push the commit."
    - Run the `verify` skill.
 
 ## Handoff files
@@ -45,9 +47,9 @@ Package files with `_phase:*` scripts (counted as gate changes by content, not b
 
 - `packages/<pkg>/package.json`: the new package.
 
-Lockfiles (not copied from handoff. A human runs the command in `NN-commands.txt`, and the package manager writes the lockfile):
+Lockfiles (not copied from handoff):
 
-- `common/config/rush/pnpm-lock.yaml`.
+- `common/config/rush/pnpm-lock.yaml` and the other files under `common/config/rush/`: `rush update` and `rush add -p` write them. The agent runs these and commits them (step 9).
 
 ## Done when
 
@@ -61,10 +63,11 @@ Lockfiles (not copied from handoff. A human runs the command in `NN-commands.txt
 - Set `"private": true` in the package. Set `shouldPublish` in rush.json instead.
 - Write gate files to their real paths. Write them to the handoff folder only.
 - Add a dependency without human approval.
-- Run `rush add`, `uv add`, or `go get` yourself. Write the command to `NN-commands.txt`.
+- Run `rush add -p` before the human approves the dependency.
+- Run `uv add` or `go get` yourself. Write the command to `NN-commands.txt`.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings*.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`.
+- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings*.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`. One exception: `pnpm-lock.yaml` changes through `rush add -p` and `rush update`.
 - Run `npm install` or `pnpm install`.
 - Run `cdk deploy` or `cdk destroy`.
 - Use `--no-verify`.
