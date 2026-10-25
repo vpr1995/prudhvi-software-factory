@@ -18,9 +18,8 @@
   },
 
   "repository": {
-    // Local bare repo (owner decision 2026-10-23). Rush matches it to the "origin" remote as a plain
-    // path (a file:// URL does not match). Replace with the real remote URL when one exists.
-    "url": "/Users/PrudhviGenie/Desktop/Dev/projects-monorepo.git",
+    // GitHub remote (owner decision 2026-10-25). Rush matches it to the "origin" remote.
+    "url": "https://github.com/vpr1995/prudhvi-software-factory.git",
     "defaultBranch": "main",
     "defaultRemote": "origin"
   },
