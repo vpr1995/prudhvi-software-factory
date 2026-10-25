@@ -6,12 +6,30 @@ import { isTestFile, languageOf, testCasesInLine } from './anti-skip-rules.mjs';
 /** @typedef {{ file: string, line: number, rule: string, message: string }} Finding */
 
 const MAX_BODY_LINES = 400;
+// The scanner reads masked code: a string literal keeps its quotes, but its text is blanked.
+// - require('fs') and require("fs") load a module. They do not assert, so they do not count.
+// - The bare words verify, validate and ensure do not count: a test can call validate(input) and
+//   assert nothing. Use expect, assert or an assert helper (assertX, expectX).
+// - checkX(...) still counts as a helper that asserts, and so does a named helper verifyX(...),
+//   validateX(...) or ensureX(...) (a word with a suffix, for example verifyHealth(app)). A method
+//   call such as locator.check() (Playwright clicks a check box) or schema.validateX() does not count.
 const JS_ASSERTION =
-  /\b(?:expect|assert|should|verify|validate|ensure|check|require|fail)\w*\s*[(.]|\.(?:toBe|toEqual|toThrow|rejects|resolves|toHaveBeenCalled)\w*|\bt\.(?:is|true|false|deepEqual|throws|snapshot)\b|\b(?:get|find)(?:All)?By\w*\s*\(/;
+  /\b(?:expect|assert|should|fail)\w*\s*[(.]|(?<![\w$.])check\w*\s*[(.]|(?<![\w$.])(?:verify|validate|ensure)\w+\s*\(|\brequire\w+\s*[(.]|\brequire\s*\.|\brequire\s*\((?!\s*(['"`])[^'"`\n]*\1\s*\))|\.(?:toBe|toEqual|toThrow|rejects|resolves|toHaveBeenCalled)\w*|\bt\.(?:is|true|false|deepEqual|throws|snapshot)\b|\b(?:get|find)(?:All)?By\w*\s*\(/;
+// Python: the bare words verify, validate and ensure do not count (validate(x) can assert nothing).
+// A named helper such as verify_health(app) counts. A method call such as model.validate_json(x)
+// does not count.
 const PY_ASSERTION =
-  /\bassert\b|\bpytest\.(?:raises|fail|warns)\b|\.assert\w*\s*\(|\bself\.fail\b|\b(?:verify|validate|check|expect|ensure)\w*\s*\(|\bassert_\w+\s*\(|\bvalidate\b/;
+  /\bassert\b|\bpytest\.(?:raises|fail|warns)\b|\.assert\w*\s*\(|\bself\.fail\b|\b(?:check|expect)\w*\s*\(|\bassert_\w+\s*\(|(?<![\w.])(?:verify|validate|ensure)\w+\s*\(/;
+// Go: t.Run does not count. The closure that t.Run gets must assert (see goSubtestFindings). A
+// call that passes t (helper(t, ...)) counts, because a helper asserts through t.
 const GO_ASSERTION =
-  /\bt\.(?:Error|Errorf|Fatal|Fatalf|Fail|FailNow|Run)\b|\b(?:assert|require)\.\w+\s*\(|\bcmp\.Diff\b|\b(?:check|verify|validate|assert|ensure|expect)\w*\s*\(|\b\w+\(\s*t\s*[,)]/;
+  /\bt\.(?:Error|Errorf|Fatal|Fatalf|Fail|FailNow)\b|\b(?:assert|require)\.\w+\s*\(|\bcmp\.Diff\b|\b(?:check|verify|validate|assert|ensure|expect)\w*\s*\(|\b\w+\(\s*t\s*[,)]/;
+const GO_RUN = /\bt\.Run\s*\(/g;
+const RULE = 'test-without-assertion';
+const MESSAGE =
+  'has a changed test that holds no assertion (expect, assert, t.Error or a check helper)';
+const SUBTEST_MESSAGE =
+  'has a changed t.Run subtest whose closure holds no assertion (t.Error, t.Fatal or a call that passes t)';
 
 /**
  * Splits the new content of a file into code-only lines (strings and comments blanked).
@@ -133,6 +151,52 @@ function testRanges(lines, language) {
 }
 
 /**
+ * Reads a Go call from its opening parenthesis to the matching closing one.
+ *
+ * @param {string[]} lines - Code lines.
+ * @param {{ line: number, column: number, last: number }} start - Line and column of the
+ *   opening parenthesis, and the last line to read.
+ * @returns {string} The call text (it stops at `last` when the call does not close).
+ */
+function goCallText(lines, start) {
+  let depth = 0;
+  let text = '';
+  for (let index = start.line; index <= start.last; index += 1) {
+    const line = (lines[index] ?? '').slice(index === start.line ? start.column : 0);
+    for (const [offset, char] of [...line].entries()) {
+      depth += char === '(' ? 1 : 0;
+      depth -= char === ')' ? 1 : 0;
+      if (depth === 0) {
+        return `${text}${line.slice(0, offset + 1)}`;
+      }
+    }
+    text += `${line}\n`;
+  }
+  return text;
+}
+
+/**
+ * Finds the t.Run subtests of a Go test whose closure holds no assertion.
+ *
+ * @param {string[]} lines - Code lines.
+ * @param {{ start: number, end: number }} range - The Go test.
+ * @returns {number[]} Indexes of the lines that start such a t.Run call.
+ */
+function goSubtestFindings(lines, range) {
+  const found = [];
+  for (let index = range.start; index <= range.end; index += 1) {
+    for (const match of (lines[index] ?? '').matchAll(GO_RUN)) {
+      const column = match.index + match[0].length - 1;
+      const call = goCallText(lines, { line: index, column, last: range.end });
+      if (/\bfunc\s*\(/.test(call) && !GO_ASSERTION.test(call)) {
+        found.push(index);
+      }
+    }
+  }
+  return found;
+}
+
+/**
  * Finds tests that the diff touches and that hold no assertion. It reads the new file content,
  * so a change that strips the checks from an old test is found too.
  *
@@ -158,14 +222,17 @@ export function assertionFindings(file, content) {
   for (const range of testRanges(lines, language)) {
     const body = lines.slice(range.start, range.end + 1).join('\n');
     const isTouched = [...touched].some((line) => line >= range.start + 1 && line <= range.end + 1);
-    if (isTouched && assertion !== undefined && !assertion.test(body)) {
-      findings.push({
-        file: file.path,
-        line: range.start + 1,
-        rule: 'test-without-assertion',
-        message:
-          'has a changed test that holds no assertion (expect, assert, t.Error or a check helper)',
-      });
+    if (!isTouched || assertion === undefined) {
+      continue;
+    }
+    const asserts = assertion.test(body);
+    if (!asserts) {
+      findings.push({ file: file.path, line: range.start + 1, rule: RULE, message: MESSAGE });
+    }
+    if (language === 'go') {
+      for (const index of goSubtestFindings(lines, range)) {
+        findings.push({ file: file.path, line: index + 1, rule: RULE, message: SUBTEST_MESSAGE });
+      }
     }
   }
   return findings;

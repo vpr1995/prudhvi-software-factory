@@ -158,6 +158,21 @@ The gate integrity check reads the session diff, the index, and the commits. It 
 
 The range starts at `origin/main` when that branch exists. Without it, the range starts at the root commit.
 
+The range starts at the merge base. A `git reset` or a `git checkout` can move HEAD back past a human gate commit. The gate file then has the old content, and no commit in the range changes it. For this reason the check also uses the session base. Session start writes the HEAD commit to `.claude/state/session-base`. In this section, S is the session base and M is the merge base of HEAD and S.
+
+When HEAD does not descend from S, the check reports a gate file when both of these are true:
+
+- A commit from M to S changes the gate file.
+- The content of the gate file at HEAD is different from the content at S. This includes a deleted file and an added file.
+
+A `git rebase` keeps the content of S, so the check does not report a rebase. The check does not compare HEAD with `origin/main`. A branch that is behind `origin/main` does not revert a gate change of `origin/main` when a human merges it, squashes it, or rebases it. So the check does not report a branch that is behind `origin/main`.
+
+| Point                                        | Result                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stop hook                                    | Warns. The file shows with `differs from the session base`.                                                                                                                                                                                                                                                     |
+| `git push` and `gh pr create` or `gh pr new` | Blocks. The block text has the line `HEAD was rewound past the session base: <files>.` No push exemption applies.                                                                                                                                                                                               |
+| Push with no valid session base              | Blocks when `.claude/state/session-base` is missing or does not hold a full commit id that git has. The block text has `The session base is missing`. The check runs after the gate change check and the verify check. Only the agent hook `require-verify` runs it. A human push in a terminal is not blocked. |
+
 A human pushes a branch that has a gate change outside the push exemption. The agent pushes a branch only when every gate change in the range is exempt (section 4.3.1).
 
 ### 3.2 Known limits
@@ -172,6 +187,8 @@ The agent Bash guard reads the text of a command. It does not run the command. A
 - `go mod edit` and `go get` through Bash.
 - Pruned build folders, such as `dist`, are not scanned for untracked gate files.
 - A `hooksPath` in the `HOME` git config can turn git hooks off.
+- `cpio -i` and `pax -r` write to the working folder by default. The guard does not resolve a `cd` in the same command. So `cd /tmp/x && cpio -i < a` is blocked. This is a false positive.
+- The guard does not cover these extractors: `7z`, `7za`, and `7zr` with `x -o`; `jar xf`; `bsdunzip`; `xar -x -C`; and `python3 -m zipfile -e`. It also does not cover a destination from command substitution, such as `cp -r x "$(pwd)"`.
 
 The local gate runner (section 4.3.1) has these limits:
 
@@ -182,6 +199,11 @@ The local gate runner (section 4.3.1) has these limits:
 - The push exemption (section 4.3.1) reads the lock content. The lock lint checks each resolution and each source. It does not check every package the dependency policy (section 6.6) reviews.
 - A chained shell command can create a branch and push it in one command. The guard reads the command text before the chain runs.
 - `git update-ref` can move `refs/remotes/origin/main`, which moves the push base (section 4.3.1). No guard rule covers it yet.
+- The session base check (section 3.1) reads `.claude/state/session-base`. The deny rules and the Bash guard block an agent write to that file, but a write form that the guard does not read can change it. A changed session base removes only this check. The range check from `origin/main` stays.
+- Session start writes a new session base on `startup` and on `clear`. It keeps the old one on `resume` and on `compact`. So when an agent resets past a human gate commit and then a new session starts, the new session base is the reset HEAD. The check does not find that reset.
+- The check does not find a reset to S, or to a commit below S, after a human gate commit H that came after S in the same session. After a reset to S, HEAD descends from S, so the check finds no change. After a reset below S, the commits from M to S do not include H, so the check does not report the gate file of H. Tests record both results. The risk is low: when H is not pushed, the push does not change H on `origin`. When H is pushed, the reset branch is behind `origin`. A push to the same branch is not a fast-forward, and `git push --force` is denied. A merge, a squash or a rebase of another branch does not revert H.
+- The hooks use `CLAUDE_PROJECT_DIR` (else the folder of the session) as the repo root. When session start did not write a session base in the `.claude/state` of that root, the push check blocks every agent push with `The session base is missing`. This can occur in a new git worktree. A human pushes that branch, or a new session starts in that root.
+- The Bash guard does not block `git reset` or `git checkout` to a commit that is not a descendant of the session base. The Stop hook warns and the push check blocks, but the history change itself is allowed.
 - Push settings in `~/.gitconfig`, `.git/config.worktree`, or an `include` file are not blocked.
 
 The gate integrity check, CODEOWNERS, and CI are the real controls. The Bash guard is a fast check. It does not replace them.
@@ -381,6 +403,27 @@ Planned. CI is not set up yet. The local runner covers these checks where sectio
 | -------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `release.yml`  | Deploy to `prod`, after `local` (ADR 0011). `prod` needs a GitHub Environment approval. SBOM and container scan. |
 | `rollback.yml` | Re-deploy the last good build or turn off a flag.                                                                |
+
+### 4.7 Gate fixtures
+
+The gate fixtures script proves that the local gates reject bad changes. It plants one bad change for each row of the plan in a throwaway git worktree. Then it runs the gate that must reject the change. A control fixture is a clean change that the gate must accept.
+
+Run it from the repo root:
+
+- `node scripts/gates/gate-fixtures.mjs` runs all fast fixtures and writes the report to `docs/standards/gate-fixtures.md`.
+- `node scripts/gates/gate-fixtures.mjs --slow` also runs the cdk-nag fixtures.
+- `node scripts/gates/gate-fixtures.mjs --only <id,...>` runs some fixtures and prints the report. It does not write the file.
+- `node scripts/gates/gate-fixtures.mjs --list` prints the fixture ids.
+
+The exit code is 0 when every fixture that ran passed. It is 1 when a bad change was not rejected, a control was rejected, or a setup step failed. Rows that only CI can prove show `SKIP (CI, later)`.
+
+The script does not change a tracked file of the main working tree, except the report. Git writes the worktree record to `.git/worktrees`. A tool, such as ESLint or Vitest, can write its cache to a `node_modules` folder of the main working tree, because the worktree links to these folders.
+
+A control fixture must exit 0. The anti-skip, dependency, and Bash guard controls must also print a sentinel text. The sentinel proves that the gate read the clean change, or that the command ran.
+
+Some fixtures test a rule that is in a handoff file of agent A, B, or C. The report marks these fixtures with `needs agent A`, `needs agent B`, or `needs agent C`. These fixtures fail until a human applies the matching handoff files.
+
+Ctrl-C (`SIGINT`) or `SIGTERM` stops the run after the current gate command. The script removes the worktree and exits with 130 or 143.
 
 ## 5. Labels
 

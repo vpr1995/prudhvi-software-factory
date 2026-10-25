@@ -90,11 +90,26 @@ The Stop hook and CI scan the diff. They fail when the diff adds any of these it
 | An empty `catch {}` block                                                                                                      | Hides an error.                                         |
 | Python: `@pytest.mark.skip`, `@pytest.mark.xfail`, `pytest.skip(`, `# noqa`, `# type: ignore`, `# pragma: no cover`, `# nosec` | Skips tests or hides a lint, type, or security finding. |
 | Go: `t.Skip(`, `//nolint` without a linter name and reason, `// #nosec`                                                        | Skips tests or hides a finding.                         |
+| A changed test with no assertion (rule `test-without-assertion`). See the note below this table.                               | A test with no assertion passes without testing.        |
 | `--cov-fail-under` or a Go coverage minimum that goes down                                                                     | Lowers a gate.                                          |
 | Playwright: `test.skip`, `test.fixme`, `test.fail`, `test.describe.skip`, `test.only`                                          | Skips or focuses e2e tests.                             |
 | Bruno: a `.bru` request with no `assert` or `tests` block                                                                      | A request with no check passes without testing.         |
 | Bruno: `skip-request` in a script                                                                                              | Skips a request.                                        |
 | Bruno or Playwright: `--bail` removed from a script to hide a failure                                                          | Hides the first failure.                                |
+
+The `test-without-assertion` rule reads each changed test. These items count as an assertion:
+
+- JavaScript and TypeScript: `expect`, `assert`, `should`, `fail`, `t.is` and the other `t.` checks, `getBy` and `findBy` queries, and a helper named `assertX`, `expectX`, `checkX`, `verifyX`, `validateX` or `ensureX` (for example `verifyHealth(app)`).
+- Python: `assert`, `pytest.raises`, `self.assertX`, `self.fail`, and a helper named `assert_x`, `check_x`, `expect_x`, `verify_x`, `validate_x` or `ensure_x`.
+- Go: `t.Error`, `t.Fatal`, `t.Fail`, `assert.X(`, `require.X(`, `cmp.Diff`, and a call that passes `t`, for example `compare(t, got, want)`.
+
+These items do not count as an assertion:
+
+- `require('fs')` or `require("fs")`. This call loads a module.
+- The bare words `verify`, `validate` and `ensure` in JavaScript, TypeScript and Python. A call such as `validate(input)` can pass and check nothing.
+- A method call such as `schema.validateSync(input)` or `model.validate_json(data)`. This call can parse and check nothing.
+- A method call `.check()`, for example `locator.check()` in Playwright. This call clicks a check box.
+- Go `t.Run(`. The closure that `t.Run` gets must have its own assertion. When `t.Run` gets a named function, the test must also have an assertion or a call that passes `t`.
 
 If a test must change, the change needs a reason in the PR. Removing a test needs the `test-removal` label from a human. See `docs/standards/gates.md`.
 

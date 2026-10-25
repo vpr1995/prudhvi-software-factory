@@ -1,4 +1,5 @@
 import { buildScope } from './bash-paths.mjs';
+import { checkExtractors } from './bash-rules-extract.mjs';
 import { checkFiles } from './bash-rules-files.mjs';
 import { checkGatesBase } from './bash-rules-gates-base.mjs';
 import { checkGit, checkGitEnvironment } from './bash-rules-git.mjs';
@@ -32,7 +33,10 @@ export function checkCommand(command, context) {
       continue;
     }
     const reason =
-      checkGit(segment, scoped, checkNested) ?? checkTools(segment) ?? checkFiles(segment, scoped);
+      checkGit(segment, scoped, checkNested) ??
+      checkTools(segment) ??
+      checkFiles(segment, scoped) ??
+      checkExtractors(segment, scoped);
     if (reason !== null) {
       return reason;
     }

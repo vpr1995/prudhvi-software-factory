@@ -1,28 +1,41 @@
 // Gate integrity: tells which gate files (see gate-files.json) differ from what git has committed.
 //
-// It does not trust command parsing, and it does not trust `.claude/state`. It looks at git objects
-// and at the real files:
+// It does not trust command parsing. From `.claude/state` it reads only the session base (the HEAD
+// commit that session-start saved). It looks at git objects and at the real files:
 //   - uncommitted(root)       gate files that differ between HEAD and the working tree or the index,
 //                             and gate files that exist on disk but not in HEAD (untracked or ignored).
-//   - range(root, base, head) gate files that a commit range changes.
+//   - range(root, base, head) gate files that a commit range changes. The range starts at the merge
+//                             base, so it is blind to a `git reset` that moved HEAD back past a commit.
+//   - treeDifferences(...)    gate files whose content differs between two trees, compared directly
+//                             with no merge base.
+//   - savedSessionBase(root)  the saved session base, or null when the file is missing or is not a
+//                             commit (no fallback).
+//   - rewoundChanges(root, s) the gate changes of the session base that HEAD lost: HEAD does not
+//                             descend from it, and a gate file that M..s changes (M is the merge base
+//                             of HEAD and s) has other content at HEAD than at s. A rebase keeps that
+//                             content, so a rebase gives no change.
 //   - pushRange(root)         the range that a push or a pull request would publish.
-// A change to a `_phase:*` key in the `scripts` object of a package.json counts as a gate change.
-// Any git failure throws, so a hook that calls this fails closed.
+// A change to a `_phase:*` key in the `scripts` object of a package.json counts as a gate change
+// (gate-phase.mjs). Any git failure throws, so a hook that calls this fails closed.
 //
 // A later CI script (check-gates) can import this module as it is.
 import crypto from 'node:crypto';
 import path from 'node:path';
 
-import { inspectPath, readBytes, readLinkText, walkFiles } from './fs-io.mjs';
+import { inspectPath, readBytes, readLinkText, readText, walkFiles } from './fs-io.mjs';
 import { findGate, isInProtectedFolder } from './gate-list.mjs';
-import { EMPTY_TREE, headSha, sessionBase } from './git-state.mjs';
-import { git, gitOrThrow, runBinary } from './proc.mjs';
+import {
+  GIT_FLAGS,
+  phaseChanges,
+  phaseDifferences as comparePhaseScripts,
+  phaseFiles,
+  readBlobs,
+} from './gate-phase.mjs';
+import { EMPTY_TREE, headSha, sessionBase, statePaths } from './git-state.mjs';
+import { git, gitOrThrow } from './proc.mjs';
 
 /**
- * @typedef {object} GateChange
- * @property {string} file - Path from the repo root.
- * @property {string} change - `modified`, `deleted`, `added`, `new`, `staged`, `type`, `mode` or `phase-script`.
- * @property {string} [detail] - Extra text, for example `_phase:test changed`.
+ * @typedef {import('./gate-phase.mjs').GateChange} GateChange
  */
 
 /** Folder names that hold generated or third-party files. They are never read. */
@@ -47,13 +60,25 @@ const SKIPPED_FOLDER_NAMES = new Set([
  * the hooks. The hooks write it, git ignores it, and it is not trusted.
  */
 const SKIPPED_FOLDER_PATHS = new Set(['.claude/state', 'common/temp']);
-const GIT_FLAGS = ['--no-optional-locks'];
-const PHASE_PREFIX = '_phase:';
 const GATE_MESSAGE = 'Gate file changed. Revert it (git checkout -- <file>) or ask the human.';
 const SYMLINK_MODE = '120000';
 const EXECUTABLE_MODE = '100755';
 const SUBMODULE_MODE = '160000';
 const PUSH_BASE_REFS = ['@{upstream}', 'origin/main', 'origin/master'];
+/** A full commit id (sha1 or sha256). A saved session base must be one: `HEAD` or a branch name moves. */
+const COMMIT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+const SESSION_BASE_LABEL = 'the session base';
+
+/**
+ * Compares the `_phase:*` scripts of two package.json texts (risk-rules.mjs imports this name).
+ *
+ * @param {string | null} before - Old text (null when the file did not exist).
+ * @param {string | null} after - New text (null when the file does not exist now).
+ * @returns {string[]} One text for each script that was added, removed or changed.
+ */
+export function phaseDifferences(before, after) {
+  return comparePhaseScripts(before, after);
+}
 
 /**
  * Tells whether a repo path is a gate file.
@@ -109,159 +134,6 @@ function listTree(root, commit) {
     files.set(record.slice(tab + 1), { mode, sha });
   }
   return files;
-}
-
-/**
- * Reads files as they are stored in a commit or in the index, with one git call.
- *
- * @param {string} root - Repo root.
- * @param {string[]} specs - `<commit>:<path>` for a commit, `:<path>` for the index, or a blob id.
- * @returns {Map<string, string>} Spec to text. A spec that git does not know is not in the map.
- */
-function readBlobs(root, specs) {
-  const texts = new Map();
-  if (specs.length === 0) {
-    return texts;
-  }
-  const result = runBinary('git', [...GIT_FLAGS, 'cat-file', '--batch'], {
-    cwd: root,
-    input: `${specs.join('\n')}\n`,
-  });
-  if (result.status !== 0) {
-    throw new Error(
-      `git cat-file --batch failed (exit ${String(result.status)}): ${result.stderr.trim().slice(0, 300)}`,
-    );
-  }
-  let position = 0;
-  for (const spec of specs) {
-    const end = result.stdout.indexOf(10, position);
-    if (end === -1) {
-      throw new Error('git cat-file --batch gave a short answer');
-    }
-    const header = result.stdout.toString('utf8', position, end).split(' ');
-    position = end + 1;
-    if (header[1] === 'blob') {
-      const size = Number.parseInt(header[2] ?? '', 10);
-      texts.set(spec, result.stdout.toString('utf8', position, position + size));
-      position += size + 1;
-    }
-  }
-  return texts;
-}
-
-/**
- * Lists the package.json files that hold the text `_phase:` in a commit or in the index. A package.json
- * without that text has no phase script, so only these files need a closer look.
- *
- * @param {string} root - Repo root.
- * @param {string} source - A commit, or `--cached` for the index.
- * @returns {Set<string>} Paths from the repo root.
- */
-function phaseFiles(root, source) {
-  const result = git(root, [
-    ...GIT_FLAGS,
-    'grep',
-    '--no-color',
-    '-l',
-    '-z',
-    '-F',
-    ...(source === '--cached' ? ['--cached'] : []),
-    '-e',
-    PHASE_PREFIX,
-    ...(source === '--cached' ? [] : [source]),
-    '--',
-    ':(glob)**/package.json',
-  ]);
-  if (result.status > 1) {
-    throw new Error(
-      `git grep failed (exit ${String(result.status)}): ${result.stderr.trim().slice(0, 300)}`,
-    );
-  }
-  const prefix = source === '--cached' ? '' : `${source}:`;
-  return new Set(
-    result.stdout
-      .split('\0')
-      .filter((entry) => entry !== '')
-      .map((entry) =>
-        prefix !== '' && entry.startsWith(prefix) ? entry.slice(prefix.length) : entry,
-      ),
-  );
-}
-
-/**
- * Reads the `_phase:*` scripts of a package.json text.
- *
- * @param {string | null} text - The file text (null for a file that does not exist).
- * @returns {Map<string, string> | 'unreadable'} Script name to its JSON value. `unreadable` when the text is not JSON and it holds `_phase:`.
- */
-function phaseScripts(text) {
-  const scripts = new Map();
-  if (text === null) {
-    return scripts;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return text.includes(PHASE_PREFIX) ? 'unreadable' : scripts;
-  }
-  const declared = parsed !== null && typeof parsed === 'object' ? parsed['scripts'] : undefined;
-  if (declared !== null && typeof declared === 'object') {
-    for (const [name, value] of Object.entries(declared)) {
-      if (name.startsWith(PHASE_PREFIX)) {
-        scripts.set(name, JSON.stringify(value));
-      }
-    }
-  }
-  return scripts;
-}
-
-/**
- * Compares the `_phase:*` scripts of two package.json texts.
- *
- * @param {string | null} before - Old text (null when the file did not exist).
- * @param {string | null} after - New text (null when the file does not exist now).
- * @returns {string[]} One text for each script that was added, removed or changed.
- */
-export function phaseDifferences(before, after) {
-  if (before === after) {
-    return [];
-  }
-  const oldScripts = phaseScripts(before);
-  const newScripts = phaseScripts(after);
-  if (oldScripts === 'unreadable' || newScripts === 'unreadable') {
-    return ['package.json has _phase: scripts and cannot be read as JSON'];
-  }
-  const found = [];
-  for (const [name, value] of newScripts) {
-    if (!oldScripts.has(name)) {
-      found.push(`${name} added`);
-    } else if (oldScripts.get(name) !== value) {
-      found.push(`${name} changed`);
-    }
-  }
-  for (const name of oldScripts.keys()) {
-    if (!newScripts.has(name)) {
-      found.push(`${name} removed`);
-    }
-  }
-  return found;
-}
-
-/**
- * Makes the changes for a package.json whose `_phase:*` scripts differ.
- *
- * @param {string} file - Path from the repo root.
- * @param {string | null} before - Old text.
- * @param {string | null} after - New text.
- * @returns {GateChange[]} One change for each script that differs.
- */
-function phaseChanges(file, before, after) {
-  return phaseDifferences(before, after).map((detail) => ({
-    file,
-    change: 'phase-script',
-    detail,
-  }));
 }
 
 /**
@@ -530,7 +402,9 @@ export function uncommitted(root) {
 
 /**
  * Lists the gate files that a commit range changes. The range starts at the merge base of `base`
- * and `head`, so commits that `base` has and `head` does not have are not counted.
+ * and `head`, so commits that `base` has and `head` does not have are not counted. A `git reset`
+ * that moved HEAD back past such a commit hides its gate change here. Use `rewoundChanges` for
+ * that case.
  *
  * @param {string} root - Repo root.
  * @param {string} base - The commit that the range starts after.
@@ -555,6 +429,77 @@ export function range(root, base, head = 'HEAD') {
       before: from === EMPTY_TREE ? 'none' : from,
       after: head,
     }),
+  );
+}
+
+/**
+ * Lists the gate files whose content differs between the tree of `ref` and the tree of `head`. The
+ * trees are compared directly, with no merge base. The change name is seen from `ref` to `head`:
+ * `deleted` means that `ref` has the file and `head` has not.
+ *
+ * @param {string} root - Repo root.
+ * @param {string} ref - A commit or a ref to compare with (for example the session base).
+ * @param {{ label: string, head?: string }} options - `label`: words for the reader that name `ref`, for example `the session base`. `head`: the tree to check (default `HEAD`).
+ * @returns {GateChange[]} Changes, sorted by path, with the detail `differs from <label>`. It throws when git fails.
+ */
+export function treeDifferences(root, ref, options) {
+  const { label, head = 'HEAD' } = options;
+  const changes = diffChanges(root, {
+    args: [ref, head],
+    before: ref === EMPTY_TREE ? 'none' : ref,
+    after: head,
+  });
+  return uniqueChanges(
+    changes.map((entry) =>
+      entry.detail === undefined ? { ...entry, detail: `differs from ${label}` } : entry,
+    ),
+  );
+}
+
+/**
+ * Reads the session base that session-start saved in `.claude/state/session-base`. It does not fall
+ * back to another commit (`sessionBase` in git-state.mjs does).
+ *
+ * @param {string} root - Repo root.
+ * @returns {string | null} The commit id, or null when the file is missing, is not a full commit id, or names a commit that git does not have.
+ */
+export function savedSessionBase(root) {
+  const saved = readText(statePaths(root).sessionBase)?.trim() ?? '';
+  if (!COMMIT_ID.test(saved)) {
+    return null;
+  }
+  const found = git(root, [...GIT_FLAGS, 'cat-file', '-e', `${saved}^{commit}`]);
+  return found.status === 0 ? saved : null;
+}
+
+/**
+ * Lists the gate changes of the session base that HEAD lost, after `git reset` or `git checkout`
+ * moved HEAD back or sideways. Let S be the session base and M the merge base of HEAD and S. When
+ * HEAD descends from S, the result is empty. Else a gate file is reported when the commits M..S
+ * change it and its content at HEAD differs from its content at S. A rebase of the branch onto a
+ * newer main keeps the content of S, so it gives no change. A gate change that main has and the
+ * branch has not is not reported: a merge, a squash or a rebase of the branch does not revert it.
+ *
+ * @param {string} root - Repo root.
+ * @param {string} base - The session base (S).
+ * @returns {GateChange[]} Changes, sorted by path, with the detail `differs from the session base`. Empty when there is no commit. It throws when git fails.
+ */
+export function rewoundChanges(root, base) {
+  if (headSha(root) === '' || base === EMPTY_TREE) {
+    return [];
+  }
+  const ancestor = git(root, [...GIT_FLAGS, 'merge-base', '--is-ancestor', base, 'HEAD']);
+  if (ancestor.status === 0) {
+    return [];
+  }
+  if (ancestor.status !== 1) {
+    throw new Error(
+      `git merge-base --is-ancestor ${base} HEAD failed (exit ${String(ancestor.status)}): ${ancestor.stderr.trim().slice(0, 300)}`,
+    );
+  }
+  const lost = new Set(range(root, 'HEAD', base).map((entry) => entry.file));
+  return treeDifferences(root, base, { label: SESSION_BASE_LABEL }).filter((entry) =>
+    lost.has(entry.file),
   );
 }
 
@@ -601,13 +546,24 @@ export function pushRange(root) {
 }
 
 /**
- * Lists the gate files that commits made since the session base change.
+ * Lists the gate files that commits made since the session base change, and the gate changes of
+ * the session base that HEAD lost (`rewoundChanges`). A file that the range reports is not added
+ * again.
  *
  * @param {string} root - Repo root.
  * @returns {GateChange[]} Changes. Empty when there is no commit.
  */
 export function committedSinceSession(root) {
-  return headSha(root) === '' ? [] : range(root, sessionBase(root), 'HEAD');
+  if (headSha(root) === '') {
+    return [];
+  }
+  const base = sessionBase(root);
+  const committed = range(root, base, 'HEAD');
+  const seen = new Set(committed.map((entry) => entry.file));
+  return uniqueChanges([
+    ...committed,
+    ...rewoundChanges(root, base).filter((entry) => !seen.has(entry.file)),
+  ]);
 }
 
 /**

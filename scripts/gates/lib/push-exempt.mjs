@@ -20,9 +20,20 @@
 // (the CI risk label): those keep treating the exempt files as gate files. Any git failure throws
 // or gives "blocking", never "exempt".
 //
+// The range starts at the merge base, so it cannot see a `git reset` that moved HEAD back past a
+// human gate commit. `pushBlockers` also reads the saved session base (`savedSessionBase`) and
+// reports the gate changes of the session base that HEAD lost (`rewoundChanges`): HEAD does not
+// descend from the session base, and HEAD has other content than the session base in a gate file
+// that the commits from the merge base to the session base change. A rebase keeps that content, so
+// it is not reported. A branch that is behind origin/main is not reported: a merge, a squash or a
+// rebase of the branch does not revert the gate changes of main. When the session base file is
+// missing or does not name a commit, `pushBlockers` sets `missingBase`. Only the agent push guard
+// (verify-gate.mjs, through the require-verify PreToolUse hook) calls `pushBlockers`. The git
+// pre-push hook does not, so a human push from a terminal is not affected.
+//
 // The push base is the merge base of HEAD and origin/main (else origin/master, else the root
 // commit). It does not use the upstream of the branch: `git branch -u` would move it.
-import { describeChange, range } from './gate-integrity.mjs';
+import { describeChange, range, rewoundChanges, savedSessionBase } from './gate-integrity.mjs';
 import { pushExemption } from './gate-list.mjs';
 import { headSha } from './git-state.mjs';
 import { lockProblems, repositoryStateIsPlain } from './lock-lint.mjs';
@@ -219,19 +230,34 @@ export function splitPushChanges(root, ends, changes) {
 
 /**
  * Lists the gate changes that a push or a pull request would publish, split into the ones that
- * need a human and the ones that an agent may push.
+ * need a human and the ones that an agent may push. It also reports the gate changes of the session
+ * base that HEAD lost (`rewound`, always blocking), and whether the saved session base is missing.
  *
  * @param {string} root - Repo root.
- * @returns {{ base: string, blocking: GateChange[], exempt: GateChange[] }} The base name and the two lists. It throws when git fails.
+ * @returns {{ base: string, blocking: GateChange[], exempt: GateChange[], rewound: GateChange[], sessionBase: string | null, missingBase: boolean }} The base name, the two lists of the range, the lost gate changes, the saved session base, and true when the session base file is missing or does not name a commit (the caller fails closed). It throws when git fails.
  */
 export function pushBlockers(root) {
   const head = headSha(root);
   const base = exemptionBase(root, head);
   if (base === null) {
-    return { base: 'no commit', blocking: [], exempt: [] };
+    return {
+      base: 'no commit',
+      blocking: [],
+      exempt: [],
+      rewound: [],
+      sessionBase: null,
+      missingBase: false,
+    };
   }
   const changes = range(root, base.sha, head);
-  return { base: base.ref, ...splitPushChanges(root, { from: base.sha, head }, changes) };
+  const session = savedSessionBase(root);
+  return {
+    base: base.ref,
+    ...splitPushChanges(root, { from: base.sha, head }, changes),
+    rewound: session === null ? [] : rewoundChanges(root, session),
+    sessionBase: session,
+    missingBase: session === null,
+  };
 }
 
 /**
