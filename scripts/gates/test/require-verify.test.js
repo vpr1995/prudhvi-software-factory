@@ -8,6 +8,11 @@ describe('require-verify', () => {
 
   before(() => {
     repository = makeRepository();
+    // A real session has a session base: session-start writes it. Without it a push is refused.
+    repository.write(
+      '.claude/state/session-base',
+      `${repository.git('rev-parse', 'HEAD').trim()}\n`,
+    );
   });
 
   after(() => repository.remove());

@@ -166,6 +166,9 @@ describe('gate integrity in the hooks', () => {
   });
 
   describe('require-verify', () => {
+    // A real session has a session base: session-start writes it. Without it a push is refused.
+    beforeEach(() => setSessionBase(head()));
+
     const pushCommands = [
       'git push origin HEAD',
       'gh pr create --fill',

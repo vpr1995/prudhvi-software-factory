@@ -271,20 +271,23 @@ function targetRefusal(calls, root) {
 
 /**
  * Checks whether a push or a pull request would publish a gate file change that needs a human. It
- * reads git, not the command, and it does not read `.claude/state`.
+ * reads git, not the command. From the agent state folder it reads only the session base
+ * (pushBlockers).
  *
  * Committed changes of the generated Node dependency files (pnpm-lock.yaml and repo-state.json under
  * common/config/rush, and a rush.json change that only adds projects) do not count when their
  * content passes the check of push-exempt.mjs. Every other committed gate change counts. Every
- * uncommitted gate change counts, the exempt files too.
+ * uncommitted gate change counts, the exempt files too. A gate change of the session base that HEAD
+ * lost (a `git reset` or a `git checkout` past it) counts.
  *
  * @param {string} root - Repo root.
+ * @param {ReturnType<typeof pushBlockers>} published - The result of pushBlockers.
  * @returns {string | null} The refusal text, or null when no gate file needs a human.
  */
-function gateChangeRefusal(root) {
-  const published = pushBlockers(root);
+function gateChangeRefusal(root, published) {
   const local = uncommitted(root);
-  if (published.blocking.length === 0 && local.length === 0) {
+  const { rewound } = published;
+  if (published.blocking.length === 0 && local.length === 0 && rewound.length === 0) {
     return null;
   }
   const lines = [
@@ -297,7 +300,38 @@ function gateChangeRefusal(root) {
     published.exempt.length === 0
       ? ''
       : `\nNot counted (generated Node dependency files that an agent may push): ${describeExempt(published.exempt)}.`;
-  return `Gate changes are pushed by a human.\n${lines.join('\n')}${allowed}\nRevert them (git checkout -- <file>, or git revert for a commit) or ask the human to push.`;
+  const listed =
+    lines.length === 0
+      ? ''
+      : `\n${lines.join('\n')}${allowed}\nRevert them (git checkout -- <file>, or git revert for a commit) or ask the human to push.`;
+  return `Gate changes are pushed by a human.${listed}${rewoundText(published)}`;
+}
+
+/**
+ * Writes the part of the refusal for the gate changes of the session base that HEAD lost.
+ *
+ * @param {ReturnType<typeof pushBlockers>} published - The result of pushBlockers.
+ * @returns {string} The text, or an empty string when HEAD lost no gate change.
+ */
+function rewoundText(published) {
+  const { rewound } = published;
+  if (rewound.length === 0) {
+    return '';
+  }
+  const base = (published.sessionBase ?? '').slice(0, 12);
+  const files = [...new Set(rewound.map((entry) => entry.file))].join(', ');
+  const lines = rewound.map((entry) => `- ${describeChange(entry)}`).join('\n');
+  return `\nHEAD was rewound past the session base: ${files}. HEAD does not have the gate change that the session base (${base}) has in these files:\n${lines}\nMove HEAD back onto the session base (git merge ${base}), or ask the human to push.`;
+}
+
+/**
+ * Writes the refusal for a push or a pull request when the saved session base is missing. Without
+ * it the push guard cannot see a `git reset` past a gate commit, so it fails closed.
+ *
+ * @returns {string} The refusal text.
+ */
+function missingBaseText() {
+  return 'The session base is missing: .claude/state/session-base is not there, or it does not name a commit. Without it the push guard cannot see a `git reset` past a gate commit, so it fails closed. The SessionStart hook writes the file. Do not write it by hand. Ask the human to push, or to start a new session.';
 }
 
 /**
@@ -318,13 +352,17 @@ export function verifyRefusal(command, root) {
     return target;
   }
   const guarded = first.label;
-  const gateRefusal = gateChangeRefusal(root);
+  const published = pushBlockers(root);
+  const gateRefusal = gateChangeRefusal(root, published);
   if (gateRefusal !== null) {
     return `BLOCKED by require-verify: \`${guarded}\` is refused. ${gateRefusal}`;
   }
   const current = verifyIsCurrent(root);
   if (current.ok) {
-    return null;
+    // Checked last, so a gate change and a missing verify keep their own message.
+    return published.missingBase
+      ? `BLOCKED by require-verify: \`${guarded}\` is refused. ${missingBaseText()}`
+      : null;
   }
   return `BLOCKED by require-verify: \`${guarded}\` needs a passing verify for the current tree, but ${current.reason}.\nRun the \`verify\` skill: run \`node common/scripts/install-run-rush.js verify\` (all five phases), then \`bash .claude/hooks/stop-gate.sh --write-state-only\`. When the result is pass, run the command again. Do not edit .claude/state/last-verify.json by hand.`;
 }

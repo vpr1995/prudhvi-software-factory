@@ -93,6 +93,9 @@ describe('push exemption in the hooks', () => {
   const message = (result) => JSON.parse(result.stdout)['systemMessage'];
 
   describe('require-verify allows', () => {
+    // A real session has a session base: session-start writes it. Without it a push is refused.
+    beforeEach(() => setSessionBase(head()));
+
     it('a range that changes only pnpm-lock.yaml and repo-state.json', () => {
       repository.write(LOCK, NEW_LOCK);
       repository.write(STATE, NEW_STATE);
@@ -276,6 +279,8 @@ describe('push exemption in the hooks', () => {
   });
 
   describe('require-verify publishes the current branch only (F6)', () => {
+    beforeEach(() => setSessionBase(head()));
+
     const currentOnly = /Push the current branch only\./;
 
     /** Makes a branch `other` that holds a gate change, and goes back to main. */
@@ -408,6 +413,8 @@ describe('push exemption in the hooks', () => {
   });
 
   describe('require-verify: a source that git cannot find, tags, and a push with no refspec (N1)', () => {
+    beforeEach(() => setSessionBase(head()));
+
     const currentOnly = /Push the current branch only\./;
     const blocked = (commands) => {
       for (const command of commands) {
