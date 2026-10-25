@@ -17,6 +17,7 @@ ADR 0002 made each part of a product a Rush project: `contracts`, `api`, `web`, 
 - There is ONE sample: `projects/sample` with every part.
 - CDK (Wave 3) bundles Lambda code at synth: `NodejsFunction` for TypeScript, `Code.fromAsset` with local bundling for Go (`go build`, `linux/arm64`) and Python (`uv`) with a Docker fallback, and local bundling for the OpenNext web build. Unit tests turn bundling off. Region is `us-east-1` only, with one wildcard certificate. A cdk-nag rule that cannot be met goes in one acknowledgments file for each stack (cdk-nag 3 `Validations.of().acknowledge`), with a reason for each entry, and the owner approves it.
 - High-risk paths: `projects/*/bin/**` and `projects/*/lib/**`.
+  - Update 2026-10-25: the owner moved `projects/*/bin/**` and `projects/*/lib/**` to medium risk. `platform/**`, `packages/**`, and `projects/*/cdk.json` stay high risk.
 
 ## Consequences
 

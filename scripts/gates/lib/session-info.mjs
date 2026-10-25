@@ -8,7 +8,6 @@ import { which } from './proc.mjs';
 const RISK_HIGH_PATHS = [
   /^platform\//,
   /^packages\//,
-  /^projects\/[^/]+\/(?:bin|lib)\//,
   /^projects\/[^/]+\/cdk\.json$/,
   /^\.github\//,
 ];

@@ -34,7 +34,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - API route: add a Bruno request. The `bruno-coverage` gate fails without it.
 - Web page: add a Playwright spec with `page.goto` and an axe check. The `playwright-coverage` gate fails without it.
 - Each part: add a trace propagation test. See [observability.md](../docs/standards/observability.md).
-- `projects/*/bin/**` and `projects/*/lib/**` are high risk. A human approves each change.
+- `projects/*/bin/**` and `projects/*/lib/**` are medium risk. The infra reviewer, cdk-nag and the synth gate check them, and the PR review covers them. `projects/*/cdk.json` is a gate file and stays high risk.
 
 ## Guides by part
 

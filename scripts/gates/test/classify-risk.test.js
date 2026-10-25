@@ -60,10 +60,6 @@ describe('risk rules', () => {
       ['packages/result/src/index.ts', 'packages'],
       ['packages/cdk-constructs/src/traced-function.ts', 'packages'],
       ['packages/flags/README.md', 'packages'],
-      ['projects/p/bin/app.ts', 'project-cdk'],
-      ['projects/p/lib/stack.ts', 'project-cdk'],
-      ['projects/p/lib/stack.test.ts', 'project-cdk'],
-      ['projects/p/infra/stack.ts', 'project-cdk'],
       ['projects/p/cdk.json', 'gate-file'],
       ['.github/workflows/ci.yml', 'gate-file'],
       ['common/config/rush/pnpm-lock.yaml', 'gate-file'],
@@ -81,6 +77,13 @@ describe('risk rules', () => {
         assert.equal(found.rule, rule);
       });
     }
+
+    it('keeps platform/infra and packages/cdk-constructs high', () => {
+      assert.equal(tierOf('platform/infra/x.ts').tier, 'high');
+      assert.equal(tierOf('platform/infra/x.ts').rule, 'gate-file');
+      assert.equal(tierOf('packages/cdk-constructs/src/x.ts').tier, 'high');
+      assert.equal(tierOf('packages/cdk-constructs/src/x.ts').rule, 'packages');
+    });
   });
 
   describe('package.json', () => {
@@ -192,6 +195,35 @@ describe('risk rules', () => {
         assert.equal(found.rule, 'default');
       });
     }
+
+    for (const file of [
+      'projects/p/bin/app.ts',
+      'projects/p/lib/stack.ts',
+      'projects/p/lib/stack.test.ts',
+      'projects/p/infra/stack.ts',
+    ]) {
+      it(`${file} (project CDK app)`, () => {
+        const found = tierOf(file);
+        assert.equal(found.tier, 'medium');
+        assert.equal(found.rule, 'project-cdk');
+        assert.match(found.reason, /^the CDK app of a project/);
+      });
+    }
+
+    it('keeps projects/*/cdk.json a high gate file next to a medium CDK app', () => {
+      assert.equal(tierOf('projects/p/cdk.json').tier, 'high');
+      assert.equal(tierOf('projects/p/cdk.json').rule, 'gate-file');
+      assert.equal(classifyPaths(['projects/p/lib/stack.ts']).tier, 'medium');
+      assert.equal(classifyPaths(['projects/p/lib/stack.ts', 'projects/p/cdk.json']).tier, 'high');
+    });
+
+    it('is high when a project CDK path comes with platform/infra or packages/cdk-constructs', () => {
+      assert.equal(classifyPaths(['projects/p/lib/stack.ts', 'platform/infra/x.ts']).tier, 'high');
+      assert.equal(
+        classifyPaths(['projects/p/bin/app.ts', 'packages/cdk-constructs/src/x.ts']).tier,
+        'high',
+      );
+    });
 
     for (const file of [
       'CLAUDE.md',
@@ -349,6 +381,18 @@ describe('classify-risk CLI', () => {
     assert.match(
       result.stdout,
       /^risk:medium \(1 files: 0 high, 1 medium, 0 low\)\n {2}medium projects\/p\/src\/api\/handler\.ts: /,
+    );
+  });
+
+  it('gives medium for a change to the CDK app of a project', () => {
+    repository.write('projects/p/lib/stack.ts', 'export const a = 1;\n');
+    commit();
+    const { result, report } = classifyJson();
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(report.tier, 'medium');
+    assert.deepEqual(
+      report.files.map((entry) => [entry.file, entry.rule]),
+      [['projects/p/lib/stack.ts', 'project-cdk']],
     );
   });
 
