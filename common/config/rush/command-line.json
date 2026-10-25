@@ -127,7 +127,7 @@
     },
     {
       "name": "_phase:typecheck",
-      "dependencies": { "upstream": ["_phase:build"] },
+      "dependencies": { "self": ["_phase:build"], "upstream": ["_phase:build"] },
       "ignoreMissingScript": true
     },
     {
