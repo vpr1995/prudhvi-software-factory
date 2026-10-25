@@ -31,7 +31,7 @@ describe('require-verify', () => {
   it('blocks gh pr create and git push when there is no state file', () => {
     for (const command of [
       'gh pr create --fill',
-      'git push origin feature',
+      'git push origin HEAD',
       'cd x && git push',
       'echo hi; gh pr create --body-file b.md',
     ]) {
@@ -59,7 +59,7 @@ describe('require-verify', () => {
     assert.equal(writeState().status, 0);
     repository.git('add', '-A');
     repository.git('commit', '-q', '-m', 'feat: b');
-    assert.equal(check('git push origin feature').status, 0);
+    assert.equal(check('git push origin HEAD').status, 0);
   });
 
   it('blocks when the state says fail', () => {

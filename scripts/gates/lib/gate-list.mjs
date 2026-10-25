@@ -6,6 +6,20 @@ import { realPath } from './fs-io.mjs';
 import { firstMatch, normalizeForMatch } from './glob.mjs';
 
 /**
+ * @typedef {object} PushExemption
+ * @property {string} path - One literal repo path, such as `common/config/rush/pnpm-lock.yaml`.
+ * @property {'agent-if-lock-clean' | 'agent-with-clean-lock' | 'agent-if-projects-added'} push - How push-exempt.mjs checks the content. `agent-if-lock-clean`: the new lock passes the lock lint (pnpm-lock.yaml). `agent-with-clean-lock`: only together with such a lock change (repo-state.json). `agent-if-projects-added`: the change adds register-project.mjs entries to the `projects` array and nothing else (rush.json).
+ * @property {string} why - Short reason.
+ */
+
+const PUSH_MODES = new Set([
+  'agent-if-lock-clean',
+  'agent-with-clean-lock',
+  'agent-if-projects-added',
+]);
+const WILDCARD = /[*?[\]{}]/;
+
+/**
  * Turns a file path into paths from the repo root. A path gives two answers when a symbolic
  * link is involved: the path as written and the real path. Check both.
  *
@@ -72,6 +86,34 @@ export function writeProtectedFolders() {
  */
 export function antiSkipSettings() {
   return gateFiles.antiSkip;
+}
+
+/**
+ * The gate files that an agent may push (the `pushExempt` list of gate-files.json). Such a file is
+ * still a gate file for every other check: the edit hook, the deny rules, the Stop integrity
+ * check, the CI risk label and CODEOWNERS do not read this list. Only the push guard does.
+ *
+ * @returns {PushExemption[]} The entries of the `pushExempt` list.
+ */
+export function pushExemptEntries() {
+  return /** @type {PushExemption[]} */ (gateFiles.pushExempt);
+}
+
+/**
+ * Finds the push exemption of a path. The match is an exact, case-sensitive compare with a literal
+ * path (never a glob). It does not look at the glob list, so a broader gate entry that matches the
+ * same file (such as `common/config/rush/**`) cannot change the answer. An entry with an unknown
+ * `push` value, a wildcard in its path, or a path that is not a gate file never matches.
+ *
+ * @param {string} relativePath - Path from the repo root, exactly as git writes it.
+ * @returns {PushExemption | null} The entry, or null when an agent may not push a change of this file.
+ */
+export function pushExemption(relativePath) {
+  const entry = pushExemptEntries().find((candidate) => candidate.path === relativePath);
+  if (entry === undefined || !PUSH_MODES.has(entry.push) || WILDCARD.test(entry.path)) {
+    return null;
+  }
+  return findGate(relativePath) === null ? null : entry;
 }
 
 /**

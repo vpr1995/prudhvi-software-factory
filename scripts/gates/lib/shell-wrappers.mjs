@@ -2,7 +2,7 @@
 // (`bash -c`, `eval`, `find -exec`) in front of or inside a simple command. See shell-parse.mjs.
 
 export const MAX_DEPTH = 6;
-const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*\+?=/;
 export const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash', 'ksh']);
 const WRAPPERS_WITH_FLAGS = new Set([
   'sudo',

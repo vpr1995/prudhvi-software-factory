@@ -34,6 +34,28 @@ const GIT_GLOBAL_VALUE_FLAGS = new Set([
 ]);
 const PUSH_VALUE_FLAGS = new Set(['--repo', '-o', '--push-option', '--receive-pack', '--exec']);
 const BLOCKED_CONFIG_PREFIXES = ['core.hookspath', 'alias.', 'include.', 'includeif.'];
+// Settings that change what `git push` publishes when the command names no refspec: every push.*
+// key (push.default=matching, push.followTags, push.pushOption) and the push-related keys of a
+// remote (remote.<name>.push, .pushurl, .url, .mirror). A name that has no `=` is a key too.
+const PUSH_CONFIG_KEY = /^(?:push\.|remote\.[^=]+\.(?:push|pushurl|url|mirror)(?:=|$))/;
+// `git config` flags that only read, and flags that write without a key operand.
+const CONFIG_READ_FLAGS = new Set([
+  '--get',
+  '--get-all',
+  '--get-regexp',
+  '--get-urlmatch',
+  '-l',
+  '--list',
+]);
+const CONFIG_WRITE_FLAGS = new Set([
+  '--add',
+  '--unset',
+  '--unset-all',
+  '--replace-all',
+  '--rename-section',
+  '--remove-section',
+]);
+const CONFIG_EDIT_FLAGS = new Set(['-e', '--edit']);
 const DECLARATIONS = new Set(['export', 'declare', 'local', 'readonly', 'typeset']);
 const GIT_CONFIG_VARIABLE = /^GIT_CONFIG[A-Z0-9_]*\+?=/i;
 export const KNOWN_SUBCOMMANDS = new Set([
@@ -168,6 +190,56 @@ function isForcePush(args) {
 }
 
 /**
+ * Checks for a change of the push settings: a `-c` entry, or a `git config` call that sets, adds or
+ * unsets a push key. Reading a key stays allowed (`git config --get push.default`, or one key operand
+ * with no write flag). `git config --edit` is blocked, because the editor can change any key.
+ *
+ * @param {ParsedGit} parsed - Parsed git command.
+ * @returns {string | null} Reason, or null.
+ */
+function checkPushConfig(parsed) {
+  const reason =
+    'Do not change push.* or remote.<name>.push, .pushurl, .url or .mirror. They change what a push with no refspec publishes. Push with git push origin HEAD.';
+  if (parsed.configs.some((entry) => PUSH_CONFIG_KEY.test(entry))) {
+    return reason;
+  }
+  if (parsed.sub !== 'config') {
+    return null;
+  }
+  const words = parsed.args.map((word) => word.toLowerCase());
+  if (words.some((word) => CONFIG_EDIT_FLAGS.has(word))) {
+    return 'git config --edit can change any key, push settings included, so it is blocked. Use git config <key> <value> for a key that is not a push or hook setting.';
+  }
+  const operands = words.filter((word) => !word.startsWith('-'));
+  const writes =
+    !words.some((word) => CONFIG_READ_FLAGS.has(word)) &&
+    (operands.length >= 2 || words.some((word) => CONFIG_WRITE_FLAGS.has(word)));
+  return writes && operands.some((word) => PUSH_CONFIG_KEY.test(word)) ? reason : null;
+}
+
+/**
+ * Checks `git remote` calls that change what a push with no refspec publishes: `remote add
+ * --mirror`, and `remote set-url` and `remote set-branches` (they change the target of a push).
+ *
+ * @param {ParsedGit} parsed - Parsed git command.
+ * @returns {string | null} Reason, or null.
+ */
+function checkRemoteChange(parsed) {
+  if (parsed.sub !== 'remote') {
+    return null;
+  }
+  const action = parsed.args.find((word) => !word.startsWith('-')) ?? '';
+  const flags = parsed.args.filter((word) => word.startsWith('-'));
+  if (action === 'add' && flags.some((word) => isOption(word, '--mirror', 4))) {
+    return 'git remote add --mirror makes every push to that remote a mirror push. Do not do that.';
+  }
+  if (action === 'set-url' || action === 'set-branches') {
+    return `git remote ${action} changes where a push goes or what a remote tracks. It is blocked for the agent. Ask the human.`;
+  }
+  return null;
+}
+
+/**
  * Checks the hook-bypass rules for git.
  *
  * @param {ParsedGit} parsed - Parsed git command.
@@ -194,6 +266,14 @@ function checkBypass(parsed) {
       ))
   ) {
     return 'Do not set a git alias or an include through -c or git config. An alias can hide push and commit from the guard.';
+  }
+  const pushConfig = checkPushConfig(parsed);
+  if (pushConfig !== null) {
+    return pushConfig;
+  }
+  const remoteChange = checkRemoteChange(parsed);
+  if (remoteChange !== null) {
+    return remoteChange;
   }
   const separator = parsed.args.indexOf('--');
   const flags = separator === -1 ? parsed.args : parsed.args.slice(0, separator);

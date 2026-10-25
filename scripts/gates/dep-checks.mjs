@@ -3,19 +3,22 @@ import { formatPlan, planForRepository } from './lib/dep-checks.mjs';
 import { readEnv } from './lib/gates.config.mjs';
 import { repositoryRoot } from './lib/git-state.mjs';
 
-const HELP = `dep-checks: plan the license checks and the audits of the local gate run.
+const HELP = `dep-checks: plan the license checks, the typosquat check and the audits of the local gate run.
 
 Usage:
   node scripts/gates/dep-checks.mjs --base <commit> [--root <dir>]
   node scripts/gates/dep-checks.mjs --audit-only [--root <dir>]
 
   --base <commit>  license checks run when a lock or the license policy changed since the commit
-                   (committed, staged, unstaged and untracked changes). An audit runs when its lock
-                   changed: rush audit for common/config/rush/pnpm-lock.yaml, pip-audit for
-                   projects/<name>/src/api-py/uv.lock, govulncheck for projects/<name>/src/api-go/go.sum.
-                   The audits of unchanged locks skip.
+                   (committed, staged, unstaged and untracked changes). The typosquat check
+                   (scripts/gates/typosquat-check.mjs) runs when a package.json under projects/,
+                   packages/, platform/, tooling/ or a rush.json project folder gained a dependency
+                   name, or gained or changed a dependency version, since the commit; it
+                   prints no line when none did. An audit runs when its lock changed: rush audit for
+                   common/config/rush/pnpm-lock.yaml, pip-audit for projects/<name>/src/api-py/uv.lock,
+                   govulncheck for projects/<name>/src/api-go/go.sum. The audits of unchanged locks skip.
   --audit-only     the audits only (rush audit, pip-audit, govulncheck), every one of them.
-Env: GATES_FULL=1 runs every license check and every audit.
+Env: GATES_FULL=1 runs every license check, the typosquat check and every audit.
 
 Output: one line for each check, fields split by tabs:
   run<TAB>label<TAB>reason<TAB>command words...

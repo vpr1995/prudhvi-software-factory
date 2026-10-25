@@ -22,14 +22,14 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    - `use-platform-resource` when the change reads a platform value.
    - Direct edits for small changes.
      A gate file, `uv.lock`, `go.mod`, or `go.sum` is never a direct edit. Write its new content to `.claude/state/handoff/<change>/` instead. Write a `uv add`, `go get`, or `go mod tidy` command to a `NN-commands.txt` file there. See `docs/standards/gates.md`, section 2.4.
-     A new dependency needs approval. Show each new package with its version, its license, and the reason. Wait for approval (`docs/standards/gates.md`, section 6.6). After approval, run `rush add -p <pkg>` yourself from the project folder. Then stage `package.json` and each file that the command changed under `common/config/rush/`.
+     Add a Node dependency with `rush add -p <pkg>` from the project folder. The pre-push policy checks it: license, audit, 7-day release age, typosquat, and spec (`docs/standards/gates.md`, section 6.6). If the policy fails, stop and ask the human. Then stage `package.json` and each file that the command changed under `common/config/rush/`.
      Keep one change per PR. The soft limit is 2000 changed lines. Above 10000 changed lines, check-gates fails without a `large-pr` label from a human.
 7. Run the `verify` skill. Fix each failure. Run it again until it passes.
 8. If web, api, or infra changed, run the `e2e-verify` skill.
 9. Commit before review. Stage explicit paths only: `git add <path> ...`. Never run `git add -A`.
    Run `git commit -m "<type>(<scope>): <summary>"`. Keep the Co-Authored-By trailer that Claude Code adds.
 10. Run the `pre-pr` skill. It needs a clean tree, so it runs after step 9. Fix all open Important findings.
-11. Run the `pr-description` skill. It pushes and opens the PR. If the push is blocked because the range has gate changes, a human pushes the branch. Report that and stop.
+11. Run the `pr-description` skill. It pushes and opens the PR. A human pushes only when a gate file other than the lock, `repo-state.json`, or a new `rush.json` project entry changed. If the push is blocked for that reason, report it and stop.
 12. Report. Give the branch name, the commit SHA, the PR URL, the verify result, and the number of pre-pr rounds used.
 
 ## Done when
@@ -47,6 +47,6 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
 - Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`. One exception: `pnpm-lock.yaml` changes through `rush add -p` and `rush update`.
-- Run `npm install` or `pnpm install`. Use `rush install`. Use `rush add -p` only after the human approves the dependency.
+- Run `npm install` or `pnpm install`. Use `rush install`. Use `rush add -p` only through the dependency policy (`docs/standards/gates.md`, section 6.6).
 - Run `cdk deploy`.
 - Use `--no-verify`.

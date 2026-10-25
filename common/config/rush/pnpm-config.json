@@ -31,7 +31,7 @@
    * Rush 5.181 has no typed field for the PNPM 10 build-script allowlist. This property bag is copied
    * into common/temp/package.json. Only packages in "onlyBuiltDependencies" may run install scripts.
    * Add a package here only after a human reviews its install script.
-   * "minimum-release-age" (3 days) lives in .npmrc because Rush has no typed field for it.
+   * "minimum-release-age" (7 days) lives in .npmrc because Rush has no typed field for it.
    */
   "unsupportedPackageJsonSettings": {
     "pnpm": {

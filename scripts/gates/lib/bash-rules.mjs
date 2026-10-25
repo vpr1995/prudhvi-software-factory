@@ -1,5 +1,6 @@
 import { buildScope } from './bash-paths.mjs';
 import { checkFiles } from './bash-rules-files.mjs';
+import { checkGatesBase } from './bash-rules-gates-base.mjs';
 import { checkGit, checkGitEnvironment } from './bash-rules-git.mjs';
 import { checkTools } from './bash-rules-tools.mjs';
 import { parseShell } from './shell-parse.mjs';
@@ -20,7 +21,7 @@ import { parseShell } from './shell-parse.mjs';
  */
 export function checkCommand(command, context) {
   const segments = parseShell(command);
-  const environment = checkGitEnvironment(segments);
+  const environment = checkGitEnvironment(segments) ?? checkGatesBase(segments);
   if (environment !== null) {
     return environment;
   }
