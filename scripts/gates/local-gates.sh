@@ -10,14 +10,18 @@
 # (scripts/gates/prettier-check.mjs). After rush verify: cdk synth for the CDK apps whose infra
 # changed (scripts/gates/synth-changed.mjs).
 # Dependency checks (scripts/gates/dep-checks.mjs): license checks run when a lock or the license
-# policy changed since the base. An audit runs when its lock changed since the base: rush audit for
-# common/config/rush/pnpm-lock.yaml, pip-audit for a uv.lock, govulncheck for a go.sum. The audits of
-# unchanged locks belong to the nightly run.
+# policy changed since the base. The typosquat check (scripts/gates/typosquat-check.mjs) runs when a
+# package.json gained a dependency name, or gained or changed a dependency version, since the base: a
+# new name that looks like a known package name, or a version that is a URL, git, tarball or npm:
+# alias source, fails the run (stop and ask the human). An audit runs when its lock changed since the base:
+# rush audit for common/config/rush/pnpm-lock.yaml, pip-audit for a uv.lock, govulncheck for a
+# go.sum. The audits of unchanged locks belong to the nightly run.
 # A failed step keeps its logs (scripts/gates/keep-failure-logs.mjs): the rush-logs and test-results
 # folders go to .claude/state/failure-logs/<UTC time>-<step>/, so a rerun does not erase them.
 # Env: GATE_LABELS  PR labels for check-gates, separated by commas (no PR exists locally).
-#      GATES_FULL=1 every check: all license checks, the audits, all gate tests, Prettier on every
-#                   tracked file, the full rush verify, cdk synth of every app.
+#      GATES_FULL=1 every check: all license checks, the typosquat check, the audits, all gate
+#                   tests, Prettier on every tracked file, the full rush verify, cdk synth of every
+#                   app.
 # Skips print "gates: SKIP <step> (<reason>)". `rush change --verify` skips only without a remote.
 set -euo pipefail
 
@@ -56,7 +60,8 @@ step() {
   fi
 }
 
-# dep_checks <dep-checks.mjs arguments...>: runs the plan of the license checks and the audits.
+# dep_checks <dep-checks.mjs arguments...>: runs the plan of the license checks, the typosquat check
+# and the audits.
 dep_checks() {
   local plan action label reason
   local -a fields
@@ -99,8 +104,8 @@ else
   echo "gates: SKIP rush change --verify (no origin remote; rush change needs a remote)"
 fi
 
-# b. Licenses when a lock or the policy changed. The audit of each lock that changed. Every audit
-# with GATES_FULL=1.
+# b. Licenses when a lock or the policy changed. The typosquat check when a package.json gained a
+# dependency name. The audit of each lock that changed. Every check with GATES_FULL=1.
 dep_checks --base "$base"
 
 # c. SAST. The script picks its own file list (L2 changes it).

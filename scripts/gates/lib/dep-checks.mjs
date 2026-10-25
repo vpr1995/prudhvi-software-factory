@@ -8,6 +8,14 @@
 //                               uv.lock, go.mod, go.sum or the project license scripts is checked there.
 //                               Rush cannot see tooling/license-allowlist.json (it is in no project), so
 //                               a change to it runs the project license scripts here.
+// The typosquat check (scripts/gates/typosquat-check.mjs) runs after the license checks when a
+// package.json under projects/, packages/, platform/, tooling/ or a project folder of rush.json
+// gained a dependency name, or gained or changed a dependency version to one that is not a registry
+// version, since the base (owner decision, 2026-10-25: a new npm dependency needs no human approval,
+// the policy checks it; see lib/typosquat.mjs). A rush.json project folder
+// outside the four roots makes the plan fail (exit 2). With GATES_FULL=1 it always runs. With nothing new it prints no line. The other parts of the
+// policy: the license check, the audit, minimum-release-age in common/config/rush/.npmrc, and no
+// install scripts (onlyBuiltDependencies).
 // Audits run when their lock changed since the base, so a new dependency with a known advisory fails
 // the push (owner decision, 2026-10-23: agents run `rush add -p` themselves):
 //   rush audit                  common/config/rush/pnpm-lock.yaml
@@ -20,6 +28,7 @@ import path from 'node:path';
 import { gitOrThrow } from './proc.mjs';
 import { projectsWithParts } from './projects.mjs';
 import { resolveCommit } from './revisions.mjs';
+import { addedNames, changedDependencies, specProblem } from './typosquat.mjs';
 
 const RUSH = ['node', 'common/scripts/install-run-rush.js'];
 
@@ -33,6 +42,7 @@ export const NODE_LICENSE_INPUTS = Object.freeze([
 export const AUDIT_ENTRY_POINT = 'bash scripts/gates/local-gates.sh --audit-only';
 /** The end of the reason of a skipped audit: where the audit of an unchanged lock runs. */
 export const AUDIT_LATER = `nightly in CI, not set up yet; run ${AUDIT_ENTRY_POINT} or GATES_FULL=1`;
+export const TYPOSQUAT_LABEL = 'typosquat check';
 
 /**
  * @typedef {object} PlanInput
@@ -42,6 +52,9 @@ export const AUDIT_LATER = `nightly in CI, not set up yet; run ${AUDIT_ENTRY_POI
  * @property {boolean} full - GATES_FULL=1: run every check.
  * @property {boolean} auditOnly - Run the audits and nothing else (the entry point for CI and humans).
  * @property {string} base - The base commit (for the log lines). Not used with `auditOnly`.
+ * @property {boolean} [dependenciesAdded] - A package.json gained a registry dependency name since
+ *   the base, or gained or changed a dependency version that is not a registry version.
+ *   Missing means false.
  */
 
 /**
@@ -119,6 +132,27 @@ function licenseEntries(input) {
 }
 
 /**
+ * Plans the typosquat check. It runs when a package.json gained a dependency name, and with
+ * GATES_FULL=1. Otherwise it has no entry (no line in the log).
+ *
+ * @param {PlanInput} input - The change and the flags.
+ * @returns {PlanEntry[]} One entry, or none.
+ */
+function typosquatEntries(input) {
+  if (!input.full && input.dependenciesAdded !== true) {
+    return [];
+  }
+  return [
+    {
+      action: 'run',
+      label: TYPOSQUAT_LABEL,
+      reason: input.full ? 'GATES_FULL=1' : 'new dependency names',
+      command: ['node', 'scripts/gates/typosquat-check.mjs', '--base', input.base],
+    },
+  ];
+}
+
+/**
  * Lists the audits with the lock that each one reads.
  *
  * @param {PlanInput} input - The projects.
@@ -175,10 +209,13 @@ function auditEntries(input) {
  * Plans the dependency checks. Pure: it reads nothing.
  *
  * @param {PlanInput} input - The change, the projects and the flags.
- * @returns {PlanEntry[]} The entries in run order: license checks, then the audits.
+ * @returns {PlanEntry[]} The entries in run order: license checks, the typosquat check, then the audits.
  */
 export function planDependencyChecks(input) {
-  return [...(input.auditOnly ? [] : licenseEntries(input)), ...auditEntries(input)];
+  return [
+    ...(input.auditOnly ? [] : [...licenseEntries(input), ...typosquatEntries(input)]),
+    ...auditEntries(input),
+  ];
 }
 
 /**
@@ -222,15 +259,22 @@ export function changedSinceBase(root, base) {
  *
  * @param {string} root - Repo root.
  * @param {{ base: string, full: boolean, auditOnly: boolean }} options - The base and the flags.
- * @returns {PlanEntry[]} The plan.
+ * @returns {PlanEntry[]} The plan. It throws when the change or a package.json cannot be read.
  */
 export function planForRepository(root, options) {
+  const changed = options.auditOnly ? [] : changedSinceBase(root, options.base);
+  const dependencies = options.auditOnly ? [] : changedDependencies(root, options.base, changed);
   return planDependencyChecks({
-    changed: options.auditOnly ? [] : changedSinceBase(root, options.base),
+    changed,
     pyProjects: projectsWithParts(root, ['api-py']),
     goProjects: projectsWithParts(root, ['api-go']),
     full: options.full,
     auditOnly: options.auditOnly,
     base: options.base,
+    // A new registry dependency, or a version text that is not allowed (also for an old name: a git
+    // or URL source), needs the check. A plain version change does not.
+    dependenciesAdded:
+      addedNames(dependencies).length > 0 ||
+      dependencies.some((entry) => specProblem(entry, root) !== ''),
   });
 }

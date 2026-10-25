@@ -1,6 +1,6 @@
 // Tests for the plan of the dependency checks (lib/dep-checks.mjs, dep-checks.mjs): license checks on
-// lock and policy changes, the audit of each lock that changed, and every audit with GATES_FULL=1 or
-// --audit-only.
+// lock and policy changes, the typosquat check when a package.json gained a dependency name, the
+// audit of each lock that changed, and every check with GATES_FULL=1 or --audit-only.
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -149,11 +149,12 @@ describe('dependency check plan', () => {
     );
   });
 
-  it('GATES_FULL runs every license check and every audit', () => {
+  it('GATES_FULL runs every license check, the typosquat check and every audit', () => {
     assert.deepEqual(plan({ full: true }), [
       'run license-check (GATES_FULL=1)',
       'run license-check api-py (projects/sample) (GATES_FULL=1)',
       'run license-check api-go (projects/sample) (GATES_FULL=1)',
+      'run typosquat check (GATES_FULL=1)',
       'run rush audit (GATES_FULL=1)',
       'run pip-audit (projects/sample, security.sh) (GATES_FULL=1)',
       'run govulncheck (projects/sample, security.sh) (GATES_FULL=1)',
@@ -212,6 +213,7 @@ describe('dependency check plan', () => {
         'node common/scripts/install-run-rush.js license-check',
         'bash projects/sample/src/api-py/scripts/license-check.sh',
         'bash projects/sample/src/api-go/scripts/license-check.sh',
+        `node scripts/gates/typosquat-check.mjs --base ${BASE}`,
         'node common/scripts/install-run-rush.js audit',
         'bash projects/sample/src/api-py/scripts/security.sh',
         'bash projects/sample/src/api-go/scripts/security.sh',
@@ -245,6 +247,48 @@ describe('dependency check plan', () => {
   });
 });
 
+describe('typosquat check in the plan', () => {
+  it('has no entry and no skip line when no package.json gained a dependency name', () => {
+    assert.ok(!plan({}).some((entry) => entry.includes('typosquat')));
+    assert.ok(!plan({ dependenciesAdded: false }).some((entry) => entry.includes('typosquat')));
+    const entries = plan({ changed: ['projects/sample/package.json'] });
+    assert.ok(!entries.join('\n').includes('typosquat'));
+  });
+
+  it('runs after the license checks and before the audits when a name was added', () => {
+    const entries = plan({ dependenciesAdded: true });
+    assert.equal(entries.length, 7);
+    assert.equal(entries[3], 'run typosquat check (new dependency names)');
+    assert.match(entries[2] ?? '', /^skip license-check api-go/);
+    assert.match(entries[4] ?? '', /^skip rush audit/);
+  });
+
+  it('runs with GATES_FULL=1 even when no name was added', () => {
+    assert.ok(plan({ full: true }).includes('run typosquat check (GATES_FULL=1)'));
+    assert.ok(
+      plan({ full: true, dependenciesAdded: false }).includes('run typosquat check (GATES_FULL=1)'),
+    );
+  });
+
+  it('does not run with --audit-only, with or without a new name', () => {
+    assert.ok(!plan({ auditOnly: true, dependenciesAdded: true }).join('\n').includes('typosquat'));
+    assert.ok(!plan({ auditOnly: true, full: true }).join('\n').includes('typosquat'));
+  });
+
+  it('gives the command with the base commit', () => {
+    const entry = planDependencyChecks({
+      changed: [],
+      pyProjects: [],
+      goProjects: [],
+      full: false,
+      auditOnly: false,
+      base: BASE,
+      dependenciesAdded: true,
+    }).find((item) => item.label === 'typosquat check');
+    assert.deepEqual(entry?.command, ['node', 'scripts/gates/typosquat-check.mjs', '--base', BASE]);
+  });
+});
+
 describe('dependency check plan in a repo', () => {
   /** @type {ReturnType<typeof makeRepository>} */
   let repository;
@@ -256,7 +300,7 @@ describe('dependency check plan in a repo', () => {
       'projects/p/package.json': '{"name":"p"}\n',
       'projects/p/src/api-py/uv.lock': 'version = 1\n',
       'projects/p/src/api-go/go.mod': 'module p\n',
-      'projects/q/package.json': '{"name":"q"}\n',
+      'projects/q/package.json': '{"name":"q","dependencies":{"zod":"^4.0.0"}}\n',
     });
     base = repository.git('rev-parse', 'HEAD').trim();
   });
@@ -264,6 +308,17 @@ describe('dependency check plan in a repo', () => {
   afterEach(() => {
     repository.remove();
   });
+
+  /**
+   * Lists the labels of the entries that run.
+   *
+   * @returns {string[]} The labels, in plan order.
+   */
+  function runLabels() {
+    return planForRepository(repository.root, { base, full: false, auditOnly: false })
+      .filter((entry) => entry.action === 'run')
+      .map((entry) => entry.label);
+  }
 
   it('sees committed, unstaged and untracked changes since the base', () => {
     repository.write('common/config/rush/pnpm-lock.yaml', 'lockfileVersion: 9\n');
@@ -300,10 +355,109 @@ describe('dependency check plan in a repo', () => {
     repository.write('projects/p/src/api-go/go.sum', 'example.com/m v1.0.0 h1:x=\n');
     repository.git('add', '-A');
     repository.git('commit', '-q', '-m', 'locks');
-    const entries = planForRepository(repository.root, { base, full: false, auditOnly: false });
-    assert.deepEqual(
-      entries.filter((entry) => entry.action === 'run').map((entry) => entry.label),
-      ['license-check', 'rush audit', 'govulncheck (projects/p, security.sh)'],
+    assert.deepEqual(runLabels(), [
+      'license-check',
+      'rush audit',
+      'govulncheck (projects/p, security.sh)',
+    ]);
+  });
+
+  it('plans the typosquat check when a package.json gained a dependency name', () => {
+    repository.write(
+      'projects/p/package.json',
+      '{"name":"p","dependencies":{"left-pad":"1.0.0"}}\n',
+    );
+    assert.deepEqual(runLabels(), ['typosquat check']);
+  });
+
+  it('plans the typosquat check for a committed change and for a new package.json', () => {
+    repository.write(
+      'projects/p/package.json',
+      '{"name":"p","devDependencies":{"left-pad":"1"}}\n',
+    );
+    repository.git('add', '-A');
+    repository.git('commit', '-q', '-m', 'dep');
+    assert.deepEqual(runLabels(), ['typosquat check']);
+    repository.write('packages/n/package.json', '{"name":"n","peerDependencies":{"react":"19"}}\n');
+    assert.deepEqual(runLabels(), ['typosquat check']);
+  });
+
+  it('does not plan the typosquat check for a version change, a removal or a moved name', () => {
+    repository.write('projects/q/package.json', '{"name":"q","dependencies":{"zod":"^4.1.0"}}\n');
+    assert.deepEqual(runLabels(), []);
+    repository.write('projects/q/package.json', '{"name":"q"}\n');
+    assert.deepEqual(runLabels(), []);
+    repository.write(
+      'projects/q/package.json',
+      '{"name":"q","devDependencies":{"zod":"^4.0.0"}}\n',
+    );
+    assert.deepEqual(runLabels(), []);
+  });
+
+  it('does not plan the typosquat check for other fields, other files or a workspace link', () => {
+    repository.write(
+      'projects/p/package.json',
+      '{"name":"p","version":"2.0.0","scripts":{"a":"b"}}\n',
+    );
+    repository.write('projects/p/notes.txt', 'left-pad\n');
+    repository.write('docs/package.json', '{"dependencies":{"left-pad":"1"}}\n');
+    repository.write(
+      'projects/p/node_modules/x/package.json',
+      '{"dependencies":{"left-pad":"1"}}\n',
+    );
+    repository.write('projects/p/web/.next/package.json', '{"dependencies":{"left-pad":"1"}}\n');
+    repository.write(
+      'projects/q/package.json',
+      '{"name":"q","dependencies":{"zod":"^4.0.0","@x/shared":"workspace:*"}}\n',
+    );
+    assert.deepEqual(runLabels(), []);
+  });
+
+  it('plans the typosquat check when an old dependency changes to a git, URL or tarball version', () => {
+    for (const spec of ['github:o/zod', 'https://example.com/zod.tgz', 'npm:evil@1.0.0']) {
+      repository.write(
+        'projects/q/package.json',
+        JSON.stringify({ name: 'q', dependencies: { zod: spec } }),
+      );
+      assert.deepEqual(runLabels(), ['typosquat check'], spec);
+    }
+  });
+
+  it('plans the typosquat check for a registry version of the own scope, and not for workspace:', () => {
+    repository.write(
+      'projects/q/package.json',
+      JSON.stringify({
+        name: 'q',
+        dependencies: { zod: '^4.0.0', '@vprprudhvi/shared-logger': 'workspace:*' },
+      }),
+    );
+    assert.deepEqual(runLabels(), []);
+    repository.write(
+      'projects/q/package.json',
+      JSON.stringify({
+        name: 'q',
+        dependencies: { zod: '^4.0.0', '@vprprudhvi/shared-logger': '^1.0.0' },
+      }),
+    );
+    assert.deepEqual(runLabels(), ['typosquat check']);
+  });
+
+  it('fails the plan when a project folder of rush.json is outside the four roots', () => {
+    repository.write(
+      'rush.json',
+      JSON.stringify({ projects: [{ packageName: '@t/a', projectFolder: 'common/x' }] }),
+    );
+    assert.throws(
+      () => planForRepository(repository.root, { base, full: false, auditOnly: false }),
+      /project folder "common\/x"/,
+    );
+  });
+
+  it('fails the plan when a changed package.json is not JSON', () => {
+    repository.write('projects/p/package.json', '{"name":');
+    assert.throws(
+      () => planForRepository(repository.root, { base, full: false, auditOnly: false }),
+      /projects\/p\/package\.json is not valid JSON/,
     );
   });
 
@@ -326,10 +480,59 @@ describe('dependency check plan in a repo', () => {
       lines.at(-1),
       `skip\tgovulncheck (projects/p, security.sh)\tno go.sum change since ${base.slice(0, 12)}; ${AUDIT_LATER}`,
     );
+    assert.doesNotMatch(result.stdout, /typosquat/);
     const full = exec('node', [CLI, '--root', repository.root, '--base', base], {
       env: { GATES_FULL: '1' },
     });
     assert.match(full.stdout, /^run\trush audit\tGATES_FULL=1\t/m);
+    assert.ok(
+      full.stdout
+        .split('\n')
+        .includes(
+          `run\ttyposquat check\tGATES_FULL=1\tnode\tscripts/gates/typosquat-check.mjs\t--base\t${base}`,
+        ),
+      full.stdout,
+    );
+  });
+
+  it('CLI plans the typosquat check for a new dependency name', () => {
+    repository.write('projects/p/package.json', '{"name":"p","dependencies":{"left-pad":"1"}}\n');
+    const result = exec('node', [CLI, '--root', repository.root, '--base', base], {
+      env: { GATES_FULL: '' },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(
+      result.stdout
+        .split('\n')
+        .includes(
+          `run\ttyposquat check\tnew dependency names\tnode\tscripts/gates/typosquat-check.mjs\t--base\t${base}`,
+        ),
+      result.stdout,
+    );
+  });
+
+  it('CLI exits 2 for a rush.json project folder outside the four roots', () => {
+    repository.write(
+      'rush.json',
+      JSON.stringify({ projects: [{ packageName: '@t/a', projectFolder: '../x' }] }),
+    );
+    const result = exec('node', [CLI, '--root', repository.root, '--base', base], {
+      env: { GATES_FULL: '' },
+    });
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /dep-checks: could not plan: rush\.json has the project folder/);
+  });
+
+  it('CLI exits 2 when a changed package.json is not JSON', () => {
+    repository.write('projects/p/package.json', 'not json');
+    const result = exec('node', [CLI, '--root', repository.root, '--base', base], {
+      env: { GATES_FULL: '' },
+    });
+    assert.equal(result.status, 2);
+    assert.match(
+      result.stderr,
+      /dep-checks: could not plan: projects\/p\/package\.json is not valid JSON/,
+    );
   });
 
   it('CLI runs rush audit for an uncommitted pnpm-lock.yaml change', () => {

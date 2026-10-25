@@ -167,7 +167,7 @@ describe('gate integrity in the hooks', () => {
 
   describe('require-verify', () => {
     const pushCommands = [
-      'git push origin feature',
+      'git push origin HEAD',
       'gh pr create --fill',
       'gh pr new --fill',
       'gh -R o/r pr new --fill',
