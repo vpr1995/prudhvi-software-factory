@@ -54,10 +54,122 @@ Starting points. Match the real names in `tooling/` and in `projects/sample`. Al
 - `web/lib/`: API client. It parses each response with a schema from `../src/contracts` (relative import).
 - `web/next.config.ts`: set `turbopack.root` and `outputFileTracingRoot` to the repo root, so Next can read `src/contracts`.
 
-## infra (Wave 3, not created by this skill)
+## infra (stub CDK app)
 
-- `bin/<name>.ts` is the CDK app entry. `lib/` holds stacks and constructs. Both use the one `package.json`. See `docs/guides/infra.md`.
-- Use `new-cdk-construct` when the human asks for infra.
+Every project has a stub CDK app from day one. The stack has no resources. Replace `<name>` with the kebab-case name and `<Name>` with the PascalCase name. Match `projects/sample`. See `docs/guides/infra.md`.
+
+- `bin/app.ts`:
+  ```ts
+  import { App } from 'aws-cdk-lib';
+
+  import { add<Name>Stack } from '../lib/<name>-app.js';
+
+  const app = new App();
+  add<Name>Stack(app);
+  app.synth();
+  ```
+- `lib/<name>-app.ts`:
+
+  ```ts
+  import { Validations } from 'aws-cdk-lib';
+  import type { App } from 'aws-cdk-lib';
+  import { AwsSolutionsChecks } from 'cdk-nag';
+
+  import { <Name>Stack } from './<name>-stack.js';
+
+  /**
+   * Adds the <name> stack and the cdk-nag AwsSolutions checks to a CDK app.
+   *
+   * @param app - The CDK app.
+   * @returns The <name> stack.
+   */
+  export function add<Name>Stack(app: App): <Name>Stack {
+    Validations.of(app).addPlugins(new AwsSolutionsChecks(app));
+    return new <Name>Stack(app, '<Name>', {
+      env: { region: 'us-east-1' },
+      description: 'The <name> stack. It has no resources yet.',
+    });
+  }
+  ```
+
+- `lib/<name>-stack.ts`:
+
+  ```ts
+  import { Stack } from 'aws-cdk-lib';
+
+  /** The stack of the <name> project. It has no resources yet. */
+  export class <Name>Stack extends Stack {}
+  ```
+
+- `test/infra/<name>-stack.test.ts`:
+
+  ```ts
+  import { App } from 'aws-cdk-lib';
+  import { Template } from 'aws-cdk-lib/assertions';
+  import { describe, expect, it } from 'vitest';
+
+  import { <Name>Stack } from '../../lib/<name>-stack.js';
+
+  describe('<Name>Stack', () => {
+    it('has no resources yet', () => {
+      const template = Template.fromStack(new <Name>Stack(new App(), 'Test<Name>'));
+
+      expect(template.findResources('*')).toEqual({});
+    });
+  });
+  ```
+
+- `test/infra/<name>-app.test.ts`:
+
+  ```ts
+  import { App } from 'aws-cdk-lib';
+  import { describe, expect, it } from 'vitest';
+
+  import { add<Name>Stack } from '../../lib/<name>-app.js';
+
+  describe('add<Name>Stack', () => {
+    it('adds one stack in us-east-1', () => {
+      const app = new App();
+
+      const stack = add<Name>Stack(app);
+
+      expect(stack.region).toBe('us-east-1');
+      expect(app.node.children).toContain(stack);
+    });
+  });
+  ```
+
+- `cdk.json` (gate). The `app` and `build` values are the ones in `projects/sample/cdk.json`:
+  ```json
+  {
+    "app": "node dist/cdk/bin/app.js",
+    "build": "npm run build:cdk --silent",
+    "output": "cdk.out",
+    "notices": false,
+    "versionReporting": false
+  }
+  ```
+- `tsconfig.cdk.json` (gate):
+  ```json
+  {
+    "extends": "@vprprudhvi/tooling-tsconfig/library.json",
+    "compilerOptions": {
+      "rootDir": ".",
+      "outDir": "dist/cdk",
+      "tsBuildInfoFile": "dist/cdk/.tsbuildinfo"
+    },
+    "include": ["bin", "lib"],
+    "exclude": ["**/*.test.ts"]
+  }
+  ```
+- `package.json` script lines (add them to the other scripts):
+  ```json
+  "build:cdk": "tsc -p tsconfig.cdk.json",
+  "synth": "cdk synth"
+  ```
+- The stub `bin/app.ts` does not read the `env` context. The synth gate (`scripts/gates/synth-changed.mjs`) then runs one synth with no `-c env`. When a project needs environments, add `lib/config/config.ts` with a `const configs = { ... }` object, as the sample does.
+- `tsconfig.json` includes `bin` and `lib`. `eslint.config.js` scopes `bin/**` and `lib/**` to `cdk`. `vitest.config.ts` includes `test/infra/**/*.test.ts` and covers `bin/**` and `lib/**`. Copy these three files from `projects/sample`. Remove only the parts that the project does not have.
+- Use `new-cdk-construct` when the human asks for infra. It adds constructs to `lib/`.
 
 ## package.json phases
 
