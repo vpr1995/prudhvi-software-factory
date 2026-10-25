@@ -18,20 +18,20 @@ Rules: `packages/*` never import from `projects/*`. Shared packages publish (`sh
    - `name`: `@vprprudhvi/shared-<pkg>`, `version`: `0.0.0`, `type`: `module`.
    - `main`: `dist/index.js`, `types`: `dist/index.d.ts`.
    - `scripts`: `_phase:build`, `_phase:lint`, `_phase:typecheck`, `_phase:test`. The build runs `tsc -b`. The test runs `vitest run --coverage`.
-   - No dependencies yet. Add them later with `rush add -p`, run by the agent after approval (step 9).
+   - No dependencies yet. Add them later with `rush add -p`, run by the agent when the dependency policy passes (step 9).
 5. Write `packages/<pkg>/src/index.ts`. This is the one allowed index file, at the package root.
 6. Write tests in `test/`. The path mirrors `src/`: `test/<name>.test.ts`. See `docs/standards/testing.md`, section 1.
 7. Write each gate file to the handoff folder `.claude/state/handoff/<pkg>/`. Use the Write tool. Use the `.txt` suffix on each file. Name each file `NN-<target path with / replaced by __>.txt`. The first line of each file is `TARGET: <path>`. The list is in "Handoff files" below.
    - `01-rush-json-entry.txt`: this entry, to add in the `projects` array of `rush.json`:
      `{ "packageName": "@vprprudhvi/shared-<pkg>", "projectFolder": "packages/<pkg>", "shouldPublish": true, "tags": ["shared"] }`
    - `02-...`: the config files. Each one extends the base config in `tooling/`. Read the exact names in `tooling/` first.
-8. Stop. Tell the human: "Copy each handoff file to its TARGET path. Add the rush.json entry. Reply 'gates applied' and approve any new dependency."
+8. Stop. Tell the human: "Copy each handoff file to its TARGET path. Add the rush.json entry. Reply 'gates applied'."
 9. After the human replies, check that the files exist. Then:
    - Run `rush update`. The `rush.json` entry from the handoff must be in place.
-   - Add each dependency. Show each new package with its version, its license, and the reason. Wait for approval (`docs/standards/gates.md`, section 6.6). After approval, run `rush add -p <pkg> [--dev]` yourself from `packages/<pkg>`. Never run `npm`, `pnpm` or `yarn` to add a package.
+   - Add each dependency. No human approval is needed. The dependency policy runs at pre-push (`docs/standards/gates.md`, section 6.6). List each new package with its version and license in your report. Run `rush add -p <pkg> [--dev]` yourself from `packages/<pkg>`. Never run `npm`, `pnpm` or `yarn` to add a package.
    - Run `rush build --only @vprprudhvi/shared-<pkg>` and paste the output.
    - Run `rush change --bulk --bump-type patch --message "<what changed>"`. Then run `rush change --verify`.
-   - Commit `packages/<pkg>/`, `rush.json`, the change file under `common/changes/`, and each file under `common/config/rush/` that `rush update` or `rush add -p` changed (for example `pnpm-lock.yaml` and `repo-state.json`). Put them in one commit. Check with `git status --short`. Tell the human: "The commit changes the Rush project list and the lockfile. Read the lockfile diff and push the commit."
+   - Commit `packages/<pkg>/`, `rush.json`, the change file under `common/changes/`, and each file under `common/config/rush/` that `rush update` or `rush add -p` changed (for example `pnpm-lock.yaml` and `repo-state.json`). Put them in one commit. Check with `git status --short`. Push the commit when the push exemption applies (`docs/standards/gates.md`, section 4.3.1). Otherwise tell the human: "The push has a gate change outside the push exemption. Push the commit."
    - Run the `verify` skill.
 
 ## Handoff files
@@ -62,8 +62,8 @@ Lockfiles (not copied from handoff):
 - Import from `projects/*` in a package.
 - Set `"private": true` in the package. Set `shouldPublish` in rush.json instead.
 - Write gate files to their real paths. Write them to the handoff folder only.
-- Add a dependency without human approval.
-- Run `rush add -p` before the human approves the dependency.
+- Add a dependency that fails the dependency policy.
+- Run `rush add -p` for a package that fails the dependency policy.
 - Run `uv add` or `go get` yourself. Write the command to `NN-commands.txt`.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.

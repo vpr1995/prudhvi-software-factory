@@ -28,63 +28,65 @@ There are three kinds of protected path. Each kind has a different rule for agen
 
 A gate file controls quality, security, or release. Agents must not edit a gate file. Each row below is one glob from `scripts/gates/gate-files.json`.
 
-| Path pattern                           | Why it is a gate                                                                                                  |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `.github/**`                           | CI workflows, PR template, rulesets and CODEOWNERS.                                                               |
-| `CODEOWNERS`                           | Owner rules for review.                                                                                           |
-| `.claude/settings*.json`               | Agent permissions and hook wiring.                                                                                |
-| `.claude/hooks/**`                     | Hook scripts that block agent actions.                                                                            |
-| `tooling/**`                           | ESLint, TypeScript, Vitest (coverage thresholds), Opengrep rules and the license allowlist.                       |
-| `.gitleaks.toml`                       | Secret scan rules and allowlist.                                                                                  |
-| `audit-ci.jsonc`                       | Dependency audit allowlist.                                                                                       |
-| `.checkov.yaml`                        | IaC scan settings and skips.                                                                                      |
-| `docs/standards/coding-conventions.md` | Coding rules that reviewers and linters use.                                                                      |
-| `common/config/rush/**`                | Rush config, command list and `pnpm-lock.yaml`.                                                                   |
-| `common/git-hooks/**`                  | Git hook scripts.                                                                                                 |
-| `common/autoinstallers/**`             | Tool versions for hooks and CI.                                                                                   |
-| `rush.json`                            | Rush project list and tool versions. Add a project only with `register-project.mjs` (section 6.8).                |
-| `**/REVIEW.md`                         | Review rules for the AI reviewer. This covers the root, project and platform files.                               |
-| `platform/infra/**`                    | Shared AWS resources for every project.                                                                           |
-| `**/rush-project.json`                 | Per-project Rush build settings and cache rules.                                                                  |
-| `eslint.config.*`                      | ESLint entry point.                                                                                               |
-| `tsconfig*.json`                       | TypeScript strictness settings.                                                                                   |
-| `vitest.config.*`                      | Test runner settings and coverage thresholds.                                                                     |
-| `.dependency-cruiser.*`                | Import boundary rules.                                                                                            |
-| `**/cdk.json`                          | CDK app settings.                                                                                                 |
-| `**/playwright.config.*`               | Playwright settings: browsers, retries and test match rules.                                                      |
-| `**/pyproject.toml`                    | Python project and tool settings.                                                                                 |
-| `**/.golangci.yml`                     | Go lint rules.                                                                                                    |
-| `**/uv.lock`                           | Python dependency lock.                                                                                           |
-| `**/go.sum`                            | Go dependency checksums.                                                                                          |
-| `**/pnpm-lock.yaml`                    | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. A human pushes it.                |
-| `**/package-lock.json`                 | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. A human pushes it.                |
-| `**/yarn.lock`                         | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. A human pushes it.                |
-| `scripts/gates/**`                     | Gate scripts: the shared gate list, anti-skip scanner, coverage gates, check-gates, classify-risk and hook logic. |
-| `scripts/security/**`                  | Security scan scripts that git hooks and CI call.                                                                 |
-| `scripts/git/**`                       | Git hook helper scripts.                                                                                          |
-| `.lintstagedrc.cjs`                    | Pre-commit check list.                                                                                            |
-| `commitlint.config.cjs`                | Commit message rules.                                                                                             |
-| `.git/hooks/**`                        | Installed git hooks.                                                                                              |
-| `.gitattributes`                       | Git attributes can hide changed test files from the anti-skip diff.                                               |
-| `common/scripts/**`                    | Rush launcher scripts. Every verify runs `install-run-rush.js`.                                                   |
-| `**/scripts/*.sh`                      | Project scripts that the `_phase:*` commands run.                                                                 |
-| `**/scripts/*.mjs`                     | Project scripts that the `_phase:*` commands run.                                                                 |
-| `**/scripts/*.py`                      | Project scripts that the `_phase:*` commands run.                                                                 |
-| `**/.gitignore`                        | A `.gitignore` can hide a new gate file from git.                                                                 |
-| `**/pytest.toml`                       | pytest reads this file before `pyproject.toml`. A new one can lower the coverage floor.                           |
-| `**/go.mod`                            | Go module settings, including the Go version and toolchain.                                                       |
-| `**/bruno.json`                        | Bruno collection settings.                                                                                        |
-| `**/pytest.ini`                        | pytest reads this file before `pyproject.toml`. A new one can lower the coverage floor.                           |
-| `**/ruff.toml`                         | ruff reads this file before `pyproject.toml`. A new one can turn rules off.                                       |
-| `**/.ruff.toml`                        | ruff reads this file before `pyproject.toml`. A new one can turn rules off.                                       |
-| `**/mypy.ini`                          | mypy reads this file before `pyproject.toml`. A new one can loosen type checks.                                   |
-| `**/.coveragerc`                       | coverage.py reads this file before `pyproject.toml`. A new one can lower the floor.                               |
-| `**/setup.cfg`                         | Legacy tool settings that shadow `pyproject.toml`.                                                                |
-| `**/tox.ini`                           | Legacy tool settings that shadow `pyproject.toml`.                                                                |
-| `.claude/state/last-verify.json`       | The verify result that `git push` and `gh pr create` trust. Only the Stop hook writes it.                         |
-| `.claude/state/session-base`           | The commit that the anti-skip scan compares with. Only the SessionStart hook writes it.                           |
-| `.claude/state/stop-attempts`          | The loop guard counter of the Stop hook. Only the Stop hook writes it.                                            |
-| `.claude/state/subagent-stop-attempts` | The loop guard counter of the SubagentStop hook. Only the Stop hook writes it.                                    |
+| Path pattern                           | Why it is a gate                                                                                                                                                                               |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.github/**`                           | CI workflows, PR template, rulesets and CODEOWNERS.                                                                                                                                            |
+| `CODEOWNERS`                           | Owner rules for review.                                                                                                                                                                        |
+| `.claude/settings*.json`               | Agent permissions and hook wiring.                                                                                                                                                             |
+| `.claude/hooks/**`                     | Hook scripts that block agent actions.                                                                                                                                                         |
+| `tooling/**`                           | ESLint, TypeScript, Vitest (coverage thresholds), Opengrep rules and the license allowlist.                                                                                                    |
+| `.gitleaks.toml`                       | Secret scan rules and allowlist.                                                                                                                                                               |
+| `audit-ci.jsonc`                       | Dependency audit allowlist.                                                                                                                                                                    |
+| `.checkov.yaml`                        | IaC scan settings and skips.                                                                                                                                                                   |
+| `docs/standards/coding-conventions.md` | Coding rules that reviewers and linters use.                                                                                                                                                   |
+| `common/config/rush/**`                | Rush config, command list and `pnpm-lock.yaml`.                                                                                                                                                |
+| `common/git-hooks/**`                  | Git hook scripts.                                                                                                                                                                              |
+| `common/autoinstallers/**`             | Tool versions for hooks and CI.                                                                                                                                                                |
+| `rush.json`                            | Rush project list and tool versions. Add a project only with `register-project.mjs` (section 6.8). The push exemption (section 4.3.1) covers an added project entry only.                      |
+| `**/REVIEW.md`                         | Review rules for the AI reviewer. This covers the root, project and platform files.                                                                                                            |
+| `platform/infra/**`                    | Shared AWS resources for every project.                                                                                                                                                        |
+| `**/rush-project.json`                 | Per-project Rush build settings and cache rules.                                                                                                                                               |
+| `eslint.config.*`                      | ESLint entry point.                                                                                                                                                                            |
+| `tsconfig*.json`                       | TypeScript strictness settings.                                                                                                                                                                |
+| `vitest.config.*`                      | Test runner settings and coverage thresholds.                                                                                                                                                  |
+| `.dependency-cruiser.*`                | Import boundary rules.                                                                                                                                                                         |
+| `**/cdk.json`                          | CDK app settings.                                                                                                                                                                              |
+| `**/playwright.config.*`               | Playwright settings: browsers, retries and test match rules.                                                                                                                                   |
+| `**/pyproject.toml`                    | Python project and tool settings.                                                                                                                                                              |
+| `**/.golangci.yml`                     | Go lint rules.                                                                                                                                                                                 |
+| `**/uv.lock`                           | Python dependency lock.                                                                                                                                                                        |
+| `**/go.sum`                            | Go dependency checksums.                                                                                                                                                                       |
+| `**/pnpm-lock.yaml`                    | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. The push exemption (section 4.3.1) lets the agent push it when the lock lint passes.                           |
+| `**/package-lock.json`                 | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. A human pushes it.                                                                                             |
+| `**/yarn.lock`                         | Dependency lockfile. The agent runs `rush add -p <pkg>` and commits the change. A human pushes it.                                                                                             |
+| `scripts/gates/**`                     | Gate scripts: the shared gate list, anti-skip scanner, coverage gates, check-gates, classify-risk and hook logic.                                                                              |
+| `scripts/security/**`                  | Security scan scripts that git hooks and CI call.                                                                                                                                              |
+| `scripts/git/**`                       | Git hook helper scripts.                                                                                                                                                                       |
+| `.lintstagedrc.cjs`                    | Pre-commit check list.                                                                                                                                                                         |
+| `commitlint.config.cjs`                | Commit message rules.                                                                                                                                                                          |
+| `.git/hooks/**`                        | Installed git hooks.                                                                                                                                                                           |
+| `.git/config`                          | Repo git config. A push refspec or `push.default` set here changes what a push with no refspec publishes. The Bash guard blocks `git config` for these keys. This entry closes the file write. |
+| `.gitattributes`                       | Git attributes can hide changed test files from the anti-skip diff.                                                                                                                            |
+| `common/scripts/**`                    | Rush launcher scripts. Every verify runs `install-run-rush.js`.                                                                                                                                |
+| `**/scripts/*.sh`                      | Project scripts that the `_phase:*` commands run.                                                                                                                                              |
+| `**/scripts/*.mjs`                     | Project scripts that the `_phase:*` commands run.                                                                                                                                              |
+| `**/scripts/*.py`                      | Project scripts that the `_phase:*` commands run.                                                                                                                                              |
+| `**/.gitignore`                        | A `.gitignore` can hide a new gate file from git.                                                                                                                                              |
+| `**/pytest.toml`                       | pytest reads this file before `pyproject.toml`. A new one can lower the coverage floor.                                                                                                        |
+| `**/go.mod`                            | Go module settings, including the Go version and toolchain.                                                                                                                                    |
+| `**/bruno.json`                        | Bruno collection settings.                                                                                                                                                                     |
+| `**/pytest.ini`                        | pytest reads this file before `pyproject.toml`. A new one can lower the coverage floor.                                                                                                        |
+| `**/ruff.toml`                         | ruff reads this file before `pyproject.toml`. A new one can turn rules off.                                                                                                                    |
+| `**/.ruff.toml`                        | ruff reads this file before `pyproject.toml`. A new one can turn rules off.                                                                                                                    |
+| `**/mypy.ini`                          | mypy reads this file before `pyproject.toml`. A new one can loosen type checks.                                                                                                                |
+| `**/.coveragerc`                       | coverage.py reads this file before `pyproject.toml`. A new one can lower the floor.                                                                                                            |
+| `**/setup.cfg`                         | Legacy tool settings that shadow `pyproject.toml`.                                                                                                                                             |
+| `**/tox.ini`                           | Legacy tool settings that shadow `pyproject.toml`.                                                                                                                                             |
+| `.claude/state/last-verify.json`       | The verify result that `git push` and `gh pr create` trust. Only the Stop hook writes it.                                                                                                      |
+| `.claude/state/session-base`           | The commit that the anti-skip scan compares with. Only the SessionStart hook writes it.                                                                                                        |
+| `.claude/state/stop-attempts`          | The loop guard counter of the Stop hook. Only the Stop hook writes it.                                                                                                                         |
+| `.claude/state/subagent-stop-attempts` | The loop guard counter of the SubagentStop hook. Only the Stop hook writes it.                                                                                                                 |
+| `.claude/state/gates-base`             | The commit that the gate scripts use as the base of the diff when `GATES_BASE` is not set. Only a human writes it.                                                                             |
 
 A `package.json` that adds or changes a `_phase:*` script is also a gate change. The check reads the file text, not a glob. The folders `.claude/hooks`, `common/git-hooks` and `.git/hooks` also cannot be written with Bash.
 
@@ -126,10 +128,10 @@ An agent cannot change a gate file. When a task needs a gate file change, the ag
 - Write one file for each target. Name it `NN-<target path with / replaced by __>.txt`.
 - The first line of the file is `TARGET: <path>`. The rest of the file is the full new content.
 - A human copies the file to its target path. The human reviews the change and commits it through a PR (section 6.1).
-- The agent runs `rush add -p <pkg>` and `rush update` itself, after the human approves the dependency (section 6.6).
+- The agent runs `rush add -p <pkg>` itself when the dependency policy passes (section 6.6). The agent runs `rush update` itself after `register-project.mjs` (section 6.8).
 - Write each other package manager command, such as `uv add`, `go get`, or `go mod tidy`, to a file named `NN-commands.txt`. A human runs the commands. These commands change `uv.lock`, `go.mod`, or `go.sum`, which are gate files.
 - To add a project to `rush.json`, run `node scripts/gates/register-project.mjs <name>` (section 6.8). Do not change `rush.json` in another way.
-- Commit `rush.json` and each file that `rush add` or `rush update` changed under `common/config/rush/` (for example `pnpm-lock.yaml` and `repo-state.json`) together with the change that needs them. Check with `git status --short`. The Stop hook blocks a stop while a gate file has an uncommitted change (section 3.1). A human pushes the commit.
+- Commit `rush.json` and each file that `rush add` or `rush update` changed under `common/config/rush/` (for example `pnpm-lock.yaml` and `repo-state.json`) together with the change that needs them. Check with `git status --short`. The Stop hook blocks a stop while a gate file has an uncommitted change (section 3.1). The agent pushes the commit when the push exemption applies (section 4.3.1). Otherwise a human pushes it.
 - Do not write a gate file with `cp`, `mv`, or a shell redirect into `.claude/state`. Write the file with the Write tool.
 
 ## 3. Layers that protect the gates
@@ -152,11 +154,11 @@ The gate integrity check reads the session diff, the index, and the commits. It 
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Stop hook, uncommitted change                | Blocks the stop. The block text is: `Gate file changed. Revert it (git checkout -- <file>) or ask the human.` The block applies to a full stop and to a `--fast` stop. It applies even when the saved verify state says pass. |
 | Commits since the session base               | Warns. It does not block. The warning ends with: `Tell the user these commits change gate files.`                                                                                                                             |
-| `git push` and `gh pr create` or `gh pr new` | Blocks when the range has gate changes. The block text starts with: `Gate changes are pushed by a human.`                                                                                                                     |
+| `git push` and `gh pr create` or `gh pr new` | Blocks when the range has a gate change that the push exemption (section 4.3.1) does not cover. The block text starts with: `Gate changes are pushed by a human.`                                                             |
 
 The range starts at `origin/main` when that branch exists. Without it, the range starts at the root commit.
 
-A human pushes a branch that has gate changes. The agent does not push it.
+A human pushes a branch that has a gate change outside the push exemption. The agent pushes a branch only when every gate change in the range is exempt (section 4.3.1).
 
 ### 3.2 Known limits
 
@@ -169,12 +171,18 @@ The agent Bash guard reads the text of a command. It does not run the command. A
 - Interpreter code with encoded or built-up paths, and some `perl` and `ruby` forms.
 - `go mod edit` and `go get` through Bash.
 - Pruned build folders, such as `dist`, are not scanned for untracked gate files.
-- `git branch -u` changes the push base. A `hooksPath` in the `HOME` git config can turn git hooks off.
+- A `hooksPath` in the `HOME` git config can turn git hooks off.
 
 The local gate runner (section 4.3.1) has these limits:
 
-- `GATES_BASE` and `.claude/state/gates-base` are not protected (backlog `bl-gates-base-guard`).
+- The agent Bash guard blocks `GATES_BASE` (inline, exported, or in `env`) and writes to a file named `gates-base`. A script that sets `GATES_BASE` inside its own code is not read.
+- The agent Bash guard blocks writes to `push.*` and to `remote.<name>.push`, `remote.<name>.pushurl`, `remote.<name>.url` and `remote.<name>.mirror`. It applies to `git config` (set, add, unset and replace-all, with `--file` or `--global`), to `-c`, and to `git config --edit`. Reads stay allowed.
+- The agent Bash guard blocks `git remote add --mirror` (also `--mirror=<x>` and an abbreviation), `git remote set-url` and `git remote set-branches`. A plain `git remote add <name> <url>` stays allowed.
 - An audit runs only when its lock changed since the base. A new advisory for a lock that did not change shows only in the planned nightly audit, or with `--audit-only`.
+- The push exemption (section 4.3.1) reads the lock content. The lock lint checks each resolution and each source. It does not check every package the dependency policy (section 6.6) reviews.
+- A chained shell command can create a branch and push it in one command. The guard reads the command text before the chain runs.
+- `git update-ref` can move `refs/remotes/origin/main`, which moves the push base (section 4.3.1). No guard rule covers it yet.
+- Push settings in `~/.gitconfig`, `.git/config.worktree`, or an `include` file are not blocked.
 
 The gate integrity check, CODEOWNERS, and CI are the real controls. The Bash guard is a fast check. It does not replace them.
 
@@ -229,21 +237,22 @@ Each step prints `gates: RUN`, `gates: PASS`, `gates: FAIL`, or `gates: SKIP <st
 
 **Steps.** The steps run in this order.
 
-| Step | Check                                                                          | Runs when                                                                                                                                                                 |
-| ---- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| a    | `rush change --verify --no-fetch`                                              | Every run. SKIP only when no `origin` remote exists.                                                                                                                      |
-| b    | Node license check (`rush license-check`), from `scripts/gates/dep-checks.mjs` | `common/config/rush/pnpm-lock.yaml`, `tooling/license-allowlist.json` or `scripts/security/license-check.sh` changed since the base.                                      |
-| b    | Python and Go license checks                                                   | Run in the `_phase:lint` of `rush verify` when `uv.lock`, `go.mod` or `go.sum` changed. The runner runs them directly only when `tooling/license-allowlist.json` changed. |
-| b    | Audits: `rush audit`, pip-audit and govulncheck                                | Each audit runs when its lock changed since the base. Otherwise the runner prints a `gates: SKIP <audit>` line. A failed audit fails the run. See the audit text below.   |
-| c    | Opengrep on changed files (`scripts/security/opengrep-changed.sh`)             | Changed files. JS and TS rules only. Python and Go rules are backlog item `bl-opengrep-py-go`.                                                                            |
-| d    | Anti-skip scan (`scripts/gates/anti-skip.mjs --range <base>...HEAD`)           | Every run.                                                                                                                                                                |
-| e    | Gate check (`scripts/gates/check-gates.mjs`)                                   | Every run. Checks pr-size, disable-count, gate-files, test-deletion and test-location.                                                                                    |
-| f    | Gate script tests (`scripts/gates/test-impacted.mjs --base <base>`)            | Tests impacted by the change. All tests with `GATES_FULL=1`.                                                                                                              |
-| g    | Gate lint (`eslint --max-warnings 0 scripts/gates`)                            | Every run.                                                                                                                                                                |
-| h    | Prettier check (`scripts/gates/prettier-check.mjs`)                            | Changed files since the base: the lint-staged types and Markdown. All tracked files with `GATES_FULL=1`. A missing binary fails.                                          |
-| i    | `rush verify --impacted-by git:<base>`                                         | Impacted projects. The full `rush verify` runs when the base is the root commit or with `GATES_FULL=1`.                                                                   |
-| j    | cdk synth (`scripts/gates/synth-changed.mjs`)                                  | Each CDK app that changed (see below). All apps with `GATES_FULL=1`.                                                                                                      |
-| k    | Bruno coverage and Playwright coverage                                         | Last step. See section 8.                                                                                                                                                 |
+| Step | Check                                                                                      | Runs when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a    | `rush change --verify --no-fetch`                                                          | Every run. SKIP only when no `origin` remote exists.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| b    | Node license check (`rush license-check`), from `scripts/gates/dep-checks.mjs`             | `common/config/rush/pnpm-lock.yaml`, `tooling/license-allowlist.json` or `scripts/security/license-check.sh` changed since the base.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| b    | Typosquat check (`scripts/gates/typosquat-check.mjs`), from `scripts/gates/dep-checks.mjs` | A `package.json` under `projects/`, `packages/`, `platform/` or `tooling/` gained a dependency name, or changed the version text of a dependency, since the base. All runs with `GATES_FULL=1`. Runs after the license checks and before the audits. The step fails when a new name looks like a known package name. It also fails a version text that is a URL, a git source, a tarball, an `npm:` alias, or a `file:` or `link:` path outside the repo. A `@vprprudhvi/*` dependency fails unless its version starts with `workspace:`. The ignored-folder filter (for example `node_modules`) applies only to the path below the manifest folder. The name list is small and static, so the PR review is the main control for new names (section 6.6). |
+| b    | Python and Go license checks                                                               | Run in the `_phase:lint` of `rush verify` when `uv.lock`, `go.mod` or `go.sum` changed. The runner runs them directly only when `tooling/license-allowlist.json` changed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| b    | Audits: `rush audit`, pip-audit and govulncheck                                            | Each audit runs when its lock changed since the base. Otherwise the runner prints a `gates: SKIP <audit>` line. A failed audit fails the run. See the audit text below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| c    | Opengrep on changed files (`scripts/security/opengrep-changed.sh`)                         | Changed files. JS and TS rules only. Python and Go rules are backlog item `bl-opengrep-py-go`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| d    | Anti-skip scan (`scripts/gates/anti-skip.mjs --range <base>...HEAD`)                       | Every run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| e    | Gate check (`scripts/gates/check-gates.mjs`)                                               | Every run. Checks pr-size, disable-count, gate-files, test-deletion and test-location.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| f    | Gate script tests (`scripts/gates/test-impacted.mjs --base <base>`)                        | Tests impacted by the change. All tests with `GATES_FULL=1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| g    | Gate lint (`eslint --max-warnings 0 scripts/gates`)                                        | Every run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| h    | Prettier check (`scripts/gates/prettier-check.mjs`)                                        | Changed files since the base: the lint-staged types and Markdown. All tracked files with `GATES_FULL=1`. A missing binary fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| i    | `rush verify --impacted-by git:<base>`                                                     | Impacted projects. The full `rush verify` runs when the base is the root commit or with `GATES_FULL=1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| j    | cdk synth (`scripts/gates/synth-changed.mjs`)                                              | Each CDK app that changed (see below). All apps with `GATES_FULL=1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| k    | Bruno coverage and Playwright coverage                                                     | Last step. See section 8.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Step e reads its labels from the `GATE_LABELS` variable, because no PR exists locally.
 
@@ -258,6 +267,8 @@ Step j runs a real offline `cdk synth` for every environment of each CDK app tha
 5. The root commit.
 
 The runner prints `gates: base <sha> (<source>: <detail>)`. A bad value fails the run. The script does not try the next source.
+
+The push guard uses another base (section 4.3.1, push rules). Agents must not set `GATES_BASE` or write `.claude/state/gates-base`. The agent Bash guard blocks both (section 3.2).
 
 **Full run.** `GATES_FULL=1` runs every check. No check skips. Set it for a manual full run:
 
@@ -283,12 +294,48 @@ A failed audit fails the run. The audit of a lock that did not change skips. Run
 
 The code is `scripts/gates/lib/failure-logs.mjs`. The runner calls `scripts/gates/keep-failure-logs.mjs`. `.gitignore` covers `.claude/state/`, so git does not track the logs.
 
+**Push exemption.** A push can carry gate changes that the agent may push. The push guard (`git push` and `gh pr create` or `gh pr new`, section 3.1) lets the push go when every gate change in the range is one of these:
+
+- `common/config/rush/pnpm-lock.yaml`, when the file is modified and the lock lint passes. The lock lint (`scripts/gates/lib/lock-lint.mjs`) checks the old and new lock:
+  - The header is unchanged.
+  - Each `packages` and `snapshots` key has the form `name@semver`.
+  - Each resolution holds only an `integrity` value that starts with `sha`.
+  - No specifier or version uses a URL, a git source, a tarball, or an `npm:` source. A `link:` target must stay inside `projects/`, `packages/`, `platform/` or `tooling/`.
+  - The integrity of each key that appears in both locks is unchanged.
+  - No `@vprprudhvi/*` key appears in `packages` or `snapshots`. An `importers` entry for an own-scope dependency must be a `link:` target. An alias to an own-scope name is rejected, and so is an own-scope dependency name in `snapshots`.
+- `common/config/rush/repo-state.json`, when it holds only the Rush hash keys with hex values, and the same push also changes a lock that passes the lock lint. A change to `repo-state.json` alone blocks the push.
+- `rush.json`, when the change only adds project entries. Every byte outside the `projects` array must be unchanged. Every existing entry must be unchanged and in the same order. Each new entry must match the text that `register-project.mjs` writes. No package name or folder name can repeat. Each added project must have a `projects/<name>/package.json` at HEAD that names `@vprprudhvi/<name>`. Removals, repoints, and edits block the push. An added project named `dist`, `node_modules` or `.next` blocks the push (reserved names).
+
+The list is `pushExempt` in `scripts/gates/gate-files.json`. The checks are in `scripts/gates/lib/push-exempt.mjs`, `scripts/gates/lib/lock-lint.mjs` and `scripts/gates/lib/rush-json-compare.mjs`.
+
+- A deleted file, a file type change, a deleted or symlinked lock, or any other gate file blocks the push.
+- An added `pnpm-lock.yaml` is not exempt. Only a modified lock is.
+- `uv.lock`, `go.mod` and `go.sum` are not exempt. A human pushes them.
+- Uncommitted changes still block. Only committed changes in the range are exempt.
+- The refusal message adds a `Not counted (...)` line when it ignores exempt files.
+- Merging still needs CODEOWNERS approval (section 6.1).
+
 **Push rules.** The `pre-push` hook applies these rules:
 
 - Every pushed ref must be the checked-out commit. Otherwise the push fails with `push the checked-out commit only (git push origin HEAD:main)`.
 - Tracked files must have no uncommitted change.
-- A ref delete is allowed.
+- A ref delete is allowed by this hook. The agent command guard blocks a delete (see the agent refspec rule below).
 - Push one commit at a time. check-gates counts all unpushed commits as one PR. The pr-size limit is 10000 lines.
+- A gate change in the range must pass the push exemption above.
+
+**Push base.** The push guard compares the range with the merge base of `HEAD` and `origin/main`. If `origin/main` does not exist, it uses `origin/master`. If neither exists, it uses the root commit. The upstream branch is not used. So `git branch -u` and `git push -u` cannot change the base.
+
+**Agent refspec rule.** The agent command guard (`require-verify`) applies these rules to `git push`, `gh pr create` and `gh pr new`:
+
+- Each refspec source must be `HEAD`, the current branch, or a commit that `HEAD` contains. An ancestor of `HEAD` is allowed. A source that git cannot resolve blocks. Otherwise the guard blocks with `Push the current branch only.`
+- The guard blocks a ref delete, a glob, `--all`, `--branches`, `--delete`, `--tags`, `--follow-tags`, `--mirror` and `--prune`. It also blocks their abbreviations and any short flag cluster that holds `d` or `f`, such as `-qd`.
+- A push with no refspec blocks in these cases:
+  - `remote.<name>.push` is set. When the command names no remote, the guard checks every remote.
+  - `remote.<name>.mirror` is set, with any value. The guard checks the same remotes.
+  - `push.default` is set to a value other than `simple`, `current` or `upstream`.
+  - `push.default` is `upstream` and the merge branch is not `refs/heads/<current branch>`.
+- The guard blocks `gh pr create --head <other branch>`.
+- The guard reads command aliases. For example, `git p` is checked the same way as `git push`.
 
 **Remote.** The `origin` remote is a local bare repository at `/Users/PrudhviGenie/Desktop/Dev/projects-monorepo.git`. The `repository.url` in `rush.json` is that path. `git push origin HEAD:main` runs the pre-push hook. `origin/main` moves only when the gates pass. A GitHub URL replaces this remote later. Run `git remote set-url origin <url>`.
 
@@ -393,12 +440,21 @@ Agents must not add an allowlist entry. See `docs/standards/security.md`.
 
 ### 6.6 A dependency must be added
 
-1. The agent shows the human each new package with its version, its license, and the reason. The agent waits for approval.
-2. After approval, the agent runs `node common/scripts/install-run-rush.js add -p <package>` in the project folder. Use `rush add`, not `npm`, `pnpm` or `yarn` directly.
-3. The agent commits the `package.json` change and each file that the command changed under `common/config/rush/` (for example `pnpm-lock.yaml` and `repo-state.json`) together with the change that needs them. Check with `git status --short`.
-4. The local gate runner runs `rush audit`, because `pnpm-lock.yaml` changed (section 4.3.1). A failed audit fails the push. Do not add an allowlist entry to pass it (section 6.5).
-5. A human reads the lockfile diff and the new-dependency report. The human checks the license, the age, and the maintainers.
-6. A human pushes the commit. The agent cannot push a gate change (section 3.1).
+A new npm dependency needs no human approval. The automatic policy checks it. A failed check means the agent stops and asks the human.
+
+1. The agent runs `node common/scripts/install-run-rush.js add -p <package>` in the project folder. Add `--dev` for a dev dependency. Use `rush add`, not `npm`, `pnpm` or `yarn` directly.
+2. The policy checks the new package:
+   - License check (`rush license-check`), from `scripts/gates/dep-checks.mjs`.
+   - `rush audit`, because `pnpm-lock.yaml` changed (section 4.3.1).
+   - Minimum release age of 7 days. The setting is `minimum-release-age=10080` (minutes) in `common/config/rush/.npmrc`.
+   - No install scripts. Only the packages in `onlyBuiltDependencies` run them (`common/config/rush/pnpm-config.json`).
+   - Typosquat check (`scripts/gates/typosquat-check.mjs`, section 4.3.1). It flags a new name that looks like a known name. The name list is small and static (`scripts/gates/data/popular-npm-packages.json`, about 300 names). It catches only close lookalikes of listed names. The PR review by a human is the main control for new names.
+   - Dependency spec rules (section 4.3.1). A version text can be a plain registry range or tag. A URL, a git source, a tarball, an `npm:` alias, or `catalog:` fails. A `file:` or `link:` path passes only when it resolves inside the repo. A `@vprprudhvi/*` dependency must use a `workspace:` version.
+3. If a check fails, the agent stops. The agent tells the human the package, the version and the failed check. The agent does not add an allowlist entry (section 6.5) and does not change a policy file.
+4. If every check passes, the agent commits the `package.json` change and each file that the command changed under `common/config/rush/` (for example `pnpm-lock.yaml` and `repo-state.json`) together with the change that needs them. Check with `git status --short`.
+5. The agent pushes the commit when the push exemption applies (section 4.3.1). If `rush add` changed another file under `common/config/rush/`, a human pushes the commit.
+6. A reviewer reads the lockfile diff and the license, the age and the maintainers of the new package. Merging needs CODEOWNERS approval (section 6.1).
+7. The agent lists each new package with its version and license in its final report.
 
 For Python and Go, the agent writes the `uv add`, `go get` or `go mod tidy` command to a handoff file (`NN-commands.txt`, section 2.4). A human runs the command. The runner runs pip-audit or govulncheck when `uv.lock` or `go.sum` changed.
 
@@ -415,7 +471,7 @@ The agent adds a project with the script `scripts/gates/register-project.mjs`. T
 3. The script adds `{ "packageName": "@vprprudhvi/<name>", "projectFolder": "projects/<name>", "shouldPublish": false, "tags": ["project/<name>"] }` to the `projects` list in sorted order. It keeps all comments. It reads the file again to check the result.
 4. The script refuses a duplicate name or folder, a missing folder, a missing `package.json`, or a wrong package name. Then `rush.json` does not change. Exit code: 0 done, 1 refused, 2 bad usage or a bad name.
 5. Run `node common/scripts/install-run-rush.js update`. The script prints this command as the next step.
-6. Commit `rush.json` and each file that `rush update` changed under `common/config/rush/` together with the project. Check with `git status --short`. A human pushes the commit.
+6. Commit `rush.json` and each file that `rush update` changed under `common/config/rush/` together with the project. Check with `git status --short`. The agent pushes the commit when the push exemption applies (section 4.3.1). Otherwise a human pushes it.
 
 To remove an entry, run `node scripts/gates/register-project.mjs --remove <name>`.
 
@@ -423,7 +479,10 @@ To remove an entry, run `node scripts/gates/register-project.mjs --remove <name>
 
 - Do not edit a gate file. The hook blocks the edit.
 - Write the new content of a gate file to the handoff folder (section 2.4).
-- Run `rush add -p <pkg>` and `rush update` only after the human approves the dependency (section 6.6). Write `uv add`, `go get` and `go mod tidy` to the handoff folder.
+- Run `rush add -p <pkg>` only through the dependency policy (section 6.6). Stop and ask the human when a policy check fails. Run `rush update` only after `register-project.mjs` (section 6.8). Write `uv add`, `go get` and `go mod tidy` to the handoff folder.
+- Push a commit with a gate change only when the push exemption applies (section 4.3.1). A human pushes any other gate change.
+- Push only the checked-out commit (`HEAD`) to the current branch. Do not use another refspec, a delete, a glob, `--all` or `--branches` (section 4.3.1).
+- Do not set `GATES_BASE`. Do not write `.claude/state/gates-base` (section 3.2).
 - Change `rush.json` only with `node scripts/gates/register-project.mjs` (section 6.8).
 - When a gate fails, read the folder in the `Logs kept in <path>` line before you run the gate again.
 - Open a PR for a change to a file in section 2.2 or 2.3. Do not merge it.
