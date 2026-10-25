@@ -10,6 +10,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 Rules:
 
 - Project constructs live in `projects/<name>/lib/constructs/<kebab>.ts`.
+- The stub CDK app already exists (`bin/app.ts`, `lib/<name>-app.ts`, `lib/<name>-stack.ts`, `cdk.json`, `tsconfig.cdk.json`). `new-project` creates it. Add constructs to `lib/` and wire them into the stack. Never create `cdk.json`.
 - The CDK app (`bin/`, `lib/`) uses the one project `package.json`. CDK bundles Lambda code at synth: `NodejsFunction` for TypeScript, `Code.fromAsset` with local bundling for Go (`go build`, `linux/arm64`) and Python (`uv`), Docker as fallback, local bundling for the OpenNext web build. Unit tests turn bundling off. Region is `us-east-1` only. See `docs/guides/infra.md`.
 - Shared constructs go to `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
 - Platform constructs live in `platform/infra`. Only a human changes them.
@@ -18,7 +19,7 @@ Rules:
 
 ## Steps
 
-1. Read `projects/<name>/lib/constructs/` and `lib/stacks/`. Copy the existing style.
+1. Read `projects/<name>/lib/<name>-stack.ts` and `lib/constructs/` (the folder is absent in a stub project: create it). Copy the existing style.
 2. Decide the location. If another project would use it, or it belongs to the platform, stop and ask the human.
 3. Write the props type with `type`, not `interface`. Mark each field `readonly`.
 4. Write the construct class in PascalCase. Use PascalCase construct IDs: `new Bucket(this, 'AssetsBucket', ...)`.

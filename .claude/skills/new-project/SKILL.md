@@ -16,8 +16,8 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - `ls platform/infra` must list files. If not, stop. The platform must exist first. A human sets it up.
    - `ls projects/<name> 2>/dev/null` must print nothing.
    - `grep -c '"@vprprudhvi/<name>"' rush.json` must print 0.
-3. Create the folders for the chosen parts. Do not create `bin/` or `lib/` yet. Wave 3 adds the CDK app (see `docs/guides/infra.md`) and the human reviews it.
-   - `mkdir -p projects/<name>/{src/contracts,scripts,config,test/contracts}`
+3. Create the folders for the chosen parts. Every project is a CDK project from day one, so it always gets `bin/`, `lib/` and `test/infra`.
+   - `mkdir -p projects/<name>/{src/contracts,scripts,config,bin,lib,test/contracts,test/infra}`
    - web: `mkdir -p projects/<name>/web/{app,components,lib,e2e} projects/<name>/test/web`
    - api: `mkdir -p projects/<name>/src/api/{routes,domain,adapters} projects/<name>/test/api`
    - api-py: `mkdir -p projects/<name>/src/api-py/{src,tests,scripts}`
@@ -33,7 +33,13 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - api-py and api-go: add OpenTelemetry setup and a test that the log record has the trace id.
    - The Bruno health request asserts the `traceparent` header.
    - When the package exists, new dependencies go in the Phase B list.
-6. Infra is a later step. Do not write `bin/` or `lib/` now. When the human asks for it, use `new-cdk-construct`. The CDK app lives in `projects/<name>/bin` and `projects/<name>/lib` and uses the same `package.json`.
+6. Write a stub CDK app. It has no resources. It makes later infra work need no gate-file change. Model it on `projects/sample` (`bin/app.ts`, `lib/sample-app.ts`, `cdk.json`, `tsconfig.cdk.json`, the `build:cdk` script). Use the contents in `reference.md`, section "infra (stub CDK app)". Do not deploy.
+   - `bin/app.ts` creates the `App`, calls `add<Name>Stack`, and synthesizes.
+   - `lib/<name>-app.ts` adds the cdk-nag `AwsSolutionsChecks` plugin the same way as the sample, and creates the stack.
+   - `lib/<name>-stack.ts` is one empty stack class.
+   - `test/infra/<name>-stack.test.ts` uses `Template.fromStack`. `test/infra/<name>-app.test.ts` tests `add<Name>Stack`. The CDK part has coverage from the start.
+   - `cdk.json` and `tsconfig.cdk.json` go to the handoff folder (step 7).
+   - When the human asks for infra, use `new-cdk-construct`. It adds constructs to `lib/`. It never creates `cdk.json`.
 7. Write each gate file to the handoff folder `.claude/state/handoff/<name>/`. Use the Write tool. Use the `.txt` suffix on every file. Name each file `NN-<target path with / replaced by __>.txt`. The first line is `TARGET: <path>`. The list is in "Handoff files" below.
 8. Stop. Tell the human: "Copy each handoff file to its TARGET path. Reply 'gates applied'."
 
@@ -48,6 +54,8 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
     - TypeScript parts: run `rush add -p <pkg> [--dev]` yourself from `projects/<name>`. Never run `npm`, `pnpm` or `yarn` to add a package.
     - web: `@playwright/test` and `@axe-core/playwright` (dev). Then `npx playwright install chromium` from `projects/<name>`.
     - any api part: `@usebruno/cli` (dev, pinned), so `bru` is available.
+    - CDK (always): use the versions of `projects/sample/package.json`, pinned with `--exact`. Run `rush add -p aws-cdk-lib@<version> --exact`, `rush add -p constructs@<version> --exact`, `rush add -p cdk-nag@<version> --exact`, and `rush add -p aws-cdk@<version> --exact --dev`. Run `rush add -p @vprprudhvi/shared-cdk-constructs` too. The stub does not import it, but each later construct does, so `package.json` needs no change then. Read the versions from the sample each time. Do not copy them from this file.
+    - Tooling (always): `@vprprudhvi/tooling-eslint-config`, `@vprprudhvi/tooling-tsconfig` and `@vprprudhvi/tooling-vitest-config` as dev dependencies with the version `workspace:*`, the same as `projects/sample/package.json`. The tsconfig, eslint and vitest files extend them.
     - api-py and api-go: do not run these commands yourself. They change `uv.lock`, `go.mod`, and `go.sum`, which are gate files. Write the commands to `.claude/state/handoff/<name>/NN-commands.txt`, one per line, with the folder for each: `uv add --dev <pkg>` from `projects/<name>/src/api-py`, and `go get <module>` then `go mod tidy` from `projects/<name>/src/api-go`. A human runs them, then replies "deps applied".
 12. Commit the project, the Rush config change, and each file that `rush update` or `rush add` changed under `common/config/rush/` in one commit. Check with `git status --short`. The Stop hook blocks a stop while a gate file has an uncommitted change. Push the commit when the push exemption applies (`docs/standards/gates.md`, section 4.3.1). Otherwise tell the human: "The push has a gate change outside the push exemption. Push the commit."
 13. Check the platform values exist (read-only): `aws ssm get-parameters-by-path --path /platform/prod --recursive --query 'Parameters[].Name' --output text`. If credentials are missing, say so.
@@ -60,7 +68,8 @@ Write each file below to `.claude/state/handoff/<name>/`. Each file starts with 
 Gate-glob files (target paths):
 
 - `projects/<name>/config/rush-project.json`.
-- `projects/<name>/tsconfig.json`, `projects/<name>/tsconfig.build.json`, `projects/<name>/eslint.config.js`, `projects/<name>/vitest.config.ts`.
+- `projects/<name>/tsconfig.json`, `projects/<name>/tsconfig.build.json`, `projects/<name>/eslint.config.js`, `projects/<name>/vitest.config.ts`. `tsconfig.json` includes `bin` and `lib`. `eslint.config.js` scopes `bin/**` and `lib/**` to the `cdk` config. `vitest.config.ts` runs `test/infra` and covers `bin` and `lib`. Write them with `bin` and `lib` from the start.
+- `projects/<name>/cdk.json` and `projects/<name>/tsconfig.cdk.json`: the stub CDK app.
 - `projects/<name>/src/api-py/pyproject.toml`: api-py.
 - `projects/<name>/src/api-go/.golangci.yml`: api-go.
 - `projects/<name>/REVIEW.md`: one heading per part.
@@ -70,7 +79,7 @@ Gate-glob files (target paths):
 
 Package file with `_phase:*` scripts (counted as gate changes by content, not by glob):
 
-- `projects/<name>/package.json`: the only one.
+- `projects/<name>/package.json`: the only one. It has the `build:cdk` and `synth` scripts from the start (see `reference.md`).
 
 Gate files that a command writes (never write them to the handoff folder):
 
@@ -84,6 +93,8 @@ Gate files that a command writes (never write them to the handoff folder):
 - [ ] Any api part has a Bruno collection with docs and assertions. Web has a Playwright spec that calls `page.goto`.
 - [ ] The handoff folder has every gate file, each with a `TARGET:` line.
 - [ ] After approval: the build, the verify output, and the `verify` skill pass. Outputs are pasted.
+- [ ] The project has the stub CDK app (`bin/app.ts`, `lib/<name>-stack.ts`, its tests), and `cdk.json` and `tsconfig.cdk.json` are at their targets.
+- [ ] `rush verify --only @vprprudhvi/<name>` passes with the stub CDK app, and the synth gate passes (`node scripts/gates/synth-changed.mjs`, or `npx cdk synth --quiet` in the project folder).
 - [ ] Each part has telemetry wired, and a trace propagation test.
 - [ ] No folder under the project has its own `package.json`, except `src/api-py` and `src/api-go` tool files (`pyproject.toml`, `go.mod`).
 
