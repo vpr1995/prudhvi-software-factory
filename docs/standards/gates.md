@@ -21,7 +21,7 @@ There are three kinds of protected path. Each kind has a different rule for agen
 | Kind                          | Agent may edit?                                                                | Who approves                        | Section |
 | ----------------------------- | ------------------------------------------------------------------------------ | ----------------------------------- | ------- |
 | Hook-blocked gate file        | No. The hook blocks the edit. The agent uses the handoff folder (section 2.4). | A human, outside the agent session. | 2.1     |
-| Human-reviewed document       | Yes, as a proposal. The hook does not block it.                                | CODEOWNERS (`@vprprudhvi`).         | 2.2     |
+| Human-reviewed document       | Yes, as a proposal. The hook does not block it.                                | CODEOWNERS (`@vpr1995`).            | 2.2     |
 | Always-human path (high risk) | Yes, as a proposal. The hook does not block it.                                | CODEOWNERS and `risk:high`.         | 2.3     |
 
 ### 2.1 Hook-blocked gate files
@@ -107,7 +107,7 @@ Review rules are gate files. `REVIEW.md` files are in section 2.1. An agent writ
 
 `tooling/CLAUDE.md` and `.github/CLAUDE.md` are under `tooling/**` and `.github/**`. The hook blocks their edits (section 2.1).
 
-`.github/CODEOWNERS` sets `* @vprprudhvi` as the default owner. It also lists `/CLAUDE.md` and `**/CLAUDE.md`. A path with no line of its own uses the default owner.
+`.github/CODEOWNERS` sets `* @vpr1995` as the default owner. It also lists `/CLAUDE.md` and `**/CLAUDE.md`. A path with no line of its own uses the default owner.
 
 ### 2.3 Always-human paths (high risk)
 
@@ -387,7 +387,7 @@ check-gates warns above 2000 changed lines and fails above 10000 changed lines. 
 1. Confirm that the finding is a false positive. Read the rule and the code.
 2. Add an entry to the allowlist file. Use the file for the tool: `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, or `tooling/opengrep/**`.
 3. Write the reason in the entry. For `audit-ci.jsonc`, also write an expiry date.
-4. Get approval from `@vprprudhvi`.
+4. Get approval from `@vpr1995`.
 
 Agents must not add an allowlist entry. See `docs/standards/security.md`.
 

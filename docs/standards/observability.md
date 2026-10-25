@@ -99,7 +99,7 @@ Each log line is one JSON object. TypeScript, Python, and Go use the same field 
 | Prod        | 10%, parent-based head sampling |
 
 - The sampler is parent-based. A child span follows the decision of its parent. The head sampler decides before an error occurs.
-- Error traces are not always kept. The ADOT collector in a Lambda layer runs in one execution environment. It does not see all spans of one trace. It cannot tail sample. To keep all error traces, a central collector must tail sample. That design is open and a human owns it (owner: `@vprprudhvi`).
+- Error traces are not always kept. The ADOT collector in a Lambda layer runs in one execution environment. It does not see all spans of one trace. It cannot tail sample. To keep all error traces, a central collector must tail sample. That design is open and a human owns it (owner: `@vpr1995`).
 - An error log line keeps its `trace_id` when the trace is not sampled. Logs are not sampled.
 
 ## 8. Lambda: ADOT layer and environment

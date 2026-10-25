@@ -57,4 +57,4 @@ A revert PR passes the same gates as any other PR. A revert does not skip a gate
 - Do not run `cdk deploy` or `cdk destroy` from a laptop. Use the workflow.
 - Do not change a branch ruleset to unblock a merge.
 - Do not add `--no-verify` or a skip to a rollback PR.
-- If a rollback fails, stop. Call the platform owners (`@vprprudhvi`).
+- If a rollback fails, stop. Call the platform owners (`@vpr1995`).

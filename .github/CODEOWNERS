@@ -1,6 +1,6 @@
 # CODEOWNERS
 #
-# Single maintainer: every path is owned by @vprprudhvi.
+# Single maintainer: every path is owned by @vpr1995.
 # GitHub does not let an author approve their own PR. Agents open PRs from a
 # separate bot account or GitHub App. See docs/standards/risk-tiers.md.
 #
@@ -11,92 +11,92 @@
 #   Keep the grouping comments.
 
 # Default owner for any path not listed below.
-* @vprprudhvi
+* @vpr1995
 
 # ---------------------------------------------------------------------------
 # Projects (general)
 # ---------------------------------------------------------------------------
-/projects/sample/ @vprprudhvi
+/projects/sample/ @vpr1995
 
 # ---------------------------------------------------------------------------
 # Infrastructure (AWS CDK)
 # ---------------------------------------------------------------------------
-/projects/*/bin/ @vprprudhvi
-/projects/*/lib/ @vprprudhvi
-/packages/cdk-constructs/ @vprprudhvi
+/projects/*/bin/ @vpr1995
+/projects/*/lib/ @vpr1995
+/packages/cdk-constructs/ @vpr1995
 
 # ---------------------------------------------------------------------------
 # Platform infrastructure (shared AWS resources, always high risk)
 # ---------------------------------------------------------------------------
-/platform/ @vprprudhvi
+/platform/ @vpr1995
 
 # ---------------------------------------------------------------------------
 # Shared packages (high risk: shared blast radius)
 # ---------------------------------------------------------------------------
-/packages/ @vprprudhvi
+/packages/ @vpr1995
 
 # ---------------------------------------------------------------------------
 # Shared tooling
 # ---------------------------------------------------------------------------
-/tooling/ @vprprudhvi
+/tooling/ @vpr1995
 
 # ---------------------------------------------------------------------------
 # Human-reviewed documents (agents propose edits, a human approves)
 # ---------------------------------------------------------------------------
-/CLAUDE.md @vprprudhvi
-/AGENTS.md @vprprudhvi
-/REVIEW.md @vprprudhvi
-**/REVIEW.md @vprprudhvi
-/docs/templates/ @vprprudhvi
-/docs/standards/ @vprprudhvi
-/docs/guides/ @vprprudhvi
-**/CLAUDE.md @vprprudhvi
-**/AGENTS.md @vprprudhvi
+/CLAUDE.md @vpr1995
+/AGENTS.md @vpr1995
+/REVIEW.md @vpr1995
+**/REVIEW.md @vpr1995
+/docs/templates/ @vpr1995
+/docs/standards/ @vpr1995
+/docs/guides/ @vpr1995
+**/CLAUDE.md @vpr1995
+**/AGENTS.md @vpr1995
 
 # ---------------------------------------------------------------------------
 # Gate files (hook-blocked for agents; always last)
 # ---------------------------------------------------------------------------
 
 # GitHub workflows, templates, rulesets, and this file
-/.github/ @vprprudhvi
-/.github/CODEOWNERS @vprprudhvi
+/.github/ @vpr1995
+/.github/CODEOWNERS @vpr1995
 
 # Agent permissions, hooks, and skills
-/.claude/settings.json @vprprudhvi
-/.claude/hooks/ @vprprudhvi
+/.claude/settings.json @vpr1995
+/.claude/hooks/ @vpr1995
 
 # Security configuration
-/.gitleaks.toml @vprprudhvi
-/audit-ci.jsonc @vprprudhvi
-/.checkov.yaml @vprprudhvi
-/tooling/opengrep/ @vprprudhvi
-/tooling/license-allowlist.json @vprprudhvi
+/.gitleaks.toml @vpr1995
+/audit-ci.jsonc @vpr1995
+/.checkov.yaml @vpr1995
+/tooling/opengrep/ @vpr1995
+/tooling/license-allowlist.json @vpr1995
 
 # Coding conventions (hook-blocked)
-/docs/standards/coding-conventions.md @vprprudhvi
+/docs/standards/coding-conventions.md @vpr1995
 
 # Rush, lockfile, git hooks, autoinstallers
-/rush.json @vprprudhvi
-/common/config/rush/ @vprprudhvi
-/common/git-hooks/ @vprprudhvi
-/common/autoinstallers/ @vprprudhvi
+/rush.json @vpr1995
+/common/config/rush/ @vpr1995
+/common/git-hooks/ @vpr1995
+/common/autoinstallers/ @vpr1995
 
 # Gate scripts
-/scripts/gates/ @vprprudhvi
+/scripts/gates/ @vpr1995
 
 # Python and Go locks and settings (gate files)
-**/pyproject.toml @vprprudhvi
-**/uv.lock @vprprudhvi
-**/go.sum @vprprudhvi
-**/.golangci.yml @vprprudhvi
-**/playwright.config.* @vprprudhvi
+**/pyproject.toml @vpr1995
+**/uv.lock @vpr1995
+**/go.sum @vpr1995
+**/.golangci.yml @vpr1995
+**/playwright.config.* @vpr1995
 
 # Build, lint, test, and boundary settings
-**/rush-project.json @vprprudhvi
-**/eslint.config.* @vprprudhvi
-**/tsconfig*.json @vprprudhvi
-**/vitest.config.* @vprprudhvi
-/.dependency-cruiser.* @vprprudhvi
-**/cdk.json @vprprudhvi
-/docker-compose.yml @vprprudhvi
-**/bruno/environments/ @vprprudhvi
+**/rush-project.json @vpr1995
+**/eslint.config.* @vpr1995
+**/tsconfig*.json @vpr1995
+**/vitest.config.* @vpr1995
+/.dependency-cruiser.* @vpr1995
+**/cdk.json @vpr1995
+/docker-compose.yml @vpr1995
+**/bruno/environments/ @vpr1995

@@ -42,14 +42,14 @@ Changes to the human-reviewed documents in `docs/standards/gates.md`, section 2.
 
 ### 3.1 Single maintainer (current state)
 
-The repository has one human maintainer, `@vprprudhvi`. GitHub does not let an author approve their own pull request. Without a change, the maintainer cannot approve a PR that the maintainer's own account opened.
+The repository has one human maintainer, `@vpr1995`. GitHub does not let an author approve their own pull request. Without a change, the maintainer cannot approve a PR that the maintainer's own account opened.
 
 Use this setup:
 
 1. Agents open PRs from a separate bot account or a GitHub App. The human account does not open agent PRs.
 2. The maintainer reviews and approves each PR from the human account.
 3. Section 1 requires two approvals for `risk:high`. Until a second maintainer exists, `risk:high` needs:
-   - one human approval from `@vprprudhvi`, and
+   - one human approval from `@vpr1995`, and
    - all automated reviews that pass: AI review (`claude-review.yml`), security review, and `check-gates`.
 4. The PR must name this degraded rule in the Risk tier section. Write: "Single maintainer: 1 human approval plus passing automated reviews."
 5. When a second maintainer exists, restore the two-approval rule in the ruleset and in this section.

@@ -101,7 +101,7 @@ Use this process.
 4. Add an allowlist entry in the rule file for the tool. Use the file in section 3.
 5. Write the reason in the entry.
 6. For `audit-ci.jsonc`, write an expiry date. Renew or remove the entry when it expires.
-7. Get approval from `@vprprudhvi`.
+7. Get approval from `@vpr1995`.
 
 Use the smallest scope in the entry. Do not allow a whole directory when one file is enough.
 
@@ -117,7 +117,7 @@ An agent does not add an entry. An agent writes the reason in the PR. A human ad
 - If a secret leaks, do these steps in order:
   1. Revoke or rotate the secret. Do this first.
   2. Remove the secret from the code in a new commit.
-  3. Tell `@vprprudhvi` in the PR.
+  3. Tell `@vpr1995` in the PR.
 
 Removing a secret from git history does not make it safe. Rotate it.
 
