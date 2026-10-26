@@ -171,6 +171,39 @@ if (process.argv[2] === 'audit') {
 console.log('rush stub ok');
 `;
 
+/**
+ * A Rush stub that passes every command. It answers `list` with common/temp/rush-list.json after a
+ * header that is not JSON, like install-run-rush.js. It logs each call like the stub of the harness.
+ */
+const LIST_STUB = `const fs = require('node:fs');
+const path = require('node:path');
+const temp = path.join(__dirname, '..', 'temp');
+fs.appendFileSync(path.join(temp, 'stub-calls.log'), process.argv.slice(2).join(' ') + '\\n');
+if (process.argv[2] === 'list') {
+  console.log('Invoking "rush ' + process.argv.slice(2).join(' ') + '"');
+  console.log('');
+  console.log(fs.readFileSync(path.join(temp, 'rush-list.json'), 'utf8'));
+}
+`;
+
+/** A gate script stub: it logs its file name and arguments, then passes. */
+const SCRIPT_STUB = `import fs from 'node:fs';
+import path from 'node:path';
+const call = [path.basename(process.argv[1] ?? ''), ...process.argv.slice(2)].join(' ');
+fs.appendFileSync('common/temp/script-calls.log', call + '\\n');
+`;
+
+/** The gate scripts that the runner calls after the dependency checks. */
+const STUBBED_SCRIPTS = [
+  'anti-skip',
+  'check-gates',
+  'test-impacted',
+  'prettier-check',
+  'synth-changed',
+  'bruno-coverage',
+  'playwright-coverage',
+];
+
 const KEPT_LINE =
   /Logs kept in (\.claude\/state\/failure-logs\/\d{8}T\d{6}Z-[a-z0-9-]+)\. Read them before you rerun\./;
 
@@ -216,6 +249,42 @@ describe('local-gates.sh runner', () => {
    */
   function rushCalls() {
     return (repository.read('common/temp/stub-calls.log') ?? '').split('\n').filter(Boolean);
+  }
+
+  /**
+   * Reads the Bruno coverage calls of the gate script stubs.
+   *
+   * @returns {string[]} One entry for each call: the file name and the arguments.
+   */
+  function brunoCalls() {
+    return (repository.read('common/temp/script-calls.log') ?? '')
+      .split('\n')
+      .filter((call) => call.startsWith('bruno-coverage.mjs'));
+  }
+
+  /**
+   * Makes every step of the runner pass in the temp repo: stubs for opengrep, ESLint, Rush and the
+   * gate scripts after the dependency checks. Adds two API projects (svc with src/api, py with
+   * src/api-py) and one web project (site).
+   *
+   * @param {string[]} impacted - The project paths that `rush list --impacted-by` returns.
+   */
+  function passEveryStep(impacted) {
+    repository.write('scripts/security/opengrep-changed.sh', 'exit 0\n');
+    const eslint = 'tooling/eslint-config/node_modules/.bin/eslint';
+    repository.write(eslint, '#!/bin/sh\nexit 0\n');
+    fs.chmodSync(path.join(repository.root, eslint), 0o755);
+    repository.write('common/scripts/install-run-rush.js', LIST_STUB);
+    repository.write(
+      'common/temp/rush-list.json',
+      JSON.stringify({ projects: impacted.map((folder) => ({ path: folder })) }, null, 2),
+    );
+    for (const script of STUBBED_SCRIPTS) {
+      repository.write(`scripts/gates/${script}.mjs`, SCRIPT_STUB);
+    }
+    repository.write('projects/svc/src/api/index.ts', '');
+    repository.write('projects/py/src/api-py/app.py', '');
+    repository.write('projects/site/web/page.tsx', '');
   }
 
   it('prints the base, skips rush change without a remote, and stops at the first failure', () => {
@@ -392,6 +461,38 @@ describe('local-gates.sh runner', () => {
     // uv and Go are optional on a machine: a missing tool leaves the part cold, it does not fail.
     assert.match(script, /if ! command -v uv >\/dev\/null 2>&1; then\n/);
     assert.match(script, /if ! command -v go >\/dev\/null 2>&1; then\n/);
+  });
+
+  it('checks Bruno coverage of each impacted API project, and of every project in a full run', () => {
+    // bruno-coverage.mjs with no --project reads dist/openapi.json of every API project. The
+    // impacted run builds only the impacted projects, so a docs-only push from a fresh clone failed.
+    passEveryStep(['packages/a', 'projects/py', 'projects/site', 'projects/svc']);
+    const base = repository.git('rev-parse', 'HEAD').trim();
+    const impacted = runGates({ GATES_BASE: base });
+    assert.equal(impacted.status, 0, impacted.stderr);
+    assert.ok(rushCalls().includes(`list --impacted-by git:${base} --json`), rushCalls().join(','));
+    assert.deepEqual(brunoCalls(), [
+      'bruno-coverage.mjs --project py',
+      'bruno-coverage.mjs --project svc',
+    ]);
+    assert.match(impacted.stdout, /gates: PASS bruno coverage \(py\)\n/);
+    assert.match(impacted.stdout, /gates: PASS bruno coverage \(svc\)\n/);
+    // A full run builds every project, so it checks all of them: no list, no --project.
+    fs.rmSync(path.join(repository.root, 'common', 'temp', 'stub-calls.log'));
+    fs.rmSync(path.join(repository.root, 'common', 'temp', 'script-calls.log'));
+    const full = runGates({ GATES_BASE: base, GATES_FULL: '1' });
+    assert.equal(full.status, 0, full.stderr);
+    assert.deepEqual(brunoCalls(), ['bruno-coverage.mjs']);
+    assert.ok(!rushCalls().some((call) => call.startsWith('list')), rushCalls().join(','));
+  });
+
+  it('skips Bruno coverage when no impacted project has an API', () => {
+    passEveryStep(['packages/a', 'projects/site']);
+    const result = runGates({ GATES_BASE: repository.git('rev-parse', 'HEAD').trim() });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /gates: SKIP bruno coverage \(no impacted API project\)\n/);
+    assert.deepEqual(brunoCalls(), []);
+    assert.match(result.stdout, /gates: PASS playwright coverage\n/);
   });
 
   it('fails before any step when GATES_BASE is not a commit', () => {

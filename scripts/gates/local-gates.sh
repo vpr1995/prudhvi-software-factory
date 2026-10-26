@@ -14,7 +14,8 @@
 # module cache writes to stderr ("Creating virtual environment", "go: downloading").
 # Before rush verify: Prettier on the files changed since the base
 # (scripts/gates/prettier-check.mjs). After rush verify: cdk synth for the CDK apps whose infra
-# changed (scripts/gates/synth-changed.mjs).
+# changed (scripts/gates/synth-changed.mjs). Then Bruno coverage: every API project in a full run,
+# and in the impacted run only the impacted API projects (the same list as ci.yml).
 # Dependency checks (scripts/gates/dep-checks.mjs): license checks run when a lock or the license
 # policy changed since the base. The typosquat check (scripts/gates/typosquat-check.mjs) runs when a
 # package.json gained a dependency name, or gained or changed a dependency version, since the base: a
@@ -117,6 +118,31 @@ warm_parts() {
   done
 }
 
+# impacted_api_projects <base>: prints one name per line: each projects/<name> that the diff since
+# <base> impacts (rush list --impacted-by) and that has src/api, src/api-py or src/api-go. The same
+# list and the same folder test as the "Bruno coverage" step of .github/workflows/ci.yml. The
+# output of install-run-rush.js starts with lines that are not JSON, so the parse starts at the
+# first "{", as in ci.yml.
+impacted_api_projects() {
+  local list folders folder
+  list="$(rush list --impacted-by "git:$1" --json </dev/null)" || return 1
+  folders="$(printf '%s' "$list" | node -e '
+    const text = require("node:fs").readFileSync(0, "utf8");
+    const projects = JSON.parse(text.slice(text.indexOf("{"))).projects;
+    for (const project of projects) console.log(project.path);
+  ')" || return 1
+  while IFS= read -r folder; do
+    case "$folder" in
+      projects/*/*) continue ;;
+      projects/?*) ;;
+      *) continue ;;
+    esac
+    if [ -d "$folder/src/api" ] || [ -d "$folder/src/api-py" ] || [ -d "$folder/src/api-go" ]; then
+      echo "${folder#projects/}"
+    fi
+  done <<<"$folders"
+}
+
 if [ "$audit_only" = true ]; then
   dep_checks --audit-only
   echo "gates: pass (audits only)"
@@ -180,8 +206,26 @@ fi
 # the apps import the built shared packages). GATES_FULL=1 synths every app.
 step "cdk synth (changed infra)" node scripts/gates/synth-changed.mjs --base "$base"
 
-# i. API and page coverage.
-step "bruno coverage" node scripts/gates/bruno-coverage.mjs
+# i. API and page coverage. bruno-coverage.mjs reads projects/<name>/dist/openapi.json, and only
+# the build of that project writes it. A full run built every project, so it checks every API
+# project. The impacted run built only the impacted projects and their dependencies, so it checks
+# each impacted API project with --project (see impacted_api_projects). Without --project, a
+# docs-only push from a fresh clone failed here (no dist/openapi.json).
+if [ "$full" = "1" ] || [ "$source" = "root" ]; then
+  step "bruno coverage" node scripts/gates/bruno-coverage.mjs
+else
+  if ! api_projects="$(impacted_api_projects "$base")"; then
+    echo "gates: FAIL bruno coverage (no list of the impacted projects, see the message above)" >&2
+    exit 1
+  fi
+  if [ -z "$api_projects" ]; then
+    echo "gates: SKIP bruno coverage (no impacted API project)"
+  fi
+  while IFS= read -r project; do
+    [ -n "$project" ] || continue
+    step "bruno coverage ($project)" node scripts/gates/bruno-coverage.mjs --project "$project"
+  done <<<"$api_projects"
+fi
 step "playwright coverage" node scripts/gates/playwright-coverage.mjs
 
 echo "gates: pass (base $base, $source)"
