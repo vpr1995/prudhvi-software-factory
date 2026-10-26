@@ -63,27 +63,35 @@ jobs:
           git config --global init.defaultBranch main
 
       # Caches. Each key is exact: no restore-keys, so a changed lock rebuilds from scratch. Every
-      # restore runs before the install, so hashFiles does not walk node_modules.
+      # restore runs before the install, so hashFiles does not walk node_modules. Restore and save are
+      # two steps (actions/cache/restore and actions/cache/save): the save step of the combined
+      # actions/cache runs only when the job succeeds, so a failed run would cache nothing. Each save
+      # step sits right after the step that fills its cache. The save steps use the key that the
+      # restore step computed (cache-primary-key) and run only after a miss.
       - name: Cache the pnpm store
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache-pnpm
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: common/temp/pnpm-store
           key: ${{ runner.os }}-pnpm-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
 
       - name: Cache the Rush launcher
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache-rush
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: common/temp/install-run
           key: ${{ runner.os }}-rush-install-run-${{ hashFiles('rush.json') }}
 
       - name: Cache the uv cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache-uv
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
 
       - name: Cache the Go modules and build caches
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache-go
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/go/pkg/mod
@@ -92,7 +100,8 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
 
       - name: Cache the Playwright browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache-playwright
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
@@ -149,6 +158,22 @@ jobs:
       - name: Rush install
         run: node common/scripts/install-run-rush.js install
 
+      # The install fills the pnpm store and the Rush launcher. Save them now, so that a later failure
+      # does not lose them.
+      - name: Save the pnpm store
+        if: steps.cache-pnpm.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: common/temp/pnpm-store
+          key: ${{ steps.cache-pnpm.outputs.cache-primary-key }}
+
+      - name: Save the Rush launcher
+        if: steps.cache-rush.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: common/temp/install-run
+          key: ${{ steps.cache-rush.outputs.cache-primary-key }}
+
       - name: Rush check
         run: node common/scripts/install-run-rush.js check
 
@@ -202,11 +227,19 @@ jobs:
       - name: Prettier check
         run: node scripts/gates/prettier-check.mjs --base "${BASE_SHA}"
 
-      # Stage 5: the Rush phases, one step each, on the impacted projects only. With no impacted
-      # project the steps skip (an empty selection is not a case that local-gates.sh covers).
+      # Stage 5: the Rush phases, one step each. With no impacted project the steps skip (an empty
+      # selection is not a case that local-gates.sh covers).
+      # Build uses --from: the impacted projects, the projects that depend on them, and all the
+      # dependencies of that set. The workspace packages (packages/*, tooling/*) have no dist/ on a
+      # fresh runner, and the impacted projects import them, so they must build first.
+      # --impacted-by would select only the changed projects and their dependents, and not build
+      # their dependencies.
       - name: Rush build
         if: steps.impacted.outputs.count != '0'
-        run: node common/scripts/install-run-rush.js build --impacted-by "git:${BASE_SHA}"
+        run: node common/scripts/install-run-rush.js build --from "git:${BASE_SHA}"
+
+      # The other phases use --impacted-by: the diff scope only. They read the dist/ of the
+      # dependencies that the build step wrote.
 
       - name: Rush lint
         if: steps.impacted.outputs.count != '0'
@@ -224,6 +257,33 @@ jobs:
         if: steps.impacted.outputs.count != '0'
         timeout-minutes: 40
         run: node common/scripts/install-run-rush.js e2e --impacted-by "git:${BASE_SHA}"
+
+      # The Rush phases fill the uv and Go caches (build, lint, typecheck, test) and the Playwright
+      # browsers (the e2e phase runs "playwright install chromium"). always() saves them also when a
+      # phase failed. A failed save only warns.
+      - name: Save the uv cache
+        if: always() && steps.cache-uv.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/uv
+          key: ${{ steps.cache-uv.outputs.cache-primary-key }}
+
+      - name: Save the Go modules and build caches
+        if: always() && steps.cache-go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.cache-go.outputs.cache-primary-key }}
+
+      - name: Save the Playwright browsers
+        if: always() && steps.cache-playwright.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.cache-playwright.outputs.cache-primary-key }}
 
       # Stage 7: offline cdk synth of each CDK app that the diff changed, for every environment.
       # No GATES_FULL: only the changed apps run. The step has no AWS credentials.
