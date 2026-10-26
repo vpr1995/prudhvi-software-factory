@@ -18,7 +18,7 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
 | `config/`        | The Rush settings (`rush-project.json`): which folders are build outputs.                                                                                                                                                                     |
 | `test/`          | The unit tests. The path under `test/` mirrors the source path. `test/web/setup.ts` sets up the web tests.                                                                                                                                    |
 | `dist/`          | Build output. It is not in git. `dist/openapi.json` is the OpenAPI 3.1 document that the build emits from `src/contracts`.                                                                                                                    |
-| `bin/`, `lib/`   | The CDK app and stacks. They do not exist yet. Wave 3 adds them.                                                                                                                                                                              |
+| `bin/`, `lib/`   | The CDK app. `bin/app.ts` makes the app. `lib/` holds the API stack, the env config and the cdk-nag acknowledgments.                                                                                                                          |
 
 ## Files in the project root
 

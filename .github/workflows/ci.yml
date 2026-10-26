@@ -1,0 +1,361 @@
+# CI for pull requests to main: install, then every gate of scripts/gates/local-gates.sh that
+# belongs in CI, then cdk synth. Every stage looks only at the diff between the PR head and the
+# merge base with the target branch. Opengrep, gitleaks, the dependency checks and the audits belong
+# to later workflows (sast.yml, deps.yml). See docs/standards/gates.md, sections 4.3.1 and 4.4.
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      pull-requests: read # check-gates reads the labels of the PR when it runs
+    env:
+      # The Python of setup-python is the one that uv must use. No download of another Python.
+      UV_PYTHON_DOWNLOADS: never
+    steps:
+      - name: Checkout the PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The real head of the PR, not the synthetic merge commit.
+          ref: ${{ github.event.pull_request.head.sha }}
+          # Full history and every branch: the merge base, rush change --verify and the range
+          # checks need origin/main. Nothing fetches later (the gates use --no-fetch).
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Show the diff that CI checks
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git rev-parse --verify --quiet "refs/remotes/origin/${BASE_REF}^{commit}" >/dev/null || {
+            echo "::error::origin/${BASE_REF} is not a ref in this checkout"
+            exit 1
+          }
+          base="$(git merge-base "origin/${BASE_REF}" HEAD)"
+          echo "BASE_SHA=${base}" >>"$GITHUB_ENV"
+          echo "base (merge base of origin/${BASE_REF} and HEAD): ${base}"
+          echo "head: $(git rev-parse HEAD)"
+          git diff --stat "${base}...HEAD"
+
+      - name: Set a git identity for the gate tests
+        run: |
+          git config --global user.name "ci"
+          git config --global user.email "ci@users.noreply.github.com"
+          git config --global init.defaultBranch main
+
+      # Caches. Each key is exact: no restore-keys, so a changed lock rebuilds from scratch. Every
+      # restore runs before the install, so hashFiles does not walk node_modules. Restore and save are
+      # two steps (actions/cache/restore and actions/cache/save): the save step of the combined
+      # actions/cache runs only when the job succeeds, so a failed run would cache nothing. Each save
+      # step sits right after the step that fills its cache. The save steps use the key that the
+      # restore step computed (cache-primary-key) and run only after a miss.
+      - name: Cache the pnpm store
+        id: cache-pnpm
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: common/temp/pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
+
+      - name: Cache the Rush launcher
+        id: cache-rush
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: common/temp/install-run
+          key: ${{ runner.os }}-rush-install-run-${{ hashFiles('rush.json') }}
+
+      - name: Cache the uv cache
+        id: cache-uv
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+
+      - name: Cache the Go modules and build caches
+        id: cache-go
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Cache the Playwright browsers
+        id: cache-playwright
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
+
+      # Toolchains. The built-in caches of the setup actions are off: actions/cache does the caching.
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc # 24.11.1, inside the range of rush.json
+          package-manager-cache: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14.9'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.7.12'
+          enable-cache: false
+
+      # setup-go reads the toolchain line of go.mod (go1.27.3) before it sets GOTOOLCHAIN=local.
+      # Do not set GOTOOLCHAIN anywhere in this workflow.
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: projects/sample/src/api-go/go.mod
+          cache: false
+
+      # The Python function of the CDK apps bundles for arm64 in Docker. This runner is x86.
+      - name: Set up QEMU for arm64 Docker builds
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - name: Check the Go toolchain against go.mod
+        run: |
+          want="go$(sed -n 's/^toolchain go//p' projects/sample/src/api-go/go.mod)"
+          got="$(go env GOVERSION)"
+          echo "go.mod toolchain: ${want}, installed: ${got}"
+          [ "${got}" = "${want}" ]
+
+      - name: Show the tool versions
+        run: |
+          node --version
+          python --version
+          uv --version
+          go version
+          docker --version
+          git --version
+
+      # Stage 3: install.
+      - name: Rush install
+        run: node common/scripts/install-run-rush.js install
+
+      # The install fills the pnpm store and the Rush launcher. Save them now, so that a later failure
+      # does not lose them.
+      - name: Save the pnpm store
+        if: steps.cache-pnpm.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: common/temp/pnpm-store
+          key: ${{ steps.cache-pnpm.outputs.cache-primary-key }}
+
+      - name: Save the Rush launcher
+        if: steps.cache-rush.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: common/temp/install-run
+          key: ${{ steps.cache-rush.outputs.cache-primary-key }}
+
+      - name: Rush check
+        run: node common/scripts/install-run-rush.js check
+
+      # prettier-check.mjs needs the Prettier of this autoinstaller. Rush install does not install it.
+      - name: Install the Prettier autoinstaller
+        run: node common/scripts/install-run-rush.js install-autoinstaller --name rush-lint-staged
+
+      - name: List the projects that the diff impacts
+        id: impacted
+        run: |
+          node common/scripts/install-run-rush.js list --impacted-by "git:${BASE_SHA}" --json >"${RUNNER_TEMP}/rush-list.json"
+          node -e '
+            const fs = require("node:fs");
+            const text = fs.readFileSync(process.argv[1], "utf8");
+            const list = JSON.parse(text.slice(text.indexOf("{"))).projects;
+            fs.writeFileSync(process.argv[2], list.map((project) => project.path).join("\n") + "\n");
+          ' "${RUNNER_TEMP}/rush-list.json" "${RUNNER_TEMP}/impacted-paths.txt"
+          echo "Projects impacted by git:${BASE_SHA}:"
+          cat "${RUNNER_TEMP}/impacted-paths.txt"
+          echo "count=$(awk 'NF { n++ } END { print n + 0 }' "${RUNNER_TEMP}/impacted-paths.txt")" >>"$GITHUB_OUTPUT"
+
+      # Stage 4 and the cheap gate checks first, as scripts/gates/local-gates.sh does.
+      - name: Rush change --verify
+        run: node common/scripts/install-run-rush.js change --verify --no-fetch
+
+      - name: Anti-skip scan
+        run: node scripts/gates/anti-skip.mjs --range "${BASE_SHA}...HEAD"
+
+      - name: Gate check (check-gates)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          # The labels now, not the labels of the event payload: a re-run sees a label that was added later.
+          labels="$(gh api --paginate "repos/${REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name' | paste -sd, -)"
+          echo "labels: ${labels:-(none)}"
+          node scripts/gates/check-gates.mjs --base "${BASE_SHA}" --head HEAD --labels "${labels}"
+
+      - name: Gate script tests
+        run: node scripts/gates/test-impacted.mjs --base "${BASE_SHA}"
+
+      - name: Gate lint
+        run: tooling/eslint-config/node_modules/.bin/eslint --max-warnings 0 scripts/gates
+
+      - name: Prettier check
+        run: node scripts/gates/prettier-check.mjs --base "${BASE_SHA}"
+
+      # Warm the cold machine before Rush. Rush fails a phase that writes to stderr ("completed with
+      # warnings"), and the first-time downloads of uv and Go write to stderr: "Using CPython",
+      # "Creating virtual environment", "Downloading ...", "go: downloading ...". The phases of a
+      # project run "uv run --locked" and "go tool ...", which download what is missing, so the first
+      # run on a cold runner would fail the build phase although every part built. These steps do the
+      # downloads here, where stderr does not matter, so the phases find everything and print nothing.
+      # They look only at the impacted projects (diff scope) and use the same commands, groups and
+      # folders as scripts/phase.mjs. Do not hide a real warning with a stderr redirect in a phase.
+      - name: Warm the Python parts (uv sync --locked)
+        run: |
+          # Same environment as "uv run --locked": .venv of src/api-py with the default groups (dev).
+          while read -r folder; do
+            [ -n "${folder}" ] || continue
+            if [ -f "${folder}/src/api-py/uv.lock" ]; then
+              echo "uv sync --locked in ${folder}/src/api-py"
+              (cd "${folder}/src/api-py" && uv sync --locked)
+            fi
+          done <"${RUNNER_TEMP}/impacted-paths.txt"
+
+      - name: Warm the Go parts (go mod download)
+        run: |
+          # Downloads every module of go.mod, also the ones of the tool directives (golangci-lint,
+          # gofumpt, oapi-codegen, go-licenses, govulncheck). The compile of a tool on a cold build
+          # cache prints nothing to stderr, so the download is all that is needed.
+          while read -r folder; do
+            [ -n "${folder}" ] || continue
+            if [ -f "${folder}/src/api-go/go.mod" ]; then
+              echo "go mod download in ${folder}/src/api-go"
+              (cd "${folder}/src/api-go" && go mod download)
+            fi
+          done <"${RUNNER_TEMP}/impacted-paths.txt"
+
+      # The e2e phase runs "playwright install chromium" (without --with-deps, and phase.mjs is a gate
+      # file). Here the browser and the OS libraries install before Rush, so the install of the phase
+      # does nothing. This is the slowest set-up step, so it runs only when an impacted project has a
+      # web folder. Each project uses its own Playwright binary.
+      - name: Install Chromium and its OS libraries (impacted web apps)
+        run: |
+          while read -r folder; do
+            [ -n "${folder}" ] || continue
+            if [ -d "${folder}/web" ]; then
+              echo "playwright install --with-deps chromium (${folder})"
+              "${folder}/node_modules/.bin/playwright" install --with-deps chromium
+            fi
+          done <"${RUNNER_TEMP}/impacted-paths.txt"
+
+      # Stage 5: the Rush phases, one step each. With no impacted project the steps skip (an empty
+      # selection is not a case that local-gates.sh covers).
+      # Build uses --from: the impacted projects, the projects that depend on them, and all the
+      # dependencies of that set. The workspace packages (packages/*, tooling/*) have no dist/ on a
+      # fresh runner, and the impacted projects import them, so they must build first.
+      # --impacted-by would select only the changed projects and their dependents, and not build
+      # their dependencies.
+      - name: Rush build
+        if: steps.impacted.outputs.count != '0'
+        run: node common/scripts/install-run-rush.js build --from "git:${BASE_SHA}"
+
+      # The other phases use --impacted-by: the diff scope only. They read the dist/ of the
+      # dependencies that the build step wrote.
+
+      - name: Rush lint
+        if: steps.impacted.outputs.count != '0'
+        run: node common/scripts/install-run-rush.js lint --impacted-by "git:${BASE_SHA}"
+
+      - name: Rush typecheck
+        if: steps.impacted.outputs.count != '0'
+        run: node common/scripts/install-run-rush.js typecheck --impacted-by "git:${BASE_SHA}"
+
+      - name: Rush test
+        if: steps.impacted.outputs.count != '0'
+        run: node common/scripts/install-run-rush.js test --impacted-by "git:${BASE_SHA}"
+
+      - name: Rush e2e
+        if: steps.impacted.outputs.count != '0'
+        timeout-minutes: 40
+        run: node common/scripts/install-run-rush.js e2e --impacted-by "git:${BASE_SHA}"
+
+      # The warm steps and the Rush phases fill the uv, Go and Playwright caches (the phases add the Go
+      # build cache and the golangci-lint cache). always() saves them also when a phase failed. A
+      # failed save only warns.
+      - name: Save the uv cache
+        if: always() && steps.cache-uv.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/uv
+          key: ${{ steps.cache-uv.outputs.cache-primary-key }}
+
+      - name: Save the Go modules and build caches
+        if: always() && steps.cache-go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.cache-go.outputs.cache-primary-key }}
+
+      - name: Save the Playwright browsers
+        if: always() && steps.cache-playwright.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.cache-playwright.outputs.cache-primary-key }}
+
+      # Stage 7: offline cdk synth of each CDK app that the diff changed, for every environment.
+      # No GATES_FULL: only the changed apps run. The step has no AWS credentials.
+      - name: Cdk synth (changed infra)
+        timeout-minutes: 60
+        run: node scripts/gates/synth-changed.mjs --base "${BASE_SHA}"
+
+      # The last two checks of local-gates.sh. bruno-coverage reads dist/openapi.json, which only the
+      # build of an impacted project writes, so it checks the impacted projects that have an API.
+      - name: Bruno coverage
+        run: |
+          while read -r folder; do
+            [ -n "${folder}" ] || continue
+            if [ -d "${folder}/src/api" ] || [ -d "${folder}/src/api-py" ] || [ -d "${folder}/src/api-go" ]; then
+              node scripts/gates/bruno-coverage.mjs --project "$(basename "${folder}")"
+            fi
+          done <"${RUNNER_TEMP}/impacted-paths.txt"
+
+      - name: Playwright coverage
+        run: node scripts/gates/playwright-coverage.mjs
+
+      - name: Keep the logs of a failed run
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-failure-logs
+          path: |
+            projects/*/rush-logs
+            projects/*/test-results
+            packages/*/rush-logs
+            tooling/*/rush-logs
+            platform/infra/rush-logs
+          if-no-files-found: ignore
+          retention-days: 7
