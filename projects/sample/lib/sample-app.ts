@@ -9,8 +9,9 @@ import { SampleApiStack } from './sample-api-stack.js';
  * Adds the sample API stack and the cdk-nag AwsSolutions checks to a CDK app.
  *
  * @param app - The CDK app.
- * @param envName - The value of the CDK context key `env`.
+ * @param envName - The value of the CDK context key `env` (`-c env=local` or `-c env=prod`).
  * @returns The sample API stack.
+ * @throws When `envName` is not `local` or `prod`.
  */
 export function addSampleApiStack(app: App, envName: unknown): SampleApiStack {
   const config = loadSampleConfig(envName);
