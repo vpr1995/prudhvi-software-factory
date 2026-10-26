@@ -15,7 +15,8 @@ Rule: show real output. Never say "pass" without pasted output.
 1. Make the state folder: `mkdir -p .claude/state`.
 2. Check for the base branch: `git rev-parse --verify origin/main >/dev/null 2>&1 && echo HAS_ORIGIN || echo NO_ORIGIN`.
 3. Run the gates. `rush verify` runs `build`, `lint`, `typecheck`, `test`, and `e2e` for each project's `_phase:*` scripts. Python and Go parts use the same phases.
-   - If `HAS_ORIGIN`: `rush verify --impacted-by git:origin/main > .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
+   - If `HAS_ORIGIN`: `rush build --from git:origin/main > .claude/state/verify-output.log 2>&1 && rush verify --impacted-by git:origin/main >> .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
+     `--impacted-by` selects the changed projects and the projects that depend on them. It does not select their dependencies. `rush build --from` also builds the dependencies, so each dependency has its `dist/` folder, also on a fresh clone. `scripts/gates/local-gates.sh` and `.github/workflows/ci.yml` use the same two commands.
    - If `NO_ORIGIN`: `rush verify > .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
      The e2e phase starts each api server, runs its Bruno collection, and runs Playwright for each web part.
 4. Find changed infra. This includes `projects/<name>/bin`, `projects/<name>/lib`, and `platform/infra`:
