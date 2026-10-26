@@ -130,16 +130,16 @@ The hook writes the result to `.claude/state/last-verify.json`. It blocks `gh pr
 
 ## 6. CI checks
 
-| Check                                       | Where                   | Blocks when                                                                        |
-| ------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------- |
-| `rush test` with coverage                   | `ci.yml`                | A threshold fails.                                                                 |
-| Diff coverage                               | `ci.yml`                | Changed lines are below 90%.                                                       |
-| Test-deletion check                         | `ci.yml`, `check-gates` | A test file or test case is removed and the PR has no `test-removal` label.        |
-| `rush e2e` (Bruno and Playwright, with axe) | `ci.yml`                | A request, a spec, or an accessibility check fails.                                |
-| `bruno-coverage` gate                       | `ci.yml`, `check-gates` | A route has no `.bru` request with an assertion.                                   |
-| `playwright-coverage` gate                  | `ci.yml`, `check-gates` | A page has no spec with `page.goto` and an axe check, or a web part has no `e2e/`. |
-| `cdk synth` with cdk-nag                    | `infra.yml`             | A nag error is unresolved.                                                         |
-| Mutation tests                              | `nightly.yml`           | Reported only. Open an issue for surviving mutants.                                |
+| Check                                       | Where                                                             | Blocks when                                                                        |
+| ------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `rush test` with coverage                   | `ci.yml`                                                          | A threshold fails.                                                                 |
+| Diff coverage                               | `ci.yml`                                                          | Changed lines are below 90%.                                                       |
+| Test-deletion check                         | `ci.yml`, `check-gates`                                           | A test file or test case is removed and the PR has no `test-removal` label.        |
+| `rush e2e` (Bruno and Playwright, with axe) | `ci.yml`                                                          | A request, a spec, or an accessibility check fails.                                |
+| `bruno-coverage` gate                       | `ci.yml`, `check-gates`, `local-gates.sh` (impacted API projects) | A route has no `.bru` request with an assertion.                                   |
+| `playwright-coverage` gate                  | `ci.yml`, `check-gates`                                           | A page has no spec with `page.goto` and an axe check, or a web part has no `e2e/`. |
+| `cdk synth` with cdk-nag                    | `infra.yml`                                                       | A nag error is unresolved.                                                         |
+| Mutation tests                              | `nightly.yml`                                                     | Reported only. Open an issue for surviving mutants.                                |
 
 ## 7. When a test fails
 
@@ -293,11 +293,11 @@ Update the spec in the same PR as the page. A changed page without a changed spe
 
 ## 11. Coverage gates for e2e
 
-| Gate                      | Value                                                        | Where it runs      |
-| ------------------------- | ------------------------------------------------------------ | ------------------ |
-| `bruno-coverage`          | Each route has at least one `.bru` request with an assertion | `check-gates`, CI  |
-| `playwright-coverage`     | Each page has a spec with `page.goto` and an axe check       | `check-gates`, CI  |
-| Playwright skip and fixme | Zero in the diff                                             | Anti-skip scan, CI |
+| Gate                      | Value                                                        | Where it runs                                               |
+| ------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------- |
+| `bruno-coverage`          | Each route has at least one `.bru` request with an assertion | `check-gates`, CI, `local-gates.sh` (impacted API projects) |
+| `playwright-coverage`     | Each page has a spec with `page.goto` and an axe check       | `check-gates`, CI                                           |
+| Playwright skip and fixme | Zero in the diff                                             | Anti-skip scan, CI                                          |
 
 ## 12. Trace propagation tests
 
