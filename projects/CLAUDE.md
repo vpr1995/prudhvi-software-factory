@@ -4,6 +4,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 - `projects/<name>/` is one product and ONE Rush project: `@vprprudhvi/<name>`, tag `project/<name>`, one `package.json`. A part is a folder, never a package.
 - Layout (CDK style): `bin/` and `lib/` (CDK app and stacks, a stub from day one), `src/contracts`, `src/api` (TypeScript), `src/api-py` (Python), `src/api-go` (Go), `web/` (Next.js), `bruno/`, `scripts/`, `config/`. `src/contracts` is always present. The other parts are optional.
+- Each project is a CDK project. It has `bin/app.ts`, `lib/<name>-app.ts` with cdk-nag `AwsSolutionsChecks`, `lib/<name>-stack.ts`, `test/infra`, `cdk.json` and `tsconfig.cdk.json`. A project without these files gets them before it gets new infra. The `new-project` skill makes them.
 - The `package.json` has the phases `_phase:build`, `_phase:lint`, `_phase:typecheck`, `_phase:test`, `_phase:e2e`. Each phase runs every part and fails fast with the part name.
 - `bruno/` holds the Bruno collection. Each API route has one `.bru` request with docs and assertions.
 - `REVIEW.md` holds the review rules for the project.

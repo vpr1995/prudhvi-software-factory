@@ -265,6 +265,18 @@ importers:
 
   ../../projects/national-parks-tracker:
     dependencies:
+      '@vprprudhvi/shared-cdk-constructs':
+        specifier: workspace:*
+        version: link:../../packages/cdk-constructs
+      aws-cdk-lib:
+        specifier: 2.273.0
+        version: 2.273.0(constructs@10.8.1)
+      cdk-nag:
+        specifier: 3.0.2
+        version: 3.0.2(aws-cdk-lib@2.273.0(constructs@10.8.1))(constructs@10.8.1)
+      constructs:
+        specifier: 10.8.1
+        version: 10.8.1
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -323,6 +335,9 @@ importers:
       '@vprprudhvi/tooling-vitest-config':
         specifier: workspace:*
         version: link:../../tooling/vitest-config
+      aws-cdk:
+        specifier: 2.1145.0
+        version: 2.1145.0
       eslint:
         specifier: ^10.13.0
         version: 10.13.0

@@ -33,7 +33,7 @@ Phase A writes files. Phase B runs after the human applies the gate files. File 
    - api-py and api-go: add OpenTelemetry setup and a test that the log record has the trace id.
    - The Bruno health request asserts the `traceparent` header.
    - When the package exists, new dependencies go in the Phase B list.
-6. Write a stub CDK app. It has no resources. It makes later infra work need no gate-file change. Model it on `projects/sample` (`bin/app.ts`, `lib/sample-app.ts`, `cdk.json`, `tsconfig.cdk.json`, the `build:cdk` script). Use the contents in `reference.md`, section "infra (stub CDK app)". Do not deploy.
+6. Write a stub CDK app. It has no app resources, only one placeholder. It makes later infra work need no gate-file change. Model it on `projects/sample` (`bin/app.ts`, `lib/sample-app.ts`, `cdk.json`, `tsconfig.cdk.json`, the `build:cdk` script). Use the contents in `reference.md`, section "infra (stub CDK app)". Do not deploy.
    - `bin/app.ts` creates the `App`, calls `add<Name>Stack`, and synthesizes.
    - `lib/<name>-app.ts` adds the cdk-nag `AwsSolutionsChecks` plugin the same way as the sample, and creates the stack.
    - `lib/<name>-stack.ts` is one empty stack class.
