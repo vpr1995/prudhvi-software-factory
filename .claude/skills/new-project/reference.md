@@ -56,7 +56,7 @@ Starting points. Match the real names in `tooling/` and in `projects/sample`. Al
 
 ## infra (stub CDK app)
 
-Every project has a stub CDK app from day one. The stack has no resources. Replace `<name>` with the kebab-case name and `<Name>` with the PascalCase name. Match `projects/sample`. See `docs/guides/infra.md`.
+Every project has a stub CDK app from day one. The stack has no app resources. It holds one placeholder (`CfnWaitConditionHandle`, no cost), because CloudFormation rejects a template with no resources and `rush verify` fails on that warning. Replace `<name>` with the kebab-case name and `<Name>` with the PascalCase name. Match `projects/sample`. See `docs/guides/infra.md`.
 
 - `bin/app.ts`:
   ```ts
@@ -87,7 +87,7 @@ Every project has a stub CDK app from day one. The stack has no resources. Repla
     Validations.of(app).addPlugins(new AwsSolutionsChecks(app));
     return new <Name>Stack(app, '<Name>', {
       env: { region: 'us-east-1' },
-      description: 'The <name> stack. It has no resources yet.',
+      description: 'The <name> stack. It has no app resources yet.',
     });
   }
   ```
@@ -95,26 +95,39 @@ Every project has a stub CDK app from day one. The stack has no resources. Repla
 - `lib/<name>-stack.ts`:
 
   ```ts
-  import { Stack } from 'aws-cdk-lib';
+  import { CfnWaitConditionHandle, Stack } from 'aws-cdk-lib';
+  import type { StackProps } from 'aws-cdk-lib';
+  import type { Construct } from 'constructs';
 
-  /** The stack of the <name> project. It has no resources yet. */
-  export class <Name>Stack extends Stack {}
+  /**
+   * The stack of the <name> project. It has no app resources yet.
+   * CloudFormation rejects a template with no resources, so the stack holds one placeholder
+   * (a wait condition handle, no cost). Remove it when the stack gets its first real resource.
+   */
+  export class <Name>Stack extends Stack {
+    constructor(scope: Construct, id: string, props?: StackProps) {
+      super(scope, id, props);
+      new CfnWaitConditionHandle(this, 'Placeholder');
+    }
+  }
   ```
 
 - `test/infra/<name>-stack.test.ts`:
 
   ```ts
-  import { App } from 'aws-cdk-lib';
+  import { App, CfnResource } from 'aws-cdk-lib';
   import { Template } from 'aws-cdk-lib/assertions';
   import { describe, expect, it } from 'vitest';
 
   import { <Name>Stack } from '../../lib/<name>-stack.js';
 
   describe('<Name>Stack', () => {
-    it('has no resources yet', () => {
-      const template = Template.fromStack(new <Name>Stack(new App(), 'Test<Name>'));
+    it('has only the placeholder resource', () => {
+      const stack = new <Name>Stack(new App(), 'Test<Name>');
 
-      expect(template.findResources('*')).toEqual({});
+      const resources = stack.node.findAll().filter((child) => child instanceof CfnResource);
+      expect(resources).toHaveLength(1);
+      Template.fromStack(stack).resourceCountIs('AWS::CloudFormation::WaitConditionHandle', 1);
     });
   });
   ```

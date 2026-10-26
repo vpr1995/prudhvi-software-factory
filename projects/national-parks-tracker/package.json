@@ -11,9 +11,11 @@
     "_phase:test": "node scripts/phase.mjs test",
     "_phase:typecheck": "node scripts/phase.mjs typecheck",
     "build": "npm run _phase:build",
+    "build:cdk": "tsc -p tsconfig.cdk.json",
     "dev:web": "cd web && next dev",
     "e2e": "npm run _phase:e2e",
     "lint": "npm run _phase:lint",
+    "synth": "cdk synth",
     "test": "npm run _phase:test",
     "typecheck": "npm run _phase:typecheck"
   },
@@ -32,6 +34,7 @@
     "@vprprudhvi/tooling-eslint-config": "workspace:*",
     "@vprprudhvi/tooling-tsconfig": "workspace:*",
     "@vprprudhvi/tooling-vitest-config": "workspace:*",
+    "aws-cdk": "2.1145.0",
     "eslint": "^10.13.0",
     "jsdom": "^30.1.3",
     "typescript": "~6.0.3",
@@ -39,6 +42,10 @@
     "vitest": "^5.0.5"
   },
   "dependencies": {
+    "@vprprudhvi/shared-cdk-constructs": "workspace:*",
+    "aws-cdk-lib": "2.273.0",
+    "cdk-nag": "3.0.2",
+    "constructs": "10.8.1",
     "leaflet": "^1.9.4",
     "next": "^16.4.2",
     "react": "^19.3.1",

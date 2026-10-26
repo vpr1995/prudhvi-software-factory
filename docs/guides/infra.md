@@ -5,7 +5,7 @@ Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, const
 ## Folder layout
 
 - `bin/app.ts`: the CDK app entry. It creates the `App` and calls `add<Name>Stack` in `lib/<name>-app.ts`. That function adds the `AwsSolutionsChecks` plugin and the stacks.
-- `lib/<name>-app.ts` and `lib/<name>-stack.ts`: the app helper and the stack. A new project has both as a stub with no resources (`new-project` skill).
+- `lib/<name>-app.ts` and `lib/<name>-stack.ts`: the app helper and the stack. A new project has both as a stub with one placeholder resource and no app resources (`new-project` skill).
 - `lib/constructs/`: constructs for this project only, in kebab-case files.
 - `lib/config/<env>.ts`: account-neutral settings per project environment (`local` or `prod`). Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
 - `lib/nag-acknowledgments/<stack>.ts`: the one cdk-nag acknowledgments file for a stack (see Rules).

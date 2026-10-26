@@ -6,9 +6,10 @@ import type { TestProjectInlineConfiguration } from 'vitest/config';
 
 // One config for the whole package. The shared factory gives the fixed settings and the coverage
 // thresholds. Two Vitest projects split the environments: `node` for test/contracts, test/data
-// (the data files) and test/e2e (the e2e static server), and `web` (jsdom) for test/web. Coverage
-// runs once over both. The thresholds apply to the sum, and again to each folder, so the web app
-// cannot hide behind the contracts. Playwright runs the specs in web/e2e, so Vitest skips them.
+// (the data files), test/e2e (the e2e static server) and test/infra (the CDK app in bin and lib),
+// and `web` (jsdom) for test/web. Coverage runs once over both. The thresholds apply to the sum,
+// and again to each folder, so the web app cannot hide behind the contracts. Playwright runs the
+// specs in web/e2e, so Vitest skips them.
 const shared = createVitestConfig().test ?? {};
 const { coverage = {}, reporters = ['default'], outputFile = {}, ...projectOptions } = shared;
 const { thresholds = {} } = coverage;
@@ -28,7 +29,12 @@ const nodeProject: TestProjectInlineConfiguration = {
     ...projectOptions,
     name: 'node',
     environment: 'node',
-    include: ['test/contracts/**/*.test.ts', 'test/data/**/*.test.ts', 'test/e2e/**/*.test.js'],
+    include: [
+      'test/contracts/**/*.test.ts',
+      'test/data/**/*.test.ts',
+      'test/e2e/**/*.test.js',
+      'test/infra/**/*.test.ts',
+    ],
     exclude: IGNORED_FILES,
   },
 };
@@ -54,7 +60,7 @@ export default defineConfig({
     projects: [nodeProject, webProject],
     coverage: {
       ...coverage,
-      include: ['src/contracts/**/*.ts', 'web/**/*.{ts,tsx}'],
+      include: ['src/contracts/**/*.ts', 'bin/**/*.ts', 'lib/**/*.ts', 'web/**/*.{ts,tsx}'],
       exclude: [
         '**/*.test.{ts,tsx,js,jsx}',
         '**/*.d.ts',
@@ -67,6 +73,7 @@ export default defineConfig({
       thresholds: {
         ...thresholds,
         'src/**': { ...thresholds },
+        'lib/**': { ...thresholds },
         'web/**': { ...thresholds },
       },
     },
