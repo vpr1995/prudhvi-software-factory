@@ -181,11 +181,6 @@ jobs:
       - name: Install the Prettier autoinstaller
         run: node common/scripts/install-run-rush.js install-autoinstaller --name rush-lint-staged
 
-      # phase.mjs runs "playwright install chromium" without --with-deps (and phase.mjs is a gate
-      # file). Both projects use the same Playwright version, so one call installs the OS libraries.
-      - name: Install the OS libraries of Chromium
-        run: projects/sample/node_modules/.bin/playwright install-deps chromium
-
       - name: List the projects that the diff impacts
         id: impacted
         run: |
@@ -227,6 +222,52 @@ jobs:
       - name: Prettier check
         run: node scripts/gates/prettier-check.mjs --base "${BASE_SHA}"
 
+      # Warm the cold machine before Rush. Rush fails a phase that writes to stderr ("completed with
+      # warnings"), and the first-time downloads of uv and Go write to stderr: "Using CPython",
+      # "Creating virtual environment", "Downloading ...", "go: downloading ...". The phases of a
+      # project run "uv run --locked" and "go tool ...", which download what is missing, so the first
+      # run on a cold runner would fail the build phase although every part built. These steps do the
+      # downloads here, where stderr does not matter, so the phases find everything and print nothing.
+      # They look only at the impacted projects (diff scope) and use the same commands, groups and
+      # folders as scripts/phase.mjs. Do not hide a real warning with a stderr redirect in a phase.
+      - name: Warm the Python parts (uv sync --locked)
+        run: |
+          # Same environment as "uv run --locked": .venv of src/api-py with the default groups (dev).
+          while read -r folder; do
+            [ -n "${folder}" ] || continue
+            if [ -f "${folder}/src/api-py/uv.lock" ]; then
+              echo "uv sync --locked in ${folder}/src/api-py"
+              (cd "${folder}/src/api-py" && uv sync --locked)
+            fi
+          done <"${RUNNER_TEMP}/impacted-paths.txt"
+
+      - name: Warm the Go parts (go mod download)
+        run: |
+          # Downloads every module of go.mod, also the ones of the tool directives (golangci-lint,
+          # gofumpt, oapi-codegen, go-licenses, govulncheck). The compile of a tool on a cold build
+          # cache prints nothing to stderr, so the download is all that is needed.
+          while read -r folder; do
+            [ -n "${folder}" ] || continue
+            if [ -f "${folder}/src/api-go/go.mod" ]; then
+              echo "go mod download in ${folder}/src/api-go"
+              (cd "${folder}/src/api-go" && go mod download)
+            fi
+          done <"${RUNNER_TEMP}/impacted-paths.txt"
+
+      # The e2e phase runs "playwright install chromium" (without --with-deps, and phase.mjs is a gate
+      # file). Here the browser and the OS libraries install before Rush, so the install of the phase
+      # does nothing. This is the slowest set-up step, so it runs only when an impacted project has a
+      # web folder. Each project uses its own Playwright binary.
+      - name: Install Chromium and its OS libraries (impacted web apps)
+        run: |
+          while read -r folder; do
+            [ -n "${folder}" ] || continue
+            if [ -d "${folder}/web" ]; then
+              echo "playwright install --with-deps chromium (${folder})"
+              "${folder}/node_modules/.bin/playwright" install --with-deps chromium
+            fi
+          done <"${RUNNER_TEMP}/impacted-paths.txt"
+
       # Stage 5: the Rush phases, one step each. With no impacted project the steps skip (an empty
       # selection is not a case that local-gates.sh covers).
       # Build uses --from: the impacted projects, the projects that depend on them, and all the
@@ -258,9 +299,9 @@ jobs:
         timeout-minutes: 40
         run: node common/scripts/install-run-rush.js e2e --impacted-by "git:${BASE_SHA}"
 
-      # The Rush phases fill the uv and Go caches (build, lint, typecheck, test) and the Playwright
-      # browsers (the e2e phase runs "playwright install chromium"). always() saves them also when a
-      # phase failed. A failed save only warns.
+      # The warm steps and the Rush phases fill the uv, Go and Playwright caches (the phases add the Go
+      # build cache and the golangci-lint cache). always() saves them also when a phase failed. A
+      # failed save only warns.
       - name: Save the uv cache
         if: always() && steps.cache-uv.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
