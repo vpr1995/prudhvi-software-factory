@@ -22,7 +22,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    - `use-platform-resource` when the change reads a platform value.
    - Direct edits for small changes.
      A gate file, `uv.lock`, `go.mod`, or `go.sum` is never a direct edit. Write its new content to `.claude/state/handoff/<change>/` instead. Write a `uv add`, `go get`, or `go mod tidy` command to a `NN-commands.txt` file there. See `docs/standards/gates.md`, section 2.4.
-     Add a Node dependency with `rush add -p <pkg>` from the project folder. The pre-push policy checks it: license, audit, 7-day release age, typosquat, and spec (`docs/standards/gates.md`, section 6.6). If the policy fails, stop and ask the human. Then stage `package.json` and each file that the command changed under `common/config/rush/`.
+     Add a Node dependency with `rush add -p <pkg>` from the project folder. The pre-push policy checks it: license, audit, typosquat, and spec (`docs/standards/gates.md`, section 6.6). If the policy fails, stop and ask the human. Then stage `package.json` and each file that the command changed under `common/config/rush/`.
      Keep one change per PR. The soft limit is 2000 changed lines. Above 10000 changed lines, check-gates fails without a `large-pr` label from a human.
 7. Run the `verify` skill. Fix each failure. Run it again until it passes.
 8. If web, api, or infra changed, run the `e2e-verify` skill.

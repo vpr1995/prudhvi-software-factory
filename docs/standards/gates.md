@@ -489,7 +489,6 @@ A new npm dependency needs no human approval. The automatic policy checks it. A 
 2. The policy checks the new package:
    - License check (`rush license-check`), from `scripts/gates/dep-checks.mjs`.
    - `rush audit`, because `pnpm-lock.yaml` changed (section 4.3.1).
-   - Minimum release age of 7 days. The setting is `minimum-release-age=10080` (minutes) in `common/config/rush/.npmrc`.
    - No install scripts. Only the packages in `onlyBuiltDependencies` run them (`common/config/rush/pnpm-config.json`).
    - Typosquat check (`scripts/gates/typosquat-check.mjs`, section 4.3.1). It flags a new name that looks like a known name. The name list is small and static (`scripts/gates/data/popular-npm-packages.json`, about 300 names). It catches only close lookalikes of listed names. The PR review by a human is the main control for new names.
    - Dependency spec rules (section 4.3.1). A version text can be a plain registry range or tag. A URL, a git source, a tarball, an `npm:` alias, or `catalog:` fails. A `file:` or `link:` path passes only when it resolves inside the repo. A `@vprprudhvi/*` dependency must use a `workspace:` version.

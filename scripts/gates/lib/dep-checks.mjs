@@ -14,7 +14,7 @@
 // version, since the base (owner decision, 2026-10-25: a new npm dependency needs no human approval,
 // the policy checks it; see lib/typosquat.mjs). A rush.json project folder
 // outside the four roots makes the plan fail (exit 2). With GATES_FULL=1 it always runs. With nothing new it prints no line. The other parts of the
-// policy: the license check, the audit, minimum-release-age in common/config/rush/.npmrc, and no
+// policy: the license check, the audit, and no
 // install scripts (onlyBuiltDependencies).
 // Audits run when their lock changed since the base, so a new dependency with a known advisory fails
 // the push (owner decision, 2026-10-23: agents run `rush add -p` themselves):
