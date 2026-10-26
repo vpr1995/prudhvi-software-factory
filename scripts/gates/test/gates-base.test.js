@@ -349,6 +349,9 @@ describe('local-gates.sh runner', () => {
       'step "anti-skip"',
       'step "check-gates"',
       'step "gate lint"',
+      'step "prettier check"',
+      'step "warm uv and go" warm_parts',
+      'step "rush build --from git:$base"',
       'step "rush verify --impacted-by git:$base"',
       'step "cdk synth (changed infra)" node scripts/gates/synth-changed.mjs --base "$base"',
       'step "bruno coverage"',
@@ -359,6 +362,36 @@ describe('local-gates.sh runner', () => {
       order,
       [...order].sort((a, b) => a - b),
     );
+  });
+
+  it('builds the impacted projects and their dependencies before the impacted verify', () => {
+    // rush verify --impacted-by selects the changed projects and their dependents, not their
+    // dependencies. On a fresh clone packages/* and tooling/* have no dist/, so the impacted build
+    // failed (CI run 1: TS2307 for @vprprudhvi/shared-result). rush build --from builds them first.
+    const script = fs.readFileSync(path.join(GATES, 'local-gates.sh'), 'utf8');
+    const impacted = [
+      'else',
+      '  step "rush build --from git:$base" rush build --from "git:$base"',
+      '  step "rush verify --impacted-by git:$base" rush verify --impacted-by "git:$base"',
+      'fi',
+    ].join('\n');
+    assert.ok(script.includes(impacted), 'no rush build --from right before the impacted verify');
+    // The full runs select every project, so they need no build step.
+    assert.match(script, /step "rush verify \(full: GATES_FULL=1\)" rush verify\n/);
+    assert.match(script, /step "rush verify \(full: the base is the root commit\)" rush verify\n/);
+  });
+
+  it('warms the uv environment and the Go modules of each part before Rush', () => {
+    // Rush fails a phase that writes to stderr. A cold uv environment or Go module cache writes
+    // "Creating virtual environment" or "go: downloading" to stderr (CI run 2).
+    const script = fs.readFileSync(path.join(GATES, 'local-gates.sh'), 'utf8');
+    assert.match(script, /for folder in projects\/\*\/src\/api-py; do\n/);
+    assert.match(script, /\(cd "\$folder" && uv sync --locked\) \|\| return 1\n/);
+    assert.match(script, /for folder in projects\/\*\/src\/api-go; do\n/);
+    assert.match(script, /\(cd "\$folder" && go mod download\) \|\| return 1\n/);
+    // uv and Go are optional on a machine: a missing tool leaves the part cold, it does not fail.
+    assert.match(script, /if ! command -v uv >\/dev\/null 2>&1; then\n/);
+    assert.match(script, /if ! command -v go >\/dev\/null 2>&1; then\n/);
   });
 
   it('fails before any step when GATES_BASE is not a commit', () => {

@@ -6,6 +6,12 @@
 # It runs the steps cheap first and stops at the first failure with "gates: FAIL <step>".
 # Base for the diff checks: scripts/gates/gates-base.mjs (GATES_BASE, origin/main, the upstream,
 # .claude/state/gates-base, then the root commit). With the root commit, `rush verify` runs in full.
+# Otherwise `rush build --from git:<base>` (the impacted projects and all their dependencies) runs
+# before `rush verify --impacted-by git:<base>` (the changed projects and their dependents only), the
+# same split as .github/workflows/ci.yml. A fresh clone has no dist/ in packages/* and tooling/*.
+# Before Rush: `uv sync --locked` in each projects/*/src/api-py and `go mod download` in each
+# projects/*/src/api-go. Rush fails a phase that writes to stderr, and a cold uv environment or Go
+# module cache writes to stderr ("Creating virtual environment", "go: downloading").
 # Before rush verify: Prettier on the files changed since the base
 # (scripts/gates/prettier-check.mjs). After rush verify: cdk synth for the CDK apps whose infra
 # changed (scripts/gates/synth-changed.mjs).
@@ -82,6 +88,35 @@ dep_checks() {
   done <<<"$plan"
 }
 
+# warm_parts: fills the uv environment of each Python part and the Go module cache of each Go part
+# with the same commands as the warm steps of .github/workflows/ci.yml. Their output goes to the
+# runner, where stderr does not fail anything. Then the Rush phases ("uv run --locked", "go build",
+# "go tool ...") find everything and print nothing to stderr. Every project, not only the impacted
+# ones: a warm run is fast, and the full runs need all of them. uv and Go are optional on a machine
+# (docs/onboarding.md). Without the tool, the part is not warmed, and rush verify still fails when
+# it runs that part.
+warm_parts() {
+  local folder
+  for folder in projects/*/src/api-py; do
+    [ -f "$folder/uv.lock" ] || continue
+    if ! command -v uv >/dev/null 2>&1; then
+      echo "no uv on the PATH: $folder is not warmed"
+      continue
+    fi
+    echo "uv sync --locked in $folder"
+    (cd "$folder" && uv sync --locked) || return 1
+  done
+  for folder in projects/*/src/api-go; do
+    [ -f "$folder/go.mod" ] || continue
+    if ! command -v go >/dev/null 2>&1; then
+      echo "no go on the PATH: $folder is not warmed"
+      continue
+    fi
+    echo "go mod download in $folder"
+    (cd "$folder" && go mod download) || return 1
+  done
+}
+
 if [ "$audit_only" = true ]; then
   dep_checks --audit-only
   echo "gates: pass (audits only)"
@@ -126,12 +161,18 @@ step "gate lint" tooling/eslint-config/node_modules/.bin/eslint --max-warnings 0
 # reached a commit without it.
 step "prettier check" node scripts/gates/prettier-check.mjs --base "$base"
 
-# h. Build, lint, typecheck, test and e2e.
+# g3. Warm the Python and Go parts before Rush (see warm_parts).
+step "warm uv and go" warm_parts
+
+# h. Build, lint, typecheck, test and e2e. The impacted run builds first with --from: the impacted
+# projects, their dependents, and all the dependencies of that set. --impacted-by alone does not
+# build the dependencies, so on a fresh clone the impacted build cannot find their dist/.
 if [ "$full" = "1" ]; then
   step "rush verify (full: GATES_FULL=1)" rush verify
 elif [ "$source" = "root" ]; then
   step "rush verify (full: the base is the root commit)" rush verify
 else
+  step "rush build --from git:$base" rush build --from "git:$base"
   step "rush verify --impacted-by git:$base" rush verify --impacted-by "git:$base"
 fi
 
