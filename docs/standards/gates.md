@@ -119,7 +119,8 @@ Agents may propose edits to these paths. Each change is `risk:high`. A human app
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `platform/**` (except `platform/infra/**`, see section 2.1) | Shared AWS resources (Cognito user pool, hosted zone, certificate, SSM parameters). Every project depends on them. |
 | `packages/**`                                               | Shared code. A change has a wide effect.                                                                           |
-| `projects/*/bin/**` and `projects/*/lib/**`                 | The CDK app of one project: cloud resources and IAM.                                                               |
+
+The CDK app of one project (`projects/*/bin/**` and `projects/*/lib/**`) is `risk:medium`. The infra reviewer, cdk-nag and the synth gate check it. `projects/*/cdk.json` is a gate file (section 2.1) and stays high risk.
 
 ### 2.4 Handoff folder
 

@@ -23,12 +23,21 @@ A PR that changes any path below is `risk:high`.
 | Authentication and authorization code                              | Access control.                                                                                   |
 | Billing code                                                       | Money.                                                                                            |
 | `platform/**`                                                      | Shared AWS resources (Cognito user pool, hosted zone, certificate, SSM parameters). Always human. |
-| `projects/*/bin/**` and `projects/*/lib/**`                        | Cloud resources and IAM for one project.                                                          |
 | `packages/cdk-constructs/**`                                       | Shared infrastructure. Every project uses it.                                                     |
 | `packages/**`                                                      | Shared code. A change has a wide effect.                                                          |
 | New dependency, or a change to `common/config/rush/pnpm-lock.yaml` | Supply chain.                                                                                     |
 | `.github/**`                                                       | CI and release controls.                                                                          |
 | Gate files in `docs/standards/gates.md`, section 2.1               | Controls for all other changes.                                                                   |
+
+### 2.1 Medium-tier paths
+
+A PR that changes the paths below, and no high-tier path, is `risk:medium`.
+
+| Path or change                              | Why                                                                                                 |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `projects/*/bin/**` and `projects/*/lib/**` | Cloud resources and IAM for one project. The infra reviewer, cdk-nag and the synth gate check them. |
+
+`projects/*/cdk.json` is a gate file and stays high risk.
 
 Changes to the human-reviewed documents in `docs/standards/gates.md`, section 2.2, are at least `risk:medium`. They need a CODEOWNERS approval.
 

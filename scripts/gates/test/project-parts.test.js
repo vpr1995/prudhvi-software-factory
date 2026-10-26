@@ -175,14 +175,23 @@ describe('risk tier in the single-package layout', () => {
   const never = () => false;
   const tier = (file) => guessRiskTier([file], never).tier;
 
-  it('is high for the CDK app folders and cdk.json', () => {
+  it('is high for cdk.json and for the shared platform and packages paths', () => {
+    for (const file of [
+      'projects/p/cdk.json',
+      'platform/infra/x.ts',
+      'packages/cdk-constructs/src/x.ts',
+    ]) {
+      assert.equal(tier(file), 'high', file);
+    }
+  });
+
+  it('is medium for the CDK app folders of a project', () => {
     for (const file of [
       'projects/p/bin/app.ts',
       'projects/p/lib/stack.ts',
       'projects/p/lib/a/b.ts',
-      'projects/p/cdk.json',
     ]) {
-      assert.equal(tier(file), 'high', file);
+      assert.equal(tier(file), 'medium', file);
     }
   });
 

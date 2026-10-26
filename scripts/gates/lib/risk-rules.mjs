@@ -2,10 +2,12 @@
 // a PR. The Claude classifier can only raise the tier, never lower it.
 //
 // Each changed path gets a tier and a reason. The tier of the PR is the highest tier of its paths.
-//   high    gate files, `platform/**`, `packages/**`, `projects/*/bin/**`, `projects/*/lib/**`
-//           (and the old `projects/*/infra/**`), `**/cdk.json`, `.github/**`, a lockfile, `go.mod`,
-//           a dependency field of a package.json, a `_phase:*` script of a package.json.
-//   medium  the human-reviewed documents of docs/standards/gates.md, section 2.2, and all other paths.
+//   high    gate files, `platform/**`, `packages/**`, `**/cdk.json`, `.github/**`, a lockfile,
+//           `go.mod`, a dependency field of a package.json, a `_phase:*` script of a package.json.
+//   medium  the CDK app of one project: `projects/*/bin/**`, `projects/*/lib/**` (and the old
+//           `projects/*/infra/**`). The infra reviewer, cdk-nag and the synth gate check them.
+//           Also the human-reviewed documents of docs/standards/gates.md, section 2.2, and all
+//           other paths.
 //   low     Markdown and `docs/**` (outside gate files and section 2.2), test files, Bruno files.
 //   The doc names no path for authentication or billing code, so the path rules cannot see it. The
 //   classifier has to find it.
@@ -44,11 +46,6 @@ const HIGH_PATH_RULES = Object.freeze([
     globs: ['packages/**'],
     reason: 'packages/** is shared code with a wide effect',
   },
-  {
-    rule: 'project-cdk',
-    globs: ['projects/*/bin/**', 'projects/*/lib/**', 'projects/*/infra/**'],
-    reason: 'the CDK app of a project: cloud resources and IAM',
-  },
   { rule: 'cdk-json', globs: ['**/cdk.json'], reason: 'CDK app settings' },
   { rule: 'github', globs: ['.github/**'], reason: '.github/** holds the CI and release controls' },
   {
@@ -61,6 +58,15 @@ const HIGH_PATH_RULES = Object.freeze([
     rule: 'pyproject',
     globs: ['**/pyproject.toml', '**/requirements*.txt'],
     reason: 'Python dependencies and tool settings',
+  },
+]);
+
+/** Path rules for medium tier, checked after the high rules. The first match decides. */
+const MEDIUM_PATH_RULES = Object.freeze([
+  {
+    rule: 'project-cdk',
+    globs: ['projects/*/bin/**', 'projects/*/lib/**', 'projects/*/infra/**'],
+    reason: 'the CDK app of a project: cloud resources and IAM',
   },
 ]);
 
@@ -203,6 +209,10 @@ export function classifyPath(file, diff) {
     if (verdict !== null) {
       return { file, tier: 'high', ...verdict };
     }
+  }
+  const medium = MEDIUM_PATH_RULES.find((entry) => matchesAny(file, entry.globs));
+  if (medium !== undefined) {
+    return { file, tier: 'medium', rule: medium.rule, reason: medium.reason };
   }
   if (matchesAny(file, REVIEWED_DOCUMENT_GLOBS)) {
     return {

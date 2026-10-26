@@ -15,7 +15,7 @@ Agent entry point for this Rush monorepo (TypeScript, Python, Go, AWS CDK). This
 9. Read config only in `config.ts`. Validate input with the project's contracts.
 10. Log only with `@vprprudhvi/shared-logger` (planned). Each log line carries OpenTelemetry trace ids. Never log secrets or personal data.
 11. Each API route has a Bruno request with docs and assertions. Each web page has a Playwright spec with an axe check.
-12. `platform/**`, `packages/**`, `projects/*/bin/**`, and `projects/*/lib/**` are high risk. A human approves them.
+12. `platform/**` and `packages/**` are high risk. A human approves them. `projects/*/bin/**` and `projects/*/lib/**` are medium risk: the infra reviewer, cdk-nag and the synth gate check them, and the PR review covers them.
 13. After 3 failed review rounds, stop and ask the human about the approach.
 14. Work only in this repository. Do not clone it, copy it, or build in a scratch copy and bring the result back. If a gate blocks you, stop and ask the human.
 15. Do not split one change into many pushes to pass a gate. Run the checks once, on the last commit of the push.

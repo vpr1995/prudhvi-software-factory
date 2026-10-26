@@ -1,6 +1,6 @@
 # Guide: infra (AWS CDK)
 
-Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, constructs). Package: `@vprprudhvi/<name>` (one package for the whole project). Read the root `CLAUDE.md` and `projects/CLAUDE.md` first. Changes to `projects/*/bin/**` and `projects/*/lib/**` are high risk. A human approves them.
+Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, constructs). Package: `@vprprudhvi/<name>` (one package for the whole project). Read the root `CLAUDE.md` and `projects/CLAUDE.md` first. Changes to `projects/*/bin/**` and `projects/*/lib/**` are medium risk. The infra reviewer, cdk-nag and the synth gate check them. Changes to `platform/**` and `packages/**` (including `packages/cdk-constructs`) are high risk.
 
 ## Folder layout
 
