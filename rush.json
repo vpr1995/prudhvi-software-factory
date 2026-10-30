@@ -26,7 +26,7 @@
 
   "eventHooks": {
     "preRushInstall": [],
-    "postRushInstall": [],
+    "postRushInstall": ["node scripts/security/install-tools.mjs"],
     "preRushBuild": [],
     "postRushBuild": []
   },
