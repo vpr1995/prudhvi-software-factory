@@ -1,6 +1,10 @@
 // All file reads and writes with a path that is not a literal live in this one module.
 // `security/detect-non-literal-fs-filename` is off for this one file (tooling/eslint-config/src/monorepo.js).
 import {
+  accessSync,
+  chmodSync,
+  constants,
+  copyFileSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -10,6 +14,7 @@ import {
   readFileSync,
   readlinkSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -231,6 +236,79 @@ export function readLinkText(link) {
     return readlinkSync(link);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Makes a folder and the missing parent folders. An existing folder is fine.
+ *
+ * @param {string} folder - Path.
+ * @returns {void}
+ */
+export function makeDirectory(folder) {
+  mkdirSync(folder, { recursive: true });
+}
+
+/**
+ * Writes bytes to a file. The caller makes sure the parent folder exists.
+ *
+ * @param {string} file - Path.
+ * @param {Uint8Array} bytes - Content.
+ * @returns {void}
+ */
+export function writeBytes(file, bytes) {
+  writeFileSync(file, bytes);
+}
+
+/**
+ * Sets the mode of a file to 0o755: the owner can write, everyone can read and run.
+ *
+ * @param {string} file - Path.
+ * @returns {void}
+ */
+export function makeExecutable(file) {
+  chmodSync(file, 0o755);
+}
+
+/**
+ * Tells whether a path is a file, after links are followed, that the process can run.
+ *
+ * @param {string} file - Path.
+ * @returns {boolean} True for a runnable file, false for anything else.
+ */
+export function isExecutableFile(file) {
+  try {
+    if (!statSync(file).isFile()) {
+      return false;
+    }
+    accessSync(file, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Moves a file into place. A rename is atomic. When the two paths are on different devices, it
+ * copies the file next to the destination, makes it executable, renames the copy, and removes the
+ * source. Any other error is thrown.
+ *
+ * @param {string} source - File to move.
+ * @param {string} destination - New path of the file.
+ * @returns {void}
+ */
+export function movePath(source, destination) {
+  try {
+    renameSync(source, destination);
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'EXDEV') {
+      throw error;
+    }
+    const staged = `${destination}.tmp-${String(process.pid)}`;
+    copyFileSync(source, staged);
+    chmodSync(staged, 0o755);
+    renameSync(staged, destination);
+    rmSync(source, { force: true });
   }
 }
 
