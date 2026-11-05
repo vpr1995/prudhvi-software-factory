@@ -67,8 +67,6 @@
 # Security configuration
 /.gitleaks.toml @vpr1995
 /audit-ci.jsonc @vpr1995
-/.checkov.yaml @vpr1995
-/tooling/opengrep/ @vpr1995
 /tooling/license-allowlist.json @vpr1995
 
 # Coding conventions

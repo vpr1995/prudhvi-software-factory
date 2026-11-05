@@ -22,7 +22,7 @@ The factory builds products on AWS in one Rush monorepo: TypeScript APIs on Lamb
 | `projects/`      | One folder for each product. Each product is one Rush project. |
 | `packages/`      | Shared code with no project logic.                             |
 | `platform/infra` | Shared AWS resources, such as the Cognito user pool.           |
-| `tooling/`       | Shared config for ESLint, TypeScript, Vitest and Opengrep.     |
+| `tooling/`       | Shared config for ESLint, TypeScript and Vitest.               |
 | `common/`        | Rush config, git hooks and autoinstallers.                     |
 | `docs/`          | Standards, guides, ADRs, runbooks and templates.               |
 | `.claude/`       | Agent settings and skills.                                     |

@@ -20,7 +20,7 @@ This guide holds the stack, the layout, the full import rules, and the non-goals
 - `projects/sample/`: the sample product. It has every part.
 - `platform/infra`: shared AWS resources (one Cognito user pool, imported Route53 zone, ACM wildcard certificate). Package `@vprprudhvi/platform-infra`. It writes IDs to SSM under `/platform/<env>/...`.
 - `packages/*`: shared code with no project logic. Now: `flags`, `logger`, `result`, and `telemetry`. Planned: `cdk-constructs`.
-- `tooling/*`: shared config for ESLint, TypeScript, Vitest, Opengrep.
+- `tooling/*`: shared config for ESLint, TypeScript, Vitest.
 - `common/`: Rush config, git hooks, autoinstallers.
 - `docs/`: standards, guides, ADRs, runbooks, templates.
 

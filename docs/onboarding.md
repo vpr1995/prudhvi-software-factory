@@ -31,14 +31,11 @@ Git hooks install only when you run `rush install`. If a hook is missing, run th
 
 ## 3. Install the security tools
 
-The pre-commit hook calls gitleaks. Install it on your `PATH`. The other tools are for manual scans:
+The pre-commit hook calls gitleaks. Install it on your `PATH`:
 
-| Tool        | Used by                | How to install                         |
-| ----------- | ---------------------- | -------------------------------------- |
-| gitleaks    | pre-commit             | `brew install gitleaks`                |
-| Opengrep    | Manual SAST scan       | Download from its GitHub release page. |
-| Checkov     | Manual infra scan      | `pip install checkov`                  |
-| osv-scanner | Manual dependency scan | `brew install osv-scanner`             |
+| Tool     | Used by    | How to install          |
+| -------- | ---------- | ----------------------- |
+| gitleaks | pre-commit | `brew install gitleaks` |
 
 Check each tool with its version flag, for example `gitleaks version`. Use the versions that the team pins. A missing gitleaks blocks the local commit.
 

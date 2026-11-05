@@ -140,6 +140,18 @@ export const CASES = [
     expect: ['local/todo-with-issue'],
   },
   {
+    name: 'secret field in a log call',
+    file: 'packages/sample/src/log-secret.ts',
+    code: 'declare const logger: { info: (fields: object) => void };\ndeclare const password: string;\nlogger.info({ password });\n',
+    expect: ['local/no-secret-in-log'],
+  },
+  {
+    name: 'safe field in a log call',
+    file: 'packages/sample/src/log-safe.ts',
+    code: 'declare const logger: { info: (fields: object) => void };\nlogger.info({ route: "/users" });\n',
+    expect: [],
+  },
+  {
     name: 'TODO with an issue',
     file: 'packages/sample/src/todo-ok.ts',
     code: '// TODO(#12): fix this later\nexport const VALUE = 1;\n',

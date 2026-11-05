@@ -276,6 +276,7 @@ export const base = defineConfig([
       ...commentRules,
       'promise/prefer-await-to-then': 'error',
       'local/zod-schema-naming': 'error',
+      'local/no-secret-in-log': 'error',
     },
   },
   {

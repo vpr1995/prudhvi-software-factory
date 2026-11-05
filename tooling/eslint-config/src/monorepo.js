@@ -60,6 +60,7 @@ export function createRootConfig({ rootPath, ignores = [] }) {
       'tooling/tsconfig/scripts/lib/fs-io.mjs',
       'tooling/templates/src/fs-io.js',
     ]),
+    logRedactionTestException,
   ];
 }
 
@@ -80,3 +81,15 @@ export function fsIoException(files) {
     rules: { 'security/detect-non-literal-fs-filename': 'off' },
   };
 }
+
+/**
+ * File-scoped exception. The logger redaction test feeds secret keys to the logger on purpose,
+ * to prove that it masks them. The rule `local/no-secret-in-log` stays on everywhere else.
+ *
+ * @type {import('eslint').Linter.Config}
+ */
+export const logRedactionTestException = {
+  name: 'tooling/exception-log-redaction-test',
+  files: ['packages/logger/test/**'],
+  rules: { 'local/no-secret-in-log': 'off' },
+};
