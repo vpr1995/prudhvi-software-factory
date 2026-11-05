@@ -3,6 +3,7 @@ import n from 'eslint-plugin-n';
 import globals from 'globals';
 
 import { ALL_CODE_FILES } from './globs.js';
+import { prettier } from './prettier.js';
 
 /**
  * Node.js rules for api, infra, scripts and tooling code.
@@ -26,4 +27,5 @@ export const node = defineConfig([
       'n/hashbang': 'error',
     },
   },
+  ...prettier,
 ]);

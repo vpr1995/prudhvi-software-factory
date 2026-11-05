@@ -3,6 +3,7 @@ import { defineConfig } from 'eslint/config';
 import playwright from 'eslint-plugin-playwright';
 
 import { E2E_FILES, TEST_FILES } from './globs.js';
+import { prettier } from './prettier.js';
 
 /**
  * Overrides for test files: Vitest rules on, size and style limits relaxed.
@@ -48,4 +49,5 @@ export const test = defineConfig([
       'playwright/expect-expect': 'error',
     },
   },
+  ...prettier,
 ]);

@@ -8,6 +8,7 @@ import globals from 'globals';
 import { namingConvention } from '../naming.js';
 
 import { ALL_CODE_FILES, TS_FILES } from './globs.js';
+import { prettier } from './prettier.js';
 
 // eslint-plugin-react 7.37.5 cannot use `version: 'detect'` on ESLint 10 (it calls the removed
 // context.getFilename). Keep this in step with the React major in the web projects.
@@ -49,4 +50,5 @@ export const reactConfig = defineConfig([
       '@typescript-eslint/naming-convention': namingConvention({ typed: true, react: true }),
     },
   },
+  ...prettier,
 ]);
