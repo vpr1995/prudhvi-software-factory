@@ -97,7 +97,7 @@ export function normalizeSearchText(text: string): string {
  * @param park - The park.
  * @returns Normalized text.
  */
-export function getSearchText(park: ParkSummary): string {
+function getSearchText(park: ParkSummary): string {
   return normalizeSearchText([park.name, park.fullName, ...park.states, park.stateNames].join(' '));
 }
 
@@ -124,7 +124,7 @@ export function matchesQuery(park: ParkSummary, query: string): boolean {
  * @param status - The filter.
  * @returns True when the park passes.
  */
-export function matchesStatus(park: ParkSummary, status: Status): boolean {
+function matchesStatus(park: ParkSummary, status: Status): boolean {
   if (status === 'all') {
     return true;
   }

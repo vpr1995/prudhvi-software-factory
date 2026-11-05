@@ -53,7 +53,7 @@ export type ApiClientOptions = {
 };
 
 /** The body of `createNote`. */
-export type CreateNoteInput = z.input<typeof CreateNoteSchema>;
+type CreateNoteInput = z.input<typeof CreateNoteSchema>;
 
 /** The API client. Every method returns a `Result`, so a caller handles failure without `try`. */
 export type ApiClient = {

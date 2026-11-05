@@ -104,6 +104,13 @@
     },
     {
       "commandKind": "global",
+      "name": "knip",
+      "summary": "Run Knip (config: knip.jsonc): unused files, exports, types and dependencies, unlisted dependencies, unresolved imports.",
+      "autoinstallerName": "rush-knip",
+      "shellCommand": "bash scripts/quality/knip.sh"
+    },
+    {
+      "commandKind": "global",
       "name": "new",
       "summary": "Create a project from a template in tooling/templates. Example: rush new --library date-utils",
       // No Rush lock for this command: the script runs "rush update" at the end, and that takes the lock.

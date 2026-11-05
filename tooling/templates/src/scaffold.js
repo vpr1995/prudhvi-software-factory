@@ -3,11 +3,11 @@
 // Template files end in ".tmpl", so no lint, typecheck, tsconfig check or Prettier run reads them.
 import { listFiles, pathExists, readText, replaceText, writeNewText } from './fs-io.js';
 
-export const NAME_PLACEHOLDER = '__name__';
+const NAME_PLACEHOLDER = '__name__';
 // The same name in PascalCase (class names) and in UPPER_SNAKE_CASE (environment variables).
-export const PASCAL_NAME_PLACEHOLDER = '__Name__';
-export const CONSTANT_NAME_PLACEHOLDER = '__NAME__';
-export const VERSION_PLACEHOLDER = '__version__';
+const PASCAL_NAME_PLACEHOLDER = '__Name__';
+const CONSTANT_NAME_PLACEHOLDER = '__NAME__';
+const VERSION_PLACEHOLDER = '__version__';
 export const TEMPLATE_SUFFIX = '.tmpl';
 const RUSH_JSON = 'rush.json';
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies'];

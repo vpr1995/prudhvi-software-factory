@@ -1,0 +1,57 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  // Knip has no Rush support, so each Rush project folder is a workspace here.
+  "workspaces": {
+    // Root: not a Rush project. Only the repo config files and scripts/. common/** is Rush-owned.
+    ".": {
+      "entry": [
+        ".lintstagedrc.cjs",
+        "commitlint.config.cjs",
+        "eslint.config.mjs",
+        "scripts/**/*.mjs",
+      ],
+      "project": ["*.{js,cjs,mjs}", "scripts/**/*.{js,cjs,mjs}"],
+      // Lives in the rush-commitlint autoinstaller. commitlint.config.cjs resolves it from there.
+      "ignoreDependencies": ["@commitlint/config-conventional"],
+    },
+    "projects/*": {
+      // bin/app.ts: the CDK app (cdk.json runs its build output). scripts/*.mjs: run by scripts/phase.mjs.
+      "entry": ["bin/app.ts", "scripts/*.mjs"],
+      "next": { "config": ["web/next.config.ts"] },
+    },
+    // This key replaces "projects/*" for sample. Keep entry and next the same as there.
+    "projects/sample": {
+      "entry": ["bin/app.ts", "scripts/*.mjs"],
+      "next": { "config": ["web/next.config.ts"] },
+      // esbuild: CDK NodejsFunction bundling resolves it at synth (see shared-cdk-constructs).
+      // @opennextjs/aws: planned OpenNext web build (ADR 0010, docs/guides/infra.md). Owner to decide.
+      "ignoreDependencies": ["esbuild", "@opennextjs/aws"],
+    },
+    "packages/*": {
+      // package.json exports point at dist/. src/index.ts is the source of that entry.
+      "entry": ["src/index.ts"],
+    },
+    "packages/cdk-constructs": {
+      // test/fixtures/**: handler files that the tests bundle by path (esbuild), not by import.
+      "entry": ["src/index.ts", "test/fixtures/**/*.ts"],
+      // esbuild: src/traced-node-function.ts resolves esbuild/bin/esbuild by name for CDK bundling.
+      "ignoreDependencies": ["esbuild"],
+    },
+    "tooling/vitest-config": {
+      // package.json exports point at dist/. src/index.ts is the source of that entry.
+      "entry": ["src/index.ts"],
+    },
+    "tooling/templates": {
+      // Run by name from common/config/rush/command-line.json (rush new, rush add-part).
+      "entry": ["scripts/{new,add-part}.mjs"],
+    },
+    "platform/*": {
+      // bin/app.ts: the CDK app (cdk.json runs its build output).
+      "entry": ["bin/app.ts"],
+    },
+  },
+  "ignoreIssues": {
+    // Contracts are the API shape. Each Zod schema exports its inferred type (coding-conventions A.8).
+    "projects/*/src/contracts/**": ["types"],
+  },
+}

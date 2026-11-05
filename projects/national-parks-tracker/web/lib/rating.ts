@@ -1,5 +1,5 @@
 /** The highest rating. */
-export const MAX_RATING = 5;
+const MAX_RATING = 5;
 
 /**
  * Gives the accessible text of a rating.

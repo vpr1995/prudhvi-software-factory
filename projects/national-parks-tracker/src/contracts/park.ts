@@ -108,7 +108,7 @@ export const CalendarDateSchema = z
 const LATITUDE_MESSAGE = `Use a latitude from -${String(MAX_LATITUDE)} to ${String(MAX_LATITUDE)} in decimal degrees, for example 37.3.`;
 const LONGITUDE_MESSAGE = `Use a longitude from -${String(MAX_LONGITUDE)} to ${String(MAX_LONGITUDE)} in decimal degrees, for example -113.05.`;
 
-export const CoordinatesSchema = strictObject(
+const CoordinatesSchema = strictObject(
   {
     lat: z
       .number({ error: LATITUDE_MESSAGE })

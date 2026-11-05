@@ -23,7 +23,7 @@ export const NODE_REQUIRE_BANNER =
   'const require = __createRequire(import.meta.url);';
 
 /** The path of the Rush lock file, relative to the repo root folder. */
-export const RUSH_LOCK_FILE = join('common', 'config', 'rush', 'pnpm-lock.yaml');
+const RUSH_LOCK_FILE = join('common', 'config', 'rush', 'pnpm-lock.yaml');
 
 /**
  * The name of the marker file that the bundle hooks write next to the temporary `package.json`.

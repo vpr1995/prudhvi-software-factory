@@ -120,7 +120,7 @@ The pre-commit hook runs gitleaks on staged files and lint-staged (Prettier and 
 
 CI runs on pull requests. It checks the PR head against the merge base with the target branch.
 
-The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secrets.yml`). `ci-result` passes only when `plan` and `workflow-lint` pass and `project` passes or skips. Make these two checks the only required checks of the `main` ruleset. Do not make the jobs of each project required checks. Their names change with the impacted projects.
+The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secrets.yml`). `ci-result` passes only when `plan`, `knip` and `workflow-lint` pass and `project` passes or skips. Make these two checks the only required checks of the `main` ruleset. Do not make the jobs of each project required checks. Their names change with the impacted projects.
 
 `ci.yml` has these jobs:
 
@@ -128,7 +128,8 @@ The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secret
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `plan`          | `rush check`, `node tooling/tsconfig/scripts/check-tsconfigs.mjs`, `rush audit`, `rush list --impacted-by git:<base> --json`                              | Versions are not consistent, a tsconfig rule fails, or `pnpm-lock.yaml` changed and an audit pass fails. |
 | `project`       | One job for each impacted project: `rush build --to <project>`, then `rush lint`, `rush typecheck`, `rush test`, `rush e2e`, each with `--only <project>` | A build, lint rule, type, test, coverage threshold, or e2e test fails.                                   |
-| `ci-result`     | Reads the results of `plan`, `project` and `workflow-lint`                                                                                                | `plan` or `workflow-lint` did not pass, or `project` did not pass or skip.                               |
+| `knip`          | `rush build --to @vprprudhvi/tooling-vitest-config`, then `rush knip` (default and `github-actions` reporters)                                            | Knip finds an unused file, export, type or dependency, an unlisted dependency, or an unresolved import.  |
+| `ci-result`     | Reads the results of `plan`, `project`, `knip` and `workflow-lint`                                                                                        | `plan`, `knip` or `workflow-lint` did not pass, or `project` did not pass or skip.                       |
 | `workflow-lint` | `bash scripts/security/workflow-lint.sh` (actionlint, zizmor, pinact)                                                                                     | A workflow or action file fails a check.                                                                 |
 
 `secrets.yml` runs gitleaks on the PR commits (merge base to head). A finding fails the job `gitleaks`.
