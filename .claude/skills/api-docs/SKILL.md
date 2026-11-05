@@ -12,7 +12,7 @@ The Bruno collection is the API reference. Each `.bru` file is one route. Its `d
 ## Layout
 
 - `projects/<name>/bruno/bruno.json`: collection name and settings.
-- `projects/<name>/bruno/environments/local.bru`, `prod.bru`: base URL and non-secret variables.
+- `projects/<name>/bruno/environments/local.bru`: base URL and non-secret variables.
 - `projects/<name>/bruno/<resource>/<action>.bru`: one request per route.
 
 ## Read the docs
@@ -55,7 +55,7 @@ tests {
 }
 ```
 
-For a protected route, use `auth: bearer` with `token: {{process.env.<PROJECT>_TEST_TOKEN>}}`. Never write a token value in a `.bru` or environment file.
+For a protected route, use `auth: bearer` with `token: {{process.env.<PROJECT>_TEST_TOKEN}}`. Never write a token value in a `.bru` or environment file.
 
 For a path parameter, use `:name` in the URL and a `params:path` block. Keep the same path as the OpenAPI output.
 
@@ -82,5 +82,5 @@ For a path parameter, use `:name` in the URL and a `params:path` block. Keep the
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`.
-- Run `cdk deploy` or `cdk destroy`.
+- Run `cdk deploy` only as root CLAUDE.md rule 4 allows. Never run `cdk destroy`.
 - Use `--no-verify`.

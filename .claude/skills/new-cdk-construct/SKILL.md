@@ -1,6 +1,6 @@
 ---
 name: new-cdk-construct
-description: Add an AWS CDK construct to a project CDK app (projects/<name>/bin and lib), Lambda-first, with PascalCase IDs, no physical names, least-privilege grants, platform values read through SSM, cdk-nag AwsSolutions checks, Template.fromStack assertions and a snapshot. Use when asked to add infra, a CDK construct, an API Lambda, a web site, a Cognito app client, a domain, a bucket, queue, table, or stack resource. Platform and shared constructs need a human. Triggers include new construct, add infra, CDK, add a bucket, add a queue, add a table, stack, lambda, api gateway, cognito client.
+description: Add an AWS CDK construct to a project CDK app (projects/<name>/bin and lib), Lambda-first, with PascalCase IDs, no physical names, least-privilege grants, platform values read through SSM, cdk-nag AwsSolutions checks and Template.fromStack assertions. Use when asked to add infra, a CDK construct, an API Lambda, a Cognito app client, a domain, a bucket, queue, table, or stack resource. Platform and shared constructs need a human. Triggers include new construct, add infra, CDK, add a bucket, add a queue, add a table, stack, lambda, api gateway, cognito client.
 ---
 
 # new-cdk-construct
@@ -11,10 +11,10 @@ Rules:
 
 - Project constructs live in `projects/<name>/lib/constructs/<kebab>.ts`.
 - The stub CDK app (`bin/app.ts`, `lib/<name>-app.ts`, `lib/<name>-stack.ts`, `cdk.json`, `tsconfig.cdk.json`) comes from `rush add-part --project <name> --part infra` (the `scaffold` skill). If `cdk.json` does not exist, run that command first. Add constructs to `lib/` and wire them into the stack. Never create `cdk.json` by hand.
-- The CDK app (`bin/`, `lib/`) uses the one project `package.json`. CDK bundles Lambda code at synth: `NodejsFunction` for TypeScript, local bundling for the OpenNext web build. Unit tests turn bundling off. Region is `us-east-1` only. See `docs/guides/infra.md`.
+- The CDK app (`bin/`, `lib/`) uses the one project `package.json`. CDK bundles Lambda code at synth with `NodejsFunction` (`TracedNodeFunction` wraps it). Unit tests turn bundling off. Region is `us-east-1` only. See `docs/guides/infra.md`.
 - Shared constructs go to `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
 - Platform constructs live in `platform/infra`. Only a human changes them.
-- Compute is Lambda-first. API = Fastify on Lambda (`@fastify/aws-lambda`) behind an API Gateway HTTP API. Web = Next.js via OpenNext (CloudFront, S3, Lambda). Ask the human before any container or instance compute.
+- Compute is Lambda-first. API = Fastify on Lambda (`@fastify/aws-lambda`) behind an API Gateway HTTP API. Ask the human before any container or instance compute.
 - Projects never import code from `platform/infra`. Platform values come from SSM through the helper in `shared-cdk-constructs`. See `use-platform-resource`.
 
 ## Steps
@@ -25,9 +25,9 @@ Rules:
 4. Write the construct class in PascalCase. Use PascalCase construct IDs: `new Bucket(this, 'AssetsBucket', ...)`.
 5. Do not set physical names: no `bucketName`, `functionName`, `tableName`, `queueName`, `roleName`, or `userPoolName`. Let CDK generate them.
 6. Set the defaults:
-   - Stateful resources: encryption at rest, and `removalPolicy: RETAIN`. Use `DESTROY` only when `config/local.ts` sets it, and never in prod.
-   - Buckets: block public access. Web buckets use CloudFront Origin Access Control only.
-   - Lambda: explicit timeout and memory, log group with retention, active tracing. Use the shared Lambda construct from `@vprprudhvi/shared-cdk-constructs`. It adds the ADOT collector-only layer and sets `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_PROPAGATORS`, `OTEL_TRACES_SAMPLER`, and `OTEL_TRACES_SAMPLER_ARG`. Do not add the layer by hand. Do not set `AWS_LAMBDA_EXEC_WRAPPER`. If the shared construct does not offer them, stop and ask the human. See `docs/standards/observability.md`, section 8. Runtime: Node.
+   - Stateful resources: encryption at rest, and `removalPolicy: RETAIN`. Use `DESTROY` only when `lib/config/local.ts` sets it, and never in prod.
+   - Buckets: block public access.
+   - Lambda: explicit timeout and memory, log group with retention, active tracing. Use `TracedNodeFunction` from `@vprprudhvi/shared-cdk-constructs`. It adds the ADOT collector-only layer and sets `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_PROPAGATORS`, `OTEL_TRACES_SAMPLER`, and `OTEL_TRACES_SAMPLER_ARG`. Do not add the layer by hand. Do not set `AWS_LAMBDA_EXEC_WRAPPER`. If the shared construct does not offer them, stop and ask the human. See `docs/standards/observability.md`, section 8. Runtime: Node.
    - API Gateway HTTP API: a JWT authorizer on the Cognito pool for every route that needs a user. Any route without an authorizer needs a written reason in the test.
    - API Gateway HTTP API: no stage tracing. An HTTP API has no X-Ray support. It forwards `traceparent`. Lambda active tracing starts the X-Ray segment.
    - Cognito app client: one per project. Browser clients do not generate a secret.
@@ -38,8 +38,7 @@ Rules:
    - Use `Template.fromStack(stack)` to assert resources, encryption, removal policy, runtime, log retention, and grants.
    - Assert that each Lambda has the ADOT layer and `TracingConfig` mode `Active`.
    - Assert that `report.violations` is empty. An `Annotations` check does not see cdk-nag 3 findings.
-   - Add a snapshot: `expect(template.toJSON()).toMatchSnapshot()`.
-9. Run `rush test --to @vprprudhvi/<name>` and paste the output. If the snapshot changes, read the diff. Update it only when the change is intended.
+9. Run `rush test --to @vprprudhvi/<name>` and paste the output.
 10. Run `cd projects/<name> && npx cdk synth --quiet`. It must show zero nag errors.
 11. Run the `verify` skill.
 
@@ -47,7 +46,7 @@ Rules:
 
 - [ ] PascalCase construct IDs. No physical names. No account, pool, zone, or certificate values in code.
 - [ ] Lambda runtime, log retention, and tracing are set. Encryption and removal policy are set on stateful resources.
-- [ ] `Template.fromStack` assertions and the snapshot pass. The output is pasted.
+- [ ] `Template.fromStack` assertions pass. The output is pasted.
 - [ ] `cdk synth` shows zero cdk-nag errors.
 - [ ] The `verify` skill passes.
 - [ ] Each Lambda has the ADOT layer and active tracing, and a test asserts it.
@@ -59,9 +58,8 @@ Rules:
 - Write `*` in IAM actions or resources.
 - Import code from `platform/infra`, or use a CloudFormation cross-stack reference to a platform stack.
 - Create a user pool, hosted zone, or wildcard certificate in a project.
-- Update a snapshot only to make a test pass.
 - Edit `packages/cdk-constructs` or `platform/infra` without a human.
-- Run `cdk deploy` or `cdk destroy`. Run only `cdk synth` and read-only commands.
+- Run `cdk deploy` only as root CLAUDE.md rule 4 allows. Never run `cdk destroy`.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`.

@@ -2,7 +2,7 @@
 
 This file adds rules for `projects/sample/`. It applies together with `REVIEW.md` at the repository root. Read `CLAUDE.md` first.
 
-This project is one package. It has `web/`, `src/api` (TypeScript), `src/contracts`, `bruno/`, and (from Wave 3) the CDK app in `bin/` and `lib/`. Apply each section to the changed files only.
+This project is one package. It has `web/`, `src/api` (TypeScript), `src/contracts`, `bruno/`, and the CDK app in `bin/` and `lib/`. Apply each section to the changed files only.
 
 ## Review template: web (Next.js)
 
@@ -155,7 +155,7 @@ Fix: attach the CreateOrderSchema to the route and remove the cast.
 
 ## Review template: infra (AWS CDK)
 
-Use this template with `REVIEW.md` for each change in `projects/<name>/bin/`, `projects/<name>/lib/` or `packages/cdk-constructs/`. Apply the rules to the changed files only. Read the `cdk diff` output in the PR comment before you review.
+Use this template with `REVIEW.md` for each change in `projects/<name>/bin/`, `projects/<name>/lib/` or `packages/cdk-constructs/`. Apply the rules to the changed files only. Run `cdk diff` when you review a change that can replace a resource.
 
 ## Checks
 
@@ -209,7 +209,7 @@ Fix: grant s3:GetObject on the bucket ARN only, or use bucket.grantRead().
 
 ### Config and naming
 
-- Account IDs and region values come from `config/<env>.ts`. Do not hard-code them in constructs.
+- Account IDs and region values come from `lib/config/{local,prod}.ts`. Do not hard-code them in constructs.
 - Construct IDs are PascalCase. Do not set physical resource names. Let CDK generate them.
 - Each stack has the tags the repository requires.
 
@@ -217,7 +217,7 @@ Fix: grant s3:GetObject on the bucket ARN only, or use bucket.grantRead().
 
 - Each construct has a `Template.fromStack` assertion for each property the construct sets.
 - Snapshot changes have a reason in the PR.
-- `cdk synth` runs with cdk-nag. A nag error must be fixed, or it must have a suppression with a reason that a human approved.
+- cdk-nag runs in the infra unit tests. A nag error must be fixed, or it must have a suppression with a reason that a human approved.
 
 ### Platform inputs (SSM)
 

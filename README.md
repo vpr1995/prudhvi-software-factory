@@ -12,7 +12,7 @@ The factory builds products on AWS in one Rush monorepo: TypeScript APIs on Lamb
 
 - Rush 5.181.0 with pnpm 10.34.7. Node 24.11.1 (see `.nvmrc`).
 - TypeScript in ESM mode with `strict` on. Fastify APIs, Zod contracts.
-- Next.js (App Router) web apps, deployed through OpenNext.
+- Next.js (App Router) web apps.
 - AWS CDK for all infrastructure.
 
 ## Layout
@@ -25,7 +25,7 @@ The factory builds products on AWS in one Rush monorepo: TypeScript APIs on Lamb
 | `tooling/`       | Shared config for ESLint, TypeScript and Vitest.               |
 | `common/`        | Rush config, git hooks and autoinstallers.                     |
 | `docs/`          | Standards, guides, ADRs, runbooks and templates.               |
-| `.claude/`       | Agent settings and skills.                                     |
+| `.claude/`       | Agent settings, skills, subagents and the lint-on-edit hook.   |
 
 The repository has two projects:
 
@@ -60,10 +60,10 @@ Always run Rush through `node common/scripts/install-run-rush.js <cmd>`. Do not 
 
 - The pre-commit hook runs a gitleaks scan of staged files, then lint-staged (Prettier and ESLint). The commit-msg hook runs commitlint. The pre-push hook runs `rush audit` only when `common/config/rush/pnpm-lock.yaml` changed. Otherwise it skips.
 - The pre-commit hook also runs actionlint, zizmor and pinact on staged `.github/workflows` and `.github/actions` files.
-- The `ci` workflow (`.github/workflows/ci.yml`) runs on every pull request. Job `plan` runs `rush check`, the tsconfig check, and `rush audit` when `pnpm-lock.yaml` changed. Then it lists the impacted projects. Job `project` runs build, lint, typecheck, test and e2e for each impacted project. Job `ci-result` is the required check. Job `workflow-lint` runs actionlint, zizmor and pinact. Details: [testing.md](docs/standards/testing.md) section 6.
+- The `ci` workflow (`.github/workflows/ci.yml`) runs on every pull request. Job `plan` runs `rush check`, the tsconfig check, and `rush audit` when `pnpm-lock.yaml` changed. Then it lists the impacted projects. Job `project` runs build, lint, typecheck, test (with changed-line coverage of at least 80%) and e2e for each impacted project. Job `knip` runs Knip on the whole repository. Job `ci-result` is the required check. Job `workflow-lint` runs actionlint, zizmor and pinact. Details: [testing.md](docs/standards/testing.md) section 6.
 - The `secrets` workflow (`.github/workflows/secrets.yml`) runs gitleaks on the commits of each pull request.
 - The `warm-cache` workflow (`.github/workflows/warm-cache.yml`) builds all projects on each push to `main` and saves the caches for pull requests.
-- The `main` ruleset requires a pull request and a passing required check. It blocks force pushes and has no bypass. Make `ci-result` and `gitleaks` the required checks.
+- The `main` ruleset requires a pull request and a passing required check. The required checks are `ci-result` and `gitleaks`, and the branch must be up to date. It blocks deletion and force pushes. It has no bypass and requires no approvals. The owner reviews and merges each PR by convention.
 - Dependabot alerts and security updates are on.
 
 ## Working with agents

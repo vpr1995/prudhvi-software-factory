@@ -27,7 +27,7 @@ bash scripts/security/workflow-lint.sh               # actionlint, zizmor, pinac
 node tooling/vitest-config/dist/diff-coverage.js <base-sha> <project-path> < <project-path>/coverage/lcov.info # coverage on changed lines (CI runs it)
 ```
 
-Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>`.
+Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>` in the folder of the project.
 
 ## Notes
 

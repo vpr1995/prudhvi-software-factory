@@ -6,14 +6,14 @@ Contracts are optional. `rush new --project` and `rush add-part` do not make the
 
 ## Purpose
 
-- Zod in `src/contracts` is the only source of the API shape. OpenAPI and JSON Schema are generated from it.
+- Zod in `src/contracts` is the only source of the API shape. OpenAPI is generated from it.
 - Never edit generated output by hand. Change the Zod schema and rebuild.
 
 ## Folder layout
 
 - `src/contracts/<resource>.ts`: one file per resource. Zod schemas and inferred types only. No runtime logic.
-- `scripts/emit-openapi.mjs`: build scripts that emit JSON Schema and OpenAPI.
-- Output: `dist/openapi.json` and JSON Schema files, written by `_phase:build` (`z.toJSONSchema`).
+- `scripts/emit-openapi.mjs`: build script that emits OpenAPI.
+- Output: `dist/openapi.json`, written by `_phase:build`.
 
 ## Rules
 
@@ -26,13 +26,12 @@ Contracts are optional. `rush new --project` and `rush add-part` do not make the
 ## Generation flow
 
 1. Change the Zod schema.
-2. Run `rush build --only @vprprudhvi/<name>`. The build phase emits JSON Schema and OpenAPI to `dist/`.
+2. Run `rush build --only @vprprudhvi/<name>`. The build phase emits OpenAPI to `dist/`.
 3. Use the schemas in `src/api` and `web` through the inferred types.
 
 ## Tests
 
 - Test each Zod schema with valid and invalid input. See `docs/standards/testing.md`, section 3.4.
-- Mutation tests (Stryker) run nightly on `src/contracts`.
 
 ## Links
 

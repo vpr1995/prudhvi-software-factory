@@ -14,19 +14,19 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 3. Check the verify output: `tail -n 30 .claude/state/verify-output.log`. It must show a pass. If the file is missing or shows a failure, run the `verify` skill.
 4. Gather facts: `git log --oneline main..HEAD` and `git diff --stat main...HEAD`.
 5. Set the risk tier. Read `docs/standards/risk-tiers.md`. Apply its path rules to the changed files. Keep the highest tier that matches. Do not lower it.
-6. Run `mkdir -p .claude/state`. Write `.claude/state/pr-body.md`.
+6. Run `mkdir -p .claude/state`. Write `.claude/state/pr-body.md` with the Write tool. Do not write it with a shell heredoc: a quoted denied command in the body can trip the deny rules in `.claude/settings.json`.
    - The six sections below are required, in this order.
    - If `.github/pull_request_template.md` exists and has other headings, keep them after the six sections. Do not replace the six sections with them.
    - `## Summary`: 1 to 3 sentences. What changed and why.
    - `## Linked issue`: `Closes #<n>`. If there is no issue, write `None`. Ask the user for the number if it is unknown. Do not invent one.
    - `## Testing`: the commands you ran, and the last 30 lines of `.claude/state/verify-output.log`.
-   - `## Risk`: the tier (low, medium, or high) and one line that gives the path rule.
+   - `## Risk tier`: the tier (low, medium, or high) and one line that gives the path rule. The label is for the reviewer. Nothing else reads it.
    - `## How to revert`: the `git revert <sha>` command, or the flag to turn off.
-   - `## Feature flag`: the flag name from `packages/flags`, or `None (no user-visible change)`.
+   - `## Feature flag`: the flag name (defined with `defineFlags` from `@vprprudhvi/shared-flags`), or `None (no user-visible change)`.
    - Last line: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
 7. Write the title in Conventional Commits style, under 70 characters. Example: `feat(order-export): add csv export`.
 8. Push: `git push -u origin HEAD`. If the pre-push hook fails, read the message and fix the cause. Then retry.
-9. Open the PR: `gh pr create --base main --title "<title>" --body-file .claude/state/pr-body.md`.
+9. Open the PR with the risk label: `gh pr create --base main --title "<title>" --label risk:<tier> --body-file .claude/state/pr-body.md`. The agent PR uses the owner's GitHub user.
 10. Report the PR URL.
 
 ## Done when
@@ -44,5 +44,5 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`. Use `rush install`.
-- Run `cdk deploy`.
+- Run `cdk deploy` only as root CLAUDE.md rule 4 allows. Never run `cdk destroy`.
 - Use `--no-verify`.

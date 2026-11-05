@@ -1,8 +1,9 @@
 # CODEOWNERS
 #
 # Single maintainer: every path is owned by @vpr1995.
-# GitHub does not let an author approve their own PR. Agents open PRs from a
-# separate bot account or GitHub App. See docs/standards/risk-tiers.md.
+# Agents open PRs from the owner's own GitHub user. There is no bot account.
+# The owner reviews and merges each PR by convention. GitHub does not enforce it.
+# These lines mark the paths that need the owner's review.
 #
 # Rules:
 # - The last matching line wins for each file. Order: general first, specific last.
@@ -41,7 +42,7 @@
 /tooling/ @vpr1995
 
 # ---------------------------------------------------------------------------
-# Human-reviewed documents (agents propose edits, a human approves)
+# Documents the owner reviews (agents propose edits)
 # ---------------------------------------------------------------------------
 /CLAUDE.md @vpr1995
 /AGENTS.md @vpr1995
@@ -57,7 +58,7 @@
 # Config and policy files (always last)
 # ---------------------------------------------------------------------------
 
-# GitHub workflows, templates, rulesets, and this file
+# GitHub workflows, templates, and this file
 /.github/ @vpr1995
 /.github/CODEOWNERS @vpr1995
 

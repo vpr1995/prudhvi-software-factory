@@ -8,7 +8,7 @@ This guide holds the stack, the layout, the full import rules, and the non-goals
 - Language: TypeScript, ESM only, `strict` mode.
 - Web: Next.js (App Router). API: Fastify (TypeScript).
 - Contracts: Zod schemas and types in `src/contracts` of each project. It is the single source of truth.
-- Compute: Lambda first. API: Fastify on Lambda (`@fastify/aws-lambda`) behind API Gateway HTTP API. Web: Next.js through OpenNext (CloudFront, S3, Lambda).
+- Compute: Lambda first. API: Fastify on Lambda (`@fastify/aws-lambda`) behind API Gateway HTTP API. Web: Next.js.
 - Infrastructure: AWS CDK. `platform/infra` owns shared AWS resources. A project that needs infra has its own CDK app in `bin` and `lib`.
 - Tests: Vitest, Testing Library, Bruno (API requests), Playwright and axe (web), CDK assertions.
 - Tracing: OpenTelemetry. See `docs/standards/observability.md`.
@@ -19,7 +19,7 @@ This guide holds the stack, the layout, the full import rules, and the non-goals
 - `projects/<name>/bruno/`: the Bruno collection of the project.
 - `projects/sample/`: the sample product. It has every part.
 - `platform/infra`: shared AWS resources (one Cognito user pool, imported Route53 zone, ACM wildcard certificate). Package `@vprprudhvi/platform-infra`. It writes IDs to SSM under `/platform/<env>/...`.
-- `packages/*`: shared code with no project logic. Now: `flags`, `logger`, `result`, and `telemetry`. Planned: `cdk-constructs`.
+- `packages/*`: shared code with no project logic. Now: `cdk-constructs`, `flags`, `logger`, `result`, and `telemetry`.
 - `tooling/*`: shared config for ESLint, TypeScript, Vitest.
 - `common/`: Rush config, git hooks, autoinstallers.
 - `docs/`: standards, guides, ADRs, runbooks, templates.
@@ -44,7 +44,7 @@ Enforcer: `eslint-plugin-boundaries`. See `docs/standards/coding-conventions.md`
 - No cloud other than AWS.
 - No infrastructure tool other than AWS CDK.
 - No feature-flag vendor yet. Flags use env or JSON files behind `packages/flags`.
-- No deploy from a laptop. Releases use `release.yml`.
+- Deploy rules: see root `CLAUDE.md`, rule 4.
 - No dependency on GitHub Advanced Security.
 
 ## 5. Who edits the agent documents

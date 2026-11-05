@@ -2,7 +2,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## Scope
 
-- `.github/**` holds CI workflows, `CODEOWNERS`, the PR template, and rulesets.
+- `.github/**` holds CI workflows, `CODEOWNERS`, the PR template, and the issue form. The rulesets live in the GitHub settings, not in this folder.
 - Changes here are `risk:high`. A human reviews each change. Agents can edit this folder.
 
 ## What lives here
@@ -13,7 +13,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - `zizmor.yml`: zizmor config. A human adds each entry, with a reason.
 - `actions/repo-setup/action.yml`: composite action. It sets up Node, restores the caches, runs `rush install`, and restores the Rush build cache.
 - `CODEOWNERS`: owner rules. The last matching line wins.
-- `pull_request_template.md`: Summary, Testing, Risk, How to revert, Flag.
+- `pull_request_template.md`: Summary, Linked issue, Testing, Risk tier, How to revert, Feature flag, Checklist.
 - `ISSUE_TEMPLATE/ticket.yml`: issue form for tickets: Context, Acceptance, Risk tier, Notes. Blank issues are off. Rules: wiki page Ticket Workflow.
 
 ## When a CI check fails
@@ -31,7 +31,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 4. Give the reason in the PR description.
 5. A human reviews it.
 
-Do not run `gh` commands that change repo settings, labels, or rulesets. Do not run `cdk deploy`. Releases use `release.yml`.
+Do not run `gh` commands that change repo settings, labels, or rulesets.
 
 ## Links
 

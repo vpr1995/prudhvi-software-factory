@@ -1,6 +1,6 @@
 # ADR 0006: Shared platform infrastructure and Lambda-first compute
 
-- Status: Accepted
+- Status: Accepted. Partly replaced 2026-11-05: the OpenNext web deploy and its construct are not built.
 - Date: 2026-10-22
 
 ## Context

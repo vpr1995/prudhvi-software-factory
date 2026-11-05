@@ -10,7 +10,7 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
 
 | Folder           | What it is                                                                                                                                                                                |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/contracts/` | Zod schemas of the three data files: `park.ts` (parks and Wikimedia photos) and `visit.ts` (visits). They import only `zod`.                                                              |
+| `src/contracts/` | Zod schemas of the data files (`parks.json`, `photos.json`, `visits.json`): `park.ts` (parks and Wikimedia photos), `visit.ts` (visits) and `messages.ts` (error messages). They import only `zod`.                                                              |
 | `web/`           | The Next.js app, built as a static export. `app/` holds the pages. `components/` and `lib/` hold the parts of the pages. `data/` holds the data files. `e2e/` holds the Playwright specs. |
 | `test/`          | The unit tests (`contracts/`, `data/`, `web/`), the e2e visits fixture (`fixtures/visits.e2e.json`) and the e2e static server (`e2e/serve-static.js`).                                    |
 | `scripts/`       | `phase.mjs` runs each Rush phase.                                                                                                                                                         |
