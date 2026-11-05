@@ -55,7 +55,7 @@ File contents are in `reference.md` in this folder.
 Write each file below to its target path.
 
 - `projects/<name>/config/rush-project.json`.
-- `projects/<name>/tsconfig.json`, `projects/<name>/tsconfig.build.json`, `projects/<name>/eslint.config.js`, `projects/<name>/vitest.config.ts`. `tsconfig.json` includes `bin` and `lib`. `eslint.config.js` scopes `bin/**` and `lib/**` to the `cdk` config. `vitest.config.ts` runs `test/infra` and covers `bin` and `lib`. Write them with `bin` and `lib` from the start. Each tsconfig extends a `@vprprudhvi/tooling-tsconfig` preset (`web/tsconfig.json` uses `web.json`) and sets only allowed options (coding-conventions.md, B.18).
+- `projects/<name>/tsconfig.json`, `projects/<name>/tsconfig.build.json`, `projects/<name>/eslint.config.js`, `projects/<name>/vitest.config.ts`. `tsconfig.json` includes `bin` and `lib`. `eslint.config.js` scopes `bin/**` and `lib/**` to the `cdk` config. `vitest.config.ts` is `export default createAppVitestConfig()` from `@vprprudhvi/tooling-vitest-config`. It runs every test in `test/` and covers `src`, `bin` and `lib`. Add `{ web: true }` for a project with a `web/` part. Write them with `bin` and `lib` from the start. Each tsconfig extends a `@vprprudhvi/tooling-tsconfig` preset (`web/tsconfig.json` uses `web.json`) and sets only allowed options (coding-conventions.md, B.18).
 - `projects/<name>/cdk.json` and `projects/<name>/tsconfig.cdk.json`: the stub CDK app.
 - `projects/<name>/REVIEW.md`: one heading per part.
 - `projects/<name>/bruno/bruno.json`: api.

@@ -1,2 +1,2 @@
-export { COVERAGE_THRESHOLDS, createVitestConfig } from './config.js';
-export type { CreateVitestConfigOptions } from './config.js';
+export { COVERAGE_THRESHOLDS, createAppVitestConfig, createVitestConfig } from './config.js';
+export type { CreateAppVitestConfigOptions, CreateVitestConfigOptions } from './config.js';

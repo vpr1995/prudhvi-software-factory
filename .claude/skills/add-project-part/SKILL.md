@@ -49,7 +49,7 @@ File contents are in `../new-project/reference.md`.
 Write each file below to its target path.
 
 - `projects/<name>/package.json`: the full new content.
-- `projects/<name>/tsconfig.json`, `projects/<name>/eslint.config.js`, `projects/<name>/vitest.config.ts`: only when the part needs a change (for example, a `web/` block). `web/tsconfig.json` extends `@vprprudhvi/tooling-tsconfig/web.json`. Set only allowed options (coding-conventions.md, B.18).
+- `projects/<name>/tsconfig.json`, `projects/<name>/eslint.config.js`, `projects/<name>/vitest.config.ts`: only when the part needs a change (for example, a `web/` block: set `createAppVitestConfig({ web: true })` in `vitest.config.ts`). `web/tsconfig.json` extends `@vprprudhvi/tooling-tsconfig/web.json`. Set only allowed options (coding-conventions.md, B.18).
 - `projects/<name>/REVIEW.md`: add the matching template from `docs/templates/` (`REVIEW.web.md` for web, `REVIEW.api.md` for the API part).
 - `projects/<name>/bruno/bruno.json`: only when the Bruno collection is new.
 - `projects/<name>/playwright.config.ts`: web.
