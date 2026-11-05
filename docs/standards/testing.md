@@ -26,10 +26,12 @@ The web test setup file is `projects/<name>/test/web/setup.ts`.
 
 ## 2. Coverage thresholds
 
-| Threshold | Value | Where it is set         | Where it runs   |
-| --------- | ----- | ----------------------- | --------------- |
-| Lines     | 80%   | `tooling/vitest-config` | `rush test`, CI |
-| Branches  | 75%   | `tooling/vitest-config` | `rush test`, CI |
+| Threshold  | Value | Where it is set         | Where it runs   |
+| ---------- | ----- | ----------------------- | --------------- |
+| Lines      | 80%   | `tooling/vitest-config` | `rush test`, CI |
+| Branches   | 75%   | `tooling/vitest-config` | `rush test`, CI |
+| Functions  | 80%   | `tooling/vitest-config` | `rush test`, CI |
+| Statements | 80%   | `tooling/vitest-config` | `rush test`, CI |
 
 ### 2.1 Coverage on changed lines
 
@@ -69,14 +71,13 @@ await app.inject({ method: 'GET', url: '/v1/users/u_1' });
 ### 3.2 Web (`projects/<name>/web`)
 
 - Use Testing Library for component tests. Query by role and label.
-- Use Playwright for end-to-end tests and screenshot checks.
+- Use Playwright for end-to-end tests.
 - Run `axe` checks in Playwright on each page that a PR changes.
 - Each page has a Playwright spec. See section 9.
 
 ### 3.3 Infra (`projects/<name>/bin` and `projects/<name>/lib`, `packages/cdk-constructs`)
 
 - Use CDK assertions (`Template.fromStack`) for each stack and construct.
-- Use snapshot tests for each stack. A snapshot change needs a reason in the PR.
 - Run `cdk-nag` with the AwsSolutions pack. An unresolved nag error fails `cdk synth`.
 - Turn Lambda bundling off in unit tests. See `docs/guides/infra.md`.
 
@@ -84,7 +85,6 @@ await app.inject({ method: 'GET', url: '/v1/users/u_1' });
 
 - Test each Zod schema with valid and invalid input.
 - Test pure domain functions in `src/api/domain/` without Fastify.
-- Mutation tests (Stryker) run nightly on `src/contracts` and `src/api/domain`. They do not run on each PR.
 
 ## 4. Forbidden changes
 
@@ -96,14 +96,14 @@ Do not add any of these items to a diff. The reviewer checks the diff for them:
 | `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`                     | Hides a type or lint error.                      |
 | `as any`, `as unknown as`                                                             | Hides a type error.                              |
 | A deleted test file, or fewer `it(` or `test(` calls than before                      | Removes tests.                                   |
-| A lower value in a coverage config, `--passWithNoTests`, `                            |                                                  | true` in a script | Lowers a threshold. |
+| A lower value in a coverage config, `--passWithNoTests`, or `\|\| true` in a script   | Lowers a threshold.                              |
 | `nosec`, `gitleaks:allow`                                                             | Hides a security finding.                        |
 | An empty `catch {}` block                                                             | Hides an error.                                  |
 | A changed test with no assertion See the note below this table.                       | A test with no assertion passes without testing. |
 | Playwright: `test.skip`, `test.fixme`, `test.fail`, `test.describe.skip`, `test.only` | Skips or focuses e2e tests.                      |
 | Bruno: a `.bru` request with no `assert` or `tests` block                             | A request with no check passes without testing.  |
 | Bruno: `skip-request` in a script                                                     | Skips a request.                                 |
-| Bruno or Playwright: `--bail` removed from a script to hide a failure                 | Hides the first failure.                         |
+| Bruno or Playwright: a flag or a step removed from a script to hide a failure         | Hides a failure.                                 |
 
 Each changed test needs an assertion. These items count as an assertion:
 
@@ -123,7 +123,7 @@ If a test must change, the change needs a reason in the PR. A human approves the
 Run these checks on your change before you open a PR:
 
 1. `rush verify`. It runs build, lint, typecheck, test, and e2e for the impacted projects.
-2. `cdk synth` with cdk-nag, when `infra` changed.
+2. The `verify` skill. It also runs `cdk synth` when infra changed. `rush verify` does not run `cdk synth`.
 3. The forbidden-change list in section 4. Check your own diff.
 
 The pre-commit hook runs gitleaks on staged files and lint-staged (Prettier and ESLint). For staged `.github/workflows` and `.github/actions` files, lint-staged also runs actionlint, zizmor and pinact.
@@ -151,9 +151,9 @@ The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secret
 Notes:
 
 - When no project is impacted, `project` skips and `ci-result` passes.
-- `project` restores the Rush build cache (`common/temp/build-cache`), so unchanged dependencies do not build again. It takes the newest entry of the same project in the PR. If there is none, it takes the newest entry of `main`.
+- `project` restores the Rush build cache (`common/temp/build-cache`), so unchanged dependencies do not build again. It takes the newest entry of the same project in the PR. If there is none, it takes the newest entry of `main`. If there is none, it takes the newest entry of any scope.
 - `project` installs Chromium only for a project that has `playwright.config.ts`.
-- CI does not run `cdk synth` for `platform/infra`. Run `rush verify` before you push. Mutation tests run nightly (`nightly.yml`, planned). They report only. Open an issue for surviving mutants.
+- CI does not run `cdk synth`. cdk-nag runs inside the infra unit tests (`Template.fromStack` with validations).
 
 ## 7. When a test fails
 
@@ -253,8 +253,8 @@ Each web part has an `e2e/` folder. The folder uses `@playwright/test` and `@axe
 - Each `app/**/page.tsx` route has a spec. The spec calls `page.goto('<route>')` and runs an axe check. The reviewer checks this.
 - A project with a `web/` folder and no `web/e2e/` folder fails review.
 - Use a role or a label to find an element. Do not select by CSS class.
-- Keep the screenshot and trace settings. They are on for failures in CI.
-- In PR runs, use Chromium. The nightly run uses Chromium, Firefox, and WebKit.
+- Keep the trace setting. The Playwright configs set `trace: 'retain-on-failure'`.
+- Use Chromium.
 
 ### 9.2 Example
 
@@ -285,11 +285,11 @@ Update the spec in the same PR as the page. A changed page without a changed spe
 
 ## 11. Trace propagation tests
 
-Each part that handles a request has one test that proves trace propagation. The rules are in `docs/standards/observability.md`. The checks are planned until `packages/telemetry` lands. If the package does not exist, skip the test and list it as an open item (observability.md, section 2).
+Each part that handles a request has one test that proves trace propagation. The rules are in `docs/standards/observability.md`.
 
 | Part                  | Test                                                                                              | What it asserts                                                     |
 | --------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `api` (TypeScript)    | Call the wrapped Lambda handler with a fake HTTP API v2 event that has a `traceparent` header     | The response `traceparent` and the log line have the same trace id. |
+| `api` (TypeScript)    | Call `fastify.inject` with a `traceparent` header                                                 | The response `traceparent` and the log line have the same trace id. |
 | `web` (browser fetch) | Playwright spec that watches the API request. Applies only when a client component calls the API. | The API request carries a `traceparent` header.                     |
 | `web` (server fetch)  | Vitest test of `lib/<resource>-client.ts` with a fake server and an active span                   | The request carries a `traceparent` header.                         |
 | Bruno                 | `assert` block in the `.bru` request                                                              | The response has a `traceparent` header.                            |

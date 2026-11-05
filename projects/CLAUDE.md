@@ -15,7 +15,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 ## Contracts flow
 
 1. Write the Zod schema in `src/contracts/<resource>.ts`.
-2. `rush build` emits JSON Schema and `dist/openapi.json`.
+2. `rush build` emits `dist/openapi.json`.
 3. Never edit generated output by hand. Change the schema and rebuild.
 
 ## Import rules
@@ -34,7 +34,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - API route: add a Bruno request.
 - Web page: add a Playwright spec with `page.goto` and an axe check.
 - Each part: add a trace propagation test. See [observability.md](../docs/standards/observability.md).
-- `projects/*/bin/**` and `projects/*/lib/**` are medium risk. The infra reviewer, and cdk-nag check them, and the PR review covers them. `projects/*/cdk.json` stays high risk.
+- `projects/*/bin/**` and `projects/*/lib/**` are medium risk. The infra reviewer agent checks them locally, cdk-nag runs in the infra unit tests, and the PR review covers them. `projects/*/cdk.json` stays high risk.
 
 ## Guides by part
 

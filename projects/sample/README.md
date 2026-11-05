@@ -23,7 +23,7 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
 - `tsconfig.json`: type check of `src/` and the config files.
 - `tsconfig.build.json`: build of `src/contracts` and `src/api` to `dist/`.
 - `eslint.config.js`: one ESLint config. `web/**` gets the Next.js rules. The other folders get the Node.js rules.
-- `vitest.config.ts`: one Vitest config with two projects. `node` runs `test/api/**` and `test/contracts/**`. `web` runs `test/web/**` in jsdom.
+- `vitest.config.ts`: one Vitest config with two projects. `node` runs every test under `test/` except `test/web`. `web` runs `test/web/**` in jsdom.
 - `playwright.config.ts`: Playwright for `web/e2e`.
 
 ## Imports

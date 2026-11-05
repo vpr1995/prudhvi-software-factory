@@ -1,6 +1,6 @@
 # ADR 0001: Use Rush with pnpm for the monorepo
 
-- Status: Accepted
+- Status: Accepted. Partly replaced 2026-11-05: CI runs `rush list --impacted-by` and one job for each impacted project (`ci.yml`). The gate files are removed. See `docs/standards/testing.md`, section 6.
 - Date: 2026-10-22
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR 0010: Single-package projects
 
-- Status: Accepted. Supersedes the layout decision of ADR 0002 and the package names of ADR 0007. Partly replaced 2026-11-04: contracts and CDK are optional; see projects/CLAUDE.md
+- Status: Accepted. Supersedes the layout decision of ADR 0002 and the package names of ADR 0007. Partly replaced 2026-11-04: contracts and CDK are optional; see projects/CLAUDE.md. Partly replaced 2026-11-05: ADR 0007 is removed (PR #43). The Python and Go parts are removed.
 - Date: 2026-10-22
 
 ## Context

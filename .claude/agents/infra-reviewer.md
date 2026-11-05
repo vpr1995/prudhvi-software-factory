@@ -32,7 +32,7 @@ Any change under `platform/infra/**` is high risk. Report it with at least one I
 - IAM least privilege: `*` in actions or resources, admin-style managed policies, broad `grant*` on a shared resource, roles that a stack does not need.
 - Replacements and deletions: in the `cdk diff` output, look for `Replacement` and `destroy` on stateful resources (user pools, buckets, tables, keys, log groups, databases). A replacement of a stateful resource is Important.
 - RemovalPolicy: stateful resources use `RETAIN` outside `local`. `DESTROY` is allowed only in `local`. Stateful resources in `prod` use `RETAIN`. The Cognito user pool and the hosted zone import never get `DESTROY`. Deletion protection on the user pool is on in prod. `DESTROY` in prod is Important. The platform stack deploys only `prod` (ADR 0011).
-- Encryption at rest on each stateful resource. Block public access on buckets. Web buckets use CloudFront Origin Access Control only.
+- Encryption at rest on each stateful resource. Block public access on buckets.
 - Platform values: a project reads platform values only through the SSM helper from `shared-cdk-constructs`. Flag as Important:
   - a hard-coded user pool ID, hosted zone ID, certificate ARN, or account ID in project code;
   - an import of code from `platform/infra`;
@@ -40,7 +40,6 @@ Any change under `platform/infra/**` is high risk. Report it with at least one I
   - a project that creates a user pool, hosted zone, or wildcard certificate;
   - a shared Cognito app client used by more than one project.
     Check each SSM path is under `/platform/<env>/`. A removed or renamed SSM parameter is Important.
-- DNS: records go only in the platform hosted zone, under the project's subdomain.
 - Compute: Lambda-first. Flag an ECS, Fargate, EC2, or container addition as Important unless the diff cites an ADR. API Gateway HTTP API routes without a JWT authorizer need a reason in code or tests.
 - Lambda: explicit timeout and memory, log retention set, tracing on, runtime matches the build output.
 - Public exposure: `0.0.0.0/0` ingress, public subnets for compute that does not need them, unauthenticated function URLs.

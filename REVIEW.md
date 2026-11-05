@@ -1,6 +1,6 @@
 # REVIEW.md
 
-This file sets the rules for AI code review in this repository. The `fresh-reviewer` agent and the `claude-review.yml` workflow read it.
+This file sets the rules for AI code review in this repository. The `fresh-reviewer` agent reads it. It runs locally (the `pre-pr` skill).
 
 Read `CLAUDE.md` first. Read the part template for each changed part: `docs/templates/REVIEW.web.md`, `REVIEW.api.md`, or `REVIEW.infra.md`.
 

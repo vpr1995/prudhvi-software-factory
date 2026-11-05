@@ -15,7 +15,7 @@ Part: `projects/<name>/src/api`. Package: `@vprprudhvi/<name>` (one package for 
 
 - Validate input with `src/contracts` (relative import). Use `fastify-type-provider-zod` and `withTypeProvider<ZodTypeProvider>()`.
 - Errors extend `AppError` with an UPPER_SNAKE_CASE `code`. Use the one error handler in `server.ts`.
-- Use the existing auth hook for protected routes. Do not parse tokens in a route.
+- No auth hook exists yet. When a route needs auth, add one hook. Do not parse tokens in a route.
 - Never import from `web/` or another project.
 - Put new user-visible behavior behind a flag from `@vprprudhvi/shared-flags`.
 - Log only with `@vprprudhvi/shared-logger`.
@@ -26,17 +26,16 @@ Part: `projects/<name>/src/api`. Package: `@vprprudhvi/<name>` (one package for 
 - Cover success, each error path, and an invalid body (400 and the envelope).
 - Add a contract test for each route.
 - Add a Bruno request for each route. Use the `api-docs` skill. `rush e2e` runs it.
-- Rules: `docs/standards/testing.md`, sections 3.1, 3.4, 9, 11.
+- Rules: `docs/standards/testing.md`, sections 3.1, 3.4, 8, 11.
 
 ## Telemetry
 
-- Missing package rule: if `packages/telemetry` does not exist, skip this section and list it as an open item. See `docs/standards/observability.md`, section 2.
 - `lambda.ts` calls `initTelemetry({ serviceName })`. Then it loads the server with `await import('./server.js')`. Static imports would run first.
-- `lambda.ts` exports `wrapLambdaHandler(handler)` from `@vprprudhvi/shared-telemetry` (planned). The wrapper extracts `traceparent` from `event.headers`, sets the response `traceparent`, and calls `forceFlush` before the Lambda freezes.
-- `@fastify/otel` names route spans `<METHOD> <route>`. It does not read `traceparent`.
+- `lambda.ts` flushes the spans inline: it calls `forceFlush` (bounded by a timeout) before the Lambda freezes. See `projects/sample/src/api/lambda.ts`.
+- `@fastify/otel` names route spans `<METHOD> <route>` and continues an incoming `traceparent`. The `onSend` hook in `server.ts` sets the response `traceparent`.
 - Put `withSpan` calls in routes and adapters. Keep `domain/` free of telemetry.
 - Set `requestId` in the error envelope to `getTraceContext().traceId`.
-- Add a trace test. Call the wrapped Lambda handler with a fake HTTP API v2 event that has a `traceparent` header. Expect the same trace id in the response `traceparent` and in the log line. A bare `fastify.inject` test skips the extraction step.
+- Add a trace test. Call `fastify.inject` with a `traceparent` header. Expect the same trace id in the response `traceparent` and in the log line. See `projects/sample/test/api/trace-propagation.test.ts`.
 - The Lambda layer comes from the shared construct. See `docs/guides/infra.md`.
 - Rules: `docs/standards/observability.md`.
 

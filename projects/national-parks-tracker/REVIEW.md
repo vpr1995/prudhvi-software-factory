@@ -2,7 +2,7 @@
 
 This file adds rules for `projects/national-parks-tracker/`. It applies together with `REVIEW.md` at the repository root. Read `CLAUDE.md` first.
 
-This project is one package. It has `src/contracts` and `web/` (a Next.js static export). It has no API, no Bruno collection and no CDK app. Apply each section to the changed files only.
+This project is one package. It has `src/contracts`, `web/` (a Next.js static export), and the CDK app in `bin/` and `lib/`. It has no API and no Bruno collection. The CDK app (`bin/`, `lib/`) holds a placeholder stack only. Apply each section to the changed files only.
 
 ## Contracts (`src/contracts`)
 

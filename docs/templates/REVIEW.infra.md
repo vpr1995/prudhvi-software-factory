@@ -1,6 +1,6 @@
 # Review template: infra (AWS CDK)
 
-Use this template with `REVIEW.md` for each change in `projects/<name>/bin/`, `projects/<name>/lib/`, or `packages/cdk-constructs/`. Apply the rules to the changed files only. Read the `cdk diff` output in the PR comment before you review.
+Use this template with `REVIEW.md` for each change in `projects/<name>/bin/`, `projects/<name>/lib/`, or `packages/cdk-constructs/`. Apply the rules to the changed files only. Run `cdk diff` when you review a change that can replace a resource.
 
 ## Checks
 
@@ -62,7 +62,7 @@ Fix: grant s3:GetObject on the bucket ARN only, or use bucket.grantRead().
 
 - Each construct has a `Template.fromStack` assertion for each property the construct sets.
 - Snapshot changes have a reason in the PR.
-- `cdk synth` runs with cdk-nag. A nag error must be fixed, or it must have a suppression with a reason that a human approved.
+- cdk-nag runs in the infra unit tests. A nag error must be fixed, or it must have a suppression with a reason that a human approved.
 
 ### Platform inputs (SSM)
 

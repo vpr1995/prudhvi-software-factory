@@ -8,8 +8,8 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## Risk
 
-- Every change under `platform/**` is `risk:high`. A human approves each change.
-- Write a PR for a human. Never merge it. Never run `cdk deploy`.
+- Every change under `platform/**` is `risk:high`. The owner reviews each change (CODEOWNERS).
+- Write a PR for the owner. Never merge it. A human deploys `platform/infra` (root [CLAUDE.md](../CLAUDE.md) rule 4).
 - Deploy `platform/infra` before any project that reads a new output.
 
 ## Rules

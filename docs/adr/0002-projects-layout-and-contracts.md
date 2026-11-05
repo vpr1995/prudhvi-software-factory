@@ -1,6 +1,6 @@
 # ADR 0002: Use a projects layout with per-project contracts and import boundaries
 
-- Status: Superseded by ADR 0010. Partly replaced 2026-11-04: contracts and CDK are optional; see projects/CLAUDE.md
+- Status: Superseded by ADR 0010. Partly replaced 2026-11-04: contracts and CDK are optional; see projects/CLAUDE.md. Partly replaced 2026-11-05: the dependency-cruiser config is removed (PR #45). Import boundaries use `eslint-plugin-boundaries`.
 - Date: 2026-10-22
 
 ## Context
