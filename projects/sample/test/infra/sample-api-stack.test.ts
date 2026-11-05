@@ -13,7 +13,7 @@ import { SAMPLE_ROUTES, SampleApiStack } from '../../lib/sample-api-stack.js';
 
 type Built = { readonly stack: SampleApiStack; readonly template: Template };
 
-/** The time that the first build of each environment can take: it hashes the Python and Go code. */
+/** The time that the first build of each environment can take. */
 const BUILD_TIMEOUT_MS = 60_000;
 
 const builds = new Map<DeployEnv, Built>();
@@ -81,19 +81,15 @@ function routeKeys(template: Template, authorizationType: string): unknown[] {
 }
 
 describe('SampleApiStack functions', () => {
-  it('has three arm64 functions with the runtime and handler of each part', () => {
+  it('has one arm64 function with the Node.js runtime and handler', () => {
     const { template } = build();
 
     const functions = propertiesOf(template, 'AWS::Lambda::Function').map(
       (properties) => `${String(properties['Runtime'])} ${String(properties['Handler'])}`,
     );
-    expect(functions.sort()).toEqual([
-      'nodejs24.x index.handler',
-      'provided.al2023 bootstrap',
-      'python3.14 src.sample_api.handler.lambda_handler',
-    ]);
+    expect(functions).toEqual(['nodejs24.x index.handler']);
     expect(findWith(template, 'AWS::Lambda::Function', { Architectures: ['arm64'] })).toHaveLength(
-      3,
+      1,
     );
   });
 
@@ -105,24 +101,23 @@ describe('SampleApiStack functions', () => {
         TracingConfig: { Mode: 'Active' },
         Layers: [ADOT_COLLECTOR_LAYER_ARN],
       }),
-    ).toHaveLength(3);
-  });
-
-  it.each([
-    ['sample-api', 'SAMPLE_API_ENVIRONMENT'],
-    ['sample-api-py', 'SAMPLE_API_PY_ENVIRONMENT'],
-    ['sample-api-go', 'SAMPLE_API_GO_ENVIRONMENT'],
-  ])('sets the service name and the environment of %s', (serviceName, variable) => {
-    const { template } = build('prod');
-
-    expect(
-      findWith(template, 'AWS::Lambda::Function', {
-        Environment: {
-          Variables: { OTEL_SERVICE_NAME: serviceName, [variable]: 'prod' },
-        },
-      }),
     ).toHaveLength(1);
   });
+
+  it.each([['sample-api', 'SAMPLE_API_ENVIRONMENT']])(
+    'sets the service name and the environment of %s',
+    (serviceName, variable) => {
+      const { template } = build('prod');
+
+      expect(
+        findWith(template, 'AWS::Lambda::Function', {
+          Environment: {
+            Variables: { OTEL_SERVICE_NAME: serviceName, [variable]: 'prod' },
+          },
+        }),
+      ).toHaveLength(1);
+    },
+  );
 
   // Only prod has functions. The 1.0 ratio of local is tested in shared-cdk-constructs.
   it.each([['prod', '0.1']] as const)('samples %s traces at the ratio %s', (env, ratio) => {
@@ -130,7 +125,7 @@ describe('SampleApiStack functions', () => {
       (variables) => variables['OTEL_TRACES_SAMPLER_ARG'],
     );
 
-    expect(ratios).toEqual([ratio, ratio, ratio]);
+    expect(ratios).toEqual([ratio]);
   });
 
   it('never sets the Lambda exec wrapper', () => {
@@ -139,17 +134,17 @@ describe('SampleApiStack functions', () => {
 });
 
 describe('SampleApiStack HTTP APIs', () => {
-  it('has three HTTP APIs and no domain, record or certificate', () => {
+  it('has one HTTP API and no domain, record or certificate', () => {
     const { template } = build();
     const count = (type: string): number => Object.keys(template.findResources(type)).length;
 
-    expect(count('AWS::ApiGatewayV2::Api')).toBe(3);
+    expect(count('AWS::ApiGatewayV2::Api')).toBe(1);
     expect(count('AWS::ApiGatewayV2::DomainName')).toBe(0);
     expect(count('AWS::Route53::RecordSet')).toBe(0);
     expect(count('AWS::CertificateManager::Certificate')).toBe(0);
   });
 
-  it('has exactly the routes of SAMPLE_ROUTES on each API, and no $default or proxy route', () => {
+  it('has exactly the routes of SAMPLE_ROUTES on the API, and no $default or proxy route', () => {
     const { template } = build();
     const keys = propertiesOf(template, 'AWS::ApiGatewayV2::Route')
       .map((properties) => String(properties['RouteKey']))
@@ -160,36 +155,21 @@ describe('SampleApiStack HTTP APIs', () => {
       'GET /v1/notes',
       'POST /v1/notes',
     ]);
-    expect(keys).toEqual(
-      Array.from({ length: 3 }, () => ['GET /v1/health', 'GET /v1/notes', 'POST /v1/notes'])
-        .flat()
-        .sort(),
-    );
+    expect(keys).toEqual(['GET /v1/health', 'GET /v1/notes', 'POST /v1/notes']);
     expect(keys.filter((key) => key.includes('$default') || key.includes('proxy'))).toEqual([]);
   });
 
-  it('has only the health route without a token, on each API', () => {
+  it('has only the health route without a token', () => {
     const { template } = build();
 
-    expect(routeKeys(template, 'NONE')).toEqual([
-      'GET /v1/health',
-      'GET /v1/health',
-      'GET /v1/health',
-    ]);
+    expect(routeKeys(template, 'NONE')).toEqual(['GET /v1/health']);
   });
 
-  it('puts the notes routes behind the JWT authorizer, on each API', () => {
+  it('puts the notes routes behind the JWT authorizer', () => {
     const { template } = build();
 
-    expect(routeKeys(template, 'JWT')).toEqual([
-      'GET /v1/notes',
-      'GET /v1/notes',
-      'GET /v1/notes',
-      'POST /v1/notes',
-      'POST /v1/notes',
-      'POST /v1/notes',
-    ]);
-    expect(Object.keys(template.findResources('AWS::ApiGatewayV2::Authorizer'))).toHaveLength(3);
+    expect(routeKeys(template, 'JWT')).toEqual(['GET /v1/notes', 'POST /v1/notes']);
+    expect(Object.keys(template.findResources('AWS::ApiGatewayV2::Authorizer'))).toHaveLength(1);
   });
 
   it('checks the issuer of the platform pool and the audience of the project client', () => {
@@ -203,7 +183,7 @@ describe('SampleApiStack HTTP APIs', () => {
           Issuer: Match.anyValue(),
         },
       }),
-    ).toHaveLength(3);
+    ).toHaveLength(1);
   });
 
   it(
@@ -222,12 +202,10 @@ describe('SampleApiStack HTTP APIs', () => {
     BUILD_TIMEOUT_MS,
   );
 
-  it('adds one output with the URL of each API, the sign-in domain and the client ID', () => {
+  it('adds one output with the URL of the API, the sign-in domain and the client ID', () => {
     const { template } = build();
 
     expect(Object.keys(template.toJSON()['Outputs'] as object).sort()).toEqual([
-      'GoApiUrl',
-      'PythonApiUrl',
       'TypeScriptApiUrl',
       'UserPoolClientId',
       'UserPoolDomain',
@@ -273,9 +251,9 @@ describe('SampleApiStack app client', () => {
 
 describe('SampleApiStack cdk-nag', () => {
   // cdk-nag 3 is a validation plugin, so these tests call `validateScope` and read the report.
-  // The stack acknowledges APIG4 on the public route of each API (the owner approved it for
+  // The stack acknowledges APIG4 on the public route of the API (the owner approved it for
   // `GET /v1/health` only) in `lib/nag-acknowledgments/sample-api-stack.ts`. The two IAM5
-  // findings of each function come from `TracedFunctionBase`.
+  // findings of the function come from `TracedFunctionBase`.
 
   /** Lists the violations as `rule id (severity)`. */
   function violations(stack: SampleApiStack): string[] {
@@ -298,15 +276,11 @@ describe('SampleApiStack cdk-nag', () => {
     expect(violations(build(env).stack)).toEqual([]);
   });
 
-  it('lists only the three health routes as public routes', () => {
+  it('lists only the health route as a public route', () => {
     const { stack } = build();
     const health = stack.apis.flatMap((api) => api.publicRoutes);
 
-    expect(health.map((entry) => `${entry.method} ${entry.path}`)).toEqual([
-      'GET /v1/health',
-      'GET /v1/health',
-      'GET /v1/health',
-    ]);
+    expect(health.map((entry) => `${entry.method} ${entry.path}`)).toEqual(['GET /v1/health']);
   });
 
   it('acknowledges APIG4 on the public routes only, with the owner reason', () => {
@@ -324,8 +298,6 @@ describe('SampleApiStack cdk-nag', () => {
 
     expect(acknowledged.map(({ route, id }) => `${route} ${id}`)).toEqual([
       'GET /v1/health AwsSolutions-APIG4',
-      'GET /v1/health AwsSolutions-APIG4',
-      'GET /v1/health AwsSolutions-APIG4',
     ]);
     expect(APIG4_REASON).toBe('health check for uptime monitoring; returns no user data');
     for (const { reason } of acknowledged) {
@@ -333,7 +305,7 @@ describe('SampleApiStack cdk-nag', () => {
     }
   });
 
-  it('acknowledges exactly three APIG4 and the IAM5 findings of the base, and nothing else', () => {
+  it('acknowledges exactly one APIG4 and the IAM5 findings of the base, and nothing else', () => {
     const { stack } = build();
 
     const ids = stack.node
@@ -343,12 +315,12 @@ describe('SampleApiStack cdk-nag', () => {
 
     // Per function (TracedFunctionBase): IAM5 for the X-Ray resource and IAM5 for the log streams.
     // Per API: APIG4 for the health route. Nothing else.
-    expect(ids.filter((id) => id === 'AwsSolutions-APIG4')).toHaveLength(3);
-    expect(ids.filter((id) => id === 'AwsSolutions-IAM5[Resource::*]')).toHaveLength(3);
+    expect(ids.filter((id) => id === 'AwsSolutions-APIG4')).toHaveLength(1);
+    expect(ids.filter((id) => id === 'AwsSolutions-IAM5[Resource::*]')).toHaveLength(1);
     expect(
       ids.filter((id) => /^AwsSolutions-IAM5\[Resource::<.+\.Arn>:\*\]$/.test(id)),
-    ).toHaveLength(3);
-    expect(ids).toHaveLength(9);
+    ).toHaveLength(1);
+    expect(ids).toHaveLength(3);
   });
 });
 

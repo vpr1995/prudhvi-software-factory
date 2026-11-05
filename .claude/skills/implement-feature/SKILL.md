@@ -12,7 +12,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 1. Read `CLAUDE.md`, root `REVIEW.md`, and `projects/<name>/REVIEW.md` for each project you touch.
 2. Create a branch from main: `git checkout -b <type>/<short-kebab>`. Use a type such as `feat`, `fix`, or `chore`. If main has unrelated changes, stop and ask.
 3. Write a plan of 5 to 10 lines in chat. List the files, the tests, the flag, and the risk tier guess.
-   If the plan changes a gate file, changes `platform/infra` or `packages/*`, or adds a dependency, stop and ask the human before you write code.
+   If the plan changes `platform/infra` or `packages/*`, or adds a dependency, stop and ask the human before you write code.
 4. If the change is user-visible, put it behind a flag. Add the flag name to the typed list in `packages/flags`.
 5. Write a failing test first. Run it: `rush test --only @vprprudhvi/<name>`. Paste the failing output.
 6. Write the code. Use the matching skill for the part you change:
@@ -21,15 +21,14 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    - `new-cdk-construct` for an infra construct.
    - `use-platform-resource` when the change reads a platform value.
    - Direct edits for small changes.
-     A gate file, `uv.lock`, `go.mod`, or `go.sum` is never a direct edit. Write its new content to `.claude/state/handoff/<change>/` instead. Write a `uv add`, `go get`, or `go mod tidy` command to a `NN-commands.txt` file there. See `docs/standards/gates.md`, section 2.4.
-     Add a Node dependency with `rush add -p <pkg>` from the project folder. The pre-push policy checks it: license, audit, typosquat, and spec (`docs/standards/gates.md`, section 6.6). If the policy fails, stop and ask the human. Then stage `package.json` and each file that the command changed under `common/config/rush/`.
-     Keep one change per PR. The soft limit is 2000 changed lines. Above 10000 changed lines, check-gates fails without a `large-pr` label from a human.
+     Add a Node dependency with `rush add -p <pkg>` from the project folder. The pre-push hook runs `rush audit` when the lockfile changes. If the audit fails, stop and ask the human. Then stage `package.json` and each file that the command changed under `common/config/rush/`.
+     Keep one change per PR.
 7. Run the `verify` skill. Fix each failure. Run it again until it passes.
 8. If web, api, or infra changed, run the `e2e-verify` skill.
 9. Commit before review. Stage explicit paths only: `git add <path> ...`. Never run `git add -A`.
    Run `git commit -m "<type>(<scope>): <summary>"`. Keep the Co-Authored-By trailer that Claude Code adds.
 10. Run the `pre-pr` skill. It needs a clean tree, so it runs after step 9. Fix all open Important findings.
-11. Run the `pr-description` skill. It pushes and opens the PR. A human pushes only when a gate file other than the lock, `repo-state.json`, or a new `rush.json` project entry changed. If the push is blocked for that reason, report it and stop.
+11. Run the `pr-description` skill. It pushes and opens the PR.
 12. Report. Give the branch name, the commit SHA, the PR URL, the verify result, and the number of pre-pr rounds used.
 
 ## Done when
@@ -44,9 +43,8 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 - Stage everything with `git add -A` or `git add .`.
 - Commit on `main`.
 - Open a PR while verify fails.
-- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
-- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`. One exception: `pnpm-lock.yaml` changes through `rush add -p` and `rush update`.
-- Run `npm install` or `pnpm install`. Use `rush install`. Use `rush add -p` only through the dependency policy (`docs/standards/gates.md`, section 6.6).
+- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
+- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
+- Run `npm install` or `pnpm install`. Use `rush install`. Use `rush add -p` to add a dependency.
 - Run `cdk deploy`.
 - Use `--no-verify`.

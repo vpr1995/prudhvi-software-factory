@@ -1,5 +1,4 @@
-# Gate file. Custom Opengrep rules. Run by scripts/security/opengrep-changed.sh and CI.
-# Only a human changes or silences a rule. `nosemgrep` comments are blocked by the Stop hook.
+# Custom Opengrep rules. A human reviews each change to a rule.
 rules:
   - id: monorepo.no-eval-or-function-constructor
     message: >-

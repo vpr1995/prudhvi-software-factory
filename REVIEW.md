@@ -21,7 +21,7 @@ Project files `projects/<name>/REVIEW.md` and `platform/REVIEW.md` add rules for
 
 | Tag            | Use when                                                                                          |
 | -------------- | ------------------------------------------------------------------------------------------------- |
-| `Important`    | The change breaks behavior, security, data, cost, or a gate. The author must fix it before merge. |
+| `Important`    | The change breaks behavior, security, data, cost, or a rule. The author must fix it before merge. |
 | `Nit`          | Style or clarity. The change works. Report at most 3 Nits per review.                             |
 | `Pre-existing` | The problem exists in code that the diff does not change. Report it, but it does not block merge. |
 
@@ -103,14 +103,7 @@ Check these failure types on each change.
 - A resource is public without a reason in the PR.
 - A change adds a cost driver with no reason. Example: a NAT gateway or a large instance.
 
-### 6.7 Python and Go backends
-
-- Generated code (`generated/` in Python, `internal/gen/` in Go) changed by hand. The drift check catches it. Report `Important` if the check does not fail.
-- Python: `except:`, `except Exception` that swallows the error, `assert` in `src/`, `print` for logs, `Any` in a signature.
-- Go: an error return that is dropped or not wrapped with `%w`, a `panic` in a handler, a `nolint` without a linter name and a reason.
-- A Python or Go backend imports a TypeScript package from `packages/*`. Report `Important`.
-
-### 6.8 Performance
+### 6.7 Performance
 
 - A loop calls the database or an API for each item (N+1).
 - A call to an external service has no timeout.
@@ -134,16 +127,13 @@ No tool checks these rules. The reviewer checks them by reading the code. Report
 | Each new user-visible behavior sits behind a flag from `packages/flags`.                                                                                            | `coding-conventions.md`, F.3         | Important |
 | Each bug fix adds a test that fails before the fix.                                                                                                                 | `coding-conventions.md`, F.4         | Important |
 | Each PR changes one thing.                                                                                                                                          | `coding-conventions.md`, F.5         | Important |
-| Python: code sits in `src/<package>/` as in G.1.                                                                                                                    | `coding-conventions.md`, G.1         | Nit       |
-| Go: each package sits under `cmd/` or `internal/` as in H.1.                                                                                                        | `coding-conventions.md`, H.1         | Nit       |
-| Go: a handler returns an error. It does not call `panic`.                                                                                                           | `coding-conventions.md`, H.6         | Important |
 | Server span names use `<METHOD> <route template>`. A span name never contains an id value.                                                                          | `observability.md`, section 4        | Important |
 | Internal span names use `<domain>.<action>` in lower case. Do not rename auto-instrumented client spans.                                                            | `observability.md`, section 4        | Nit       |
 | Span attribute keys use `snake_case` with a dot namespace. Example: `app.order_id`.                                                                                 | `observability.md`, section 5        | Nit       |
 | A span attribute holds no personal data, secret, request or response body, or unbounded value. The Opengrep PII rule is planned, so check this by reading the code. | `observability.md`, section 5        | Important |
 | Record an exception once, at the boundary that handles it, with `recordException` and an error status.                                                              | `observability.md`, section 6        | Important |
 | A log `msg` is fixed text. Put variable data and the error object in structured fields.                                                                             | `observability.md`, sections 3 and 6 | Important |
-| Call the tracer provider flush (`forceFlush`, `force_flush()`, `ForceFlush(ctx)`) before a Lambda handler returns.                                                  | `observability.md`, section 2        | Important |
+| Call the tracer provider flush (`forceFlush`) before a Lambda handler returns.                                                                                      | `observability.md`, section 2        | Important |
 
 If a rule in `coding-conventions.md` names `REVIEW.md` as its enforcer, check it here. If a rule is missing from this table, check the rule in the doc.
 

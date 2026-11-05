@@ -11,7 +11,7 @@ Rules:
 
 - Default export only in `page.tsx`, `layout.tsx`, `route.ts`, and config files.
 - Server Components by default. `"use client"` only in a leaf component.
-- Every `app/**/page.tsx` route has a Playwright spec. The `playwright-coverage` gate fails without one.
+- Every `app/**/page.tsx` route has a Playwright spec.
 - The web deploys through OpenNext. Do not use features that need a custom Node server.
 
 ## Steps
@@ -23,10 +23,10 @@ Rules:
 4. Add components in `projects/<name>/web/components/<kebab>.tsx`. Use named exports. Add `"use client"` only when the component needs state or browser APIs.
 5. If the page needs login, use the project Cognito app client. Read its client ID and domain from the infra stack outputs or from SSM through the helper. Do not hard-code them.
 6. If the page is user-visible, read its flag from `@vprprudhvi/shared-flags`.
-7. Add telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step and report it as an open item (section 2 of that document). Call the api only through `lib/<resource>-client.ts`. Do not set the header by hand. A server fetch sends `traceparent` through the server instrumentation. A browser fetch sends it only when the client component calls `initBrowserTelemetry()` (`web/lib/browser-api.ts`). Check that `web/instrumentation.ts` registers telemetry with `@vprprudhvi/shared-telemetry`. If it does not, or the package exists but is not a dependency, stop. A new dependency needs no human approval. The dependency policy runs at pre-push (`docs/standards/gates.md`, section 6.6). Add a Vitest test of the lib client: the request carries `traceparent` when a span is active.
+7. Add telemetry. Read `docs/standards/observability.md`. If `packages/telemetry` does not exist, skip this step and report it as an open item (section 2 of that document). Call the api only through `lib/<resource>-client.ts`. Do not set the header by hand. A server fetch sends `traceparent` through the server instrumentation. A browser fetch sends it only when the client component calls `initBrowserTelemetry()` (`web/lib/browser-api.ts`). Check that `web/instrumentation.ts` registers telemetry with `@vprprudhvi/shared-telemetry`. If it does not, or the package exists but is not a dependency, stop. A new dependency needs no human approval. The pre-push hook runs `rush audit` when the lockfile changes. Add a Vitest test of the lib client: the request carries `traceparent` when a span is active.
 8. Write a component test for each component at `projects/<name>/test/web/components/<kebab>.test.tsx`. The path mirrors `web/components/`. Use Testing Library. Query by role and by name.
 9. Write the Playwright spec at `projects/<name>/web/e2e/<route>.spec.ts`. It must:
-   - call `page.goto('<route>')` with the literal route string, so the coverage gate can match it;
+   - call `page.goto('<route>')` with the literal route string, so tools can match the route;
    - assert the main heading is visible;
    - when a client component calls the api from the browser, assert that the api request carries a `traceparent` header (`page.waitForRequest`). Skip this line for a server fetch;
    - run `new AxeBuilder({ page }).analyze()` and expect no violations.
@@ -42,7 +42,7 @@ Rules:
      expect(results.violations).toEqual([]);
    });
    ```
-   If `@playwright/test` or `@axe-core/playwright` is not in the project `package.json`, add it as described below. A new dependency needs no human approval. The dependency policy runs at pre-push (`docs/standards/gates.md`, section 6.6). List each new package with its version and license in your report. Run `rush add -p <pkg> --dev` yourself from `projects/<name>`. Stage `package.json` and each file under `common/config/rush/` that the command changed. They go in the same commit as the page. Check with `git status --short`.
+   If `@playwright/test` or `@axe-core/playwright` is not in the project `package.json`, add it as described below. A new dependency needs no human approval. The pre-push hook runs `rush audit` when the lockfile changes. List each new package with its version and license in your report. Run `rush add -p <pkg> --dev` yourself from `projects/<name>`. Stage `package.json` and each file under `common/config/rush/` that the command changed. They go in the same commit as the page. Check with `git status --short`.
 10. Run `rush test --to @vprprudhvi/<name>` and paste the output.
 11. Run `rush e2e --only @vprprudhvi/<name>` and paste the output. It builds the app, starts `next start`, and runs Playwright.
 12. Run the `verify` skill. Then run the `e2e-verify` skill and look at the screenshot of the new page.
@@ -61,10 +61,9 @@ Rules:
 - Import from `src/api` or another project.
 - Use `dangerouslySetInnerHTML` with unescaped input.
 - Read `process.env` in a component. Use the config module.
-- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
-- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`. One exception: `pnpm-lock.yaml` changes through `rush add -p` and `rush update`.
-- Write a gate file in place, such as `**/playwright.config.*`. Write it to `.claude/state/handoff/<name>/` (`docs/standards/gates.md`, section 2.4). Do not edit a lockfile by hand. `rush add -p` writes `pnpm-lock.yaml`.
+- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
+- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
+- Edit a lockfile by hand. `rush add -p` writes `pnpm-lock.yaml`.
 - Run `npm install` or `pnpm install`.
 - Run `cdk deploy`.
 - Use `--no-verify`.

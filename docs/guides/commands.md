@@ -1,6 +1,6 @@
 # Commands
 
-Always run Rush through the wrapper. Do not install packages any other way. Python and Go parts use the same commands, through their `_phase:*` scripts.
+Always run Rush through the wrapper. Do not install packages any other way.
 
 ```
 node common/scripts/install-run-rush.js install      # alias: rush install
@@ -24,7 +24,7 @@ Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>`.
 ## Notes
 
 - Use `rush verify --to <pkg>` to check one package and its dependencies.
-- To check only the parts that your branch changes, run `rush build --from git:origin/main`, then `rush verify --impacted-by git:origin/main`. `--impacted-by` selects the changed projects and the projects that depend on them, but not their dependencies. `rush build --from` builds the dependencies too, so they have a `dist/` folder, also on a fresh clone. `scripts/gates/local-gates.sh` and `.github/workflows/ci.yml` use the same two commands.
+- To check only the parts that your branch changes, run `rush build --from git:origin/main`, then `rush verify --impacted-by git:origin/main`. `--impacted-by` selects the changed projects and the projects that depend on them, but not their dependencies. `rush build --from` builds the dependencies too, so they have a `dist/` folder, also on a fresh clone. `.github/workflows/ci.yml` uses the same build command.
 - `--only <pkg>` also selects no dependencies. Use it only when the dependencies are already built.
 - Use the `verify` skill (`.claude/skills/verify/SKILL.md`) before any done claim. Use the `e2e-verify` skill (`.claude/skills/e2e-verify/SKILL.md`) for the running app.
 - Setup steps for a new machine are in [onboarding.md](../onboarding.md).

@@ -7,42 +7,15 @@ import { fileURLToPath } from 'node:url';
 
 const PROJECT_DIRECTORY = fileURLToPath(new URL('..', import.meta.url));
 
-// The drift checks of the generated Python models and Go types read dist/openapi.json. The lint
-// and typecheck phases do not wait for the build phase of this project, so the drift checks run in
-// the test phase, which does.
 const PHASES = {
   build: [
     {
       part: 'typescript (src/contracts, src/api) and dist/openapi.json',
       command: 'tsc -p tsconfig.build.json && node scripts/emit-openapi.mjs > dist/openapi.json',
     },
-    {
-      part: 'python (src/api-py)',
-      directory: 'src/api-py',
-      command: 'uv run --locked python -m compileall -q src',
-    },
-    {
-      part: 'go (src/api-go)',
-      directory: 'src/api-go',
-      command: 'go build -o ../../dist/api-go/sample-api ./cmd/sample-api',
-    },
     { part: 'web', directory: 'web', command: 'next build' },
   ],
-  lint: [
-    { part: 'typescript and web (eslint)', command: 'eslint --max-warnings 0 .' },
-    { part: 'python (src/api-py)', directory: 'src/api-py', command: 'bash scripts/lint.sh' },
-    { part: 'go (src/api-go)', directory: 'src/api-go', command: 'bash scripts/lint.sh' },
-    {
-      part: 'python licenses (src/api-py)',
-      directory: 'src/api-py',
-      command: 'bash scripts/license-check.sh',
-    },
-    {
-      part: 'go licenses (src/api-go)',
-      directory: 'src/api-go',
-      command: 'bash scripts/license-check.sh',
-    },
-  ],
+  lint: [{ part: 'typescript and web (eslint)', command: 'eslint --max-warnings 0 .' }],
   typecheck: [
     { part: 'typescript (src, vitest config)', command: 'tsc -p tsconfig.json --noEmit' },
     {
@@ -50,35 +23,10 @@ const PHASES = {
       directory: 'web',
       command: 'next typegen && tsc -p tsconfig.json --noEmit',
     },
-    { part: 'python (src/api-py)', directory: 'src/api-py', command: 'uv run --locked mypy' },
-    {
-      part: 'go (src/api-go)',
-      directory: 'src/api-go',
-      command: 'go vet ./... && go build ./...',
-    },
   ],
-  test: [
-    {
-      part: 'python models drift check',
-      directory: 'src/api-py',
-      command: 'bash scripts/generate-models.sh --check',
-    },
-    {
-      part: 'go types drift check',
-      directory: 'src/api-go',
-      command: 'bash scripts/generate-types.sh --check',
-    },
-    { part: 'typescript and web (vitest)', command: 'vitest run --coverage' },
-    { part: 'python (src/api-py)', directory: 'src/api-py', command: 'uv run --locked pytest' },
-    { part: 'go (src/api-go)', directory: 'src/api-go', command: 'bash scripts/test.sh' },
-  ],
+  test: [{ part: 'typescript and web (vitest)', command: 'vitest run --coverage' }],
   e2e: [
     { part: 'bruno against the TypeScript api', command: 'node scripts/e2e.mjs api' },
-    {
-      part: 'bruno against the Python api',
-      command: 'uv sync --locked --quiet --project src/api-py && node scripts/e2e.mjs api-py',
-    },
-    { part: 'bruno against the Go api', command: 'node scripts/e2e.mjs api-go' },
     {
       part: 'playwright against the web app',
       command: 'playwright install chromium && playwright test',

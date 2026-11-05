@@ -11,7 +11,7 @@
     },
     {
       "operationName": "_phase:test",
-      "outputFolderNames": ["coverage", "src/api-py/coverage", "src/api-go/coverage"]
+      "outputFolderNames": ["coverage"]
     },
     { "operationName": "_phase:e2e", "disableBuildCacheForOperation": true }
   ]

@@ -1,4 +1,4 @@
-// Gate fixtures for the boundaries rules. Relative imports keep the cases independent of node_modules.
+// Fixtures for the boundaries rules. Relative imports keep the cases independent of node_modules.
 
 /**
  * Files that exist only so relative imports resolve in the boundary cases.

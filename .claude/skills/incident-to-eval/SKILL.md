@@ -23,7 +23,7 @@ Goal: the reviewer must catch this bug class next time. The case file is the tes
    - The source: the PR number, the revert link, and the date.
      Do not paste secrets or real customer data. Replace them with placeholders.
 7. Decide the prevention. Choose one:
-   - A lint rule or a `REVIEW.md` rule that covers the bug class. Write the proposed rule text in chat. Mark it as a gate change. A human must approve it.
+   - A lint rule or a `REVIEW.md` rule that covers the bug class. Write the proposed rule text in chat. A human must approve it.
    - A test that would have failed. Write it in the affected project, and run it. It must fail on the buggy commit and pass on the fix.
 8. Report the case file path, the bug class, and the proposed prevention.
 
@@ -39,9 +39,8 @@ Goal: the reviewer must catch this bug class next time. The case file is the tes
 - Write a case without a file and line from the real diff.
 - Edit `docs/standards/coding-conventions.md`, `REVIEW.md`, or any lint config. Propose the change in chat only.
 - Remove or change an existing case in `evals/reviewer/cases/`.
-- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
-- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`.
+- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
+- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`.
 - Run `cdk deploy` or `cdk destroy`.
 - Use `--no-verify`.

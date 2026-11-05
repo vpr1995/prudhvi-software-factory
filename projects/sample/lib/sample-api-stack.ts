@@ -7,11 +7,8 @@ import type { IUserPool, IUserPoolClient } from 'aws-cdk-lib/aws-cognito';
 import type { Construct } from 'constructs';
 
 import {
-  PYTHON_DEFAULT_ASSET_EXCLUDES,
-  TracedGoFunction,
   TracedHttpApi,
   TracedNodeFunction,
-  TracedPythonFunction,
   createProjectUserPoolClient,
   readPlatformUserPool,
 } from '@vprprudhvi/shared-cdk-constructs';
@@ -22,9 +19,8 @@ import { acknowledgeSampleApiStack } from './nag-acknowledgments/sample-api-stac
 import { findProjectRoot } from './project-root.js';
 
 /**
- * The routes of each API. All three APIs serve the same paths. `GET /v1/health` is the one public
- * route. The other routes need a token from the platform user pool, issued to the app client of
- * this project. Add a route here when you add it to `src/contracts` and to each API. There is no
+ * The routes of the API. `GET /v1/health` is the one public route. The other routes need a token
+ * from the platform user pool, issued to the app client of this project. Add a route here when you add it to `src/contracts` and to the API. There is no
  * `$default` route and no proxy route: a request to any other path stops at the gateway.
  */
 export const SAMPLE_ROUTES: readonly Omit<LambdaRouteProps, 'fn'>[] = [
@@ -39,29 +35,28 @@ export type SampleApiStackProps = StackProps & {
   readonly config: SampleConfig;
 };
 
-/** The three parts of the project. */
-type PartName = 'TypeScript' | 'Python' | 'Go';
+/** The API parts of the project. The name is the prefix of the construct IDs. */
+type PartName = 'TypeScript';
 
 /**
- * The stack of the three sample APIs (TypeScript, Python, Go). Each API is one traced function
- * (`TracedNodeFunction`, `TracedPythonFunction`, `TracedGoFunction`) behind one `TracedHttpApi`
- * with the routes in `SAMPLE_ROUTES`. No domain exists yet, so each API has its `execute-api` URL.
+ * The stack of the sample TypeScript API. The API is one traced function (`TracedNodeFunction`)
+ * behind one `TracedHttpApi` with the routes in `SAMPLE_ROUTES`. No domain exists yet, so the API
+ * has its `execute-api` URL.
  *
  * When `config.deployApis` is `false` (the `local` stack), the stack holds only the app client and
  * its outputs. The web app and the API then run on this machine.
  *
- * CDK bundles the code at synth: esbuild for TypeScript, `go build` for Go, and `uv` in Docker for
- * Python. Build the workspace packages first (`rush build`), because the TypeScript bundle reads
- * their `dist` output.
+ * CDK bundles the code at synth with esbuild. Build the workspace packages first (`rush build`),
+ * because the bundle reads their `dist` output.
  */
 export class SampleApiStack extends Stack {
   /** The app client of this project on the platform user pool. */
   public readonly userPoolClient: IUserPoolClient;
   /** The imported platform user pool. */
   public readonly userPool: IUserPool;
-  /** The three functions, in the order TypeScript, Python, Go. Empty when the APIs are off. */
+  /** The functions, one for each API part. Empty when the APIs are off. */
   public readonly functions: readonly TracedFunctionBase[];
-  /** The three HTTP APIs, in the same order. Empty when the APIs are off. */
+  /** The HTTP APIs, in the same order. Empty when the APIs are off. */
   public readonly apis: readonly TracedHttpApi[];
 
   /**
@@ -97,20 +92,16 @@ export class SampleApiStack extends Stack {
   }
 
   /**
-   * Creates the three functions.
+   * Creates the functions.
    *
    * @param config - The settings of the environment.
-   * @returns The part name and the function of each part, in the order TypeScript, Python, Go.
+   * @returns The part name and the function of each part.
    */
   private createFunctions(
     config: SampleConfig,
   ): readonly (readonly [PartName, TracedFunctionBase])[] {
     const projectRoot = findProjectRoot();
-    return [
-      ['TypeScript', this.createNodeFunction(projectRoot, config)],
-      ['Python', this.createPythonFunction(projectRoot, config)],
-      ['Go', this.createGoFunction(projectRoot, config)],
-    ];
+    return [['TypeScript', this.createNodeFunction(projectRoot, config)]];
   }
 
   /**
@@ -126,51 +117,6 @@ export class SampleApiStack extends Stack {
       env: config.env,
       entry: resolve(projectRoot, 'src/api/lambda.ts'),
       environment: { SAMPLE_API_ENVIRONMENT: config.env },
-    });
-  }
-
-  /**
-   * Creates the Python function (`src/api-py`, handler `sample_api.handler.lambda_handler`).
-   *
-   * CDK installs the locked dependencies and copies the folder, but it does not install the
-   * project package. The code is in `/var/task/src`, so `PYTHONPATH` makes `sample_api`
-   * importable.
-   *
-   * @param projectRoot - The project folder.
-   * @param config - The settings of the environment.
-   * @returns The function.
-   */
-  private createPythonFunction(projectRoot: string, config: SampleConfig): TracedPythonFunction {
-    return new TracedPythonFunction(this, 'PythonFunction', {
-      serviceName: 'sample-api-py',
-      env: config.env,
-      entry: resolve(projectRoot, 'src/api-py'),
-      index: 'src/sample_api/handler.py',
-      handler: 'lambda_handler',
-      bundling: {
-        // The Lambda needs the code and the locked dependencies, not the tests and the tools.
-        assetExcludes: [...PYTHON_DEFAULT_ASSET_EXCLUDES, 'tests', 'scripts'],
-      },
-      environment: { SAMPLE_API_PY_ENVIRONMENT: config.env, PYTHONPATH: '/var/task/src' },
-    });
-  }
-
-  /**
-   * Creates the Go function (`src/api-go/cmd/sample-api`).
-   *
-   * @param projectRoot - The project folder.
-   * @param config - The settings of the environment.
-   * @returns The function.
-   */
-  private createGoFunction(projectRoot: string, config: SampleConfig): TracedGoFunction {
-    return new TracedGoFunction(this, 'GoFunction', {
-      serviceName: 'sample-api-go',
-      env: config.env,
-      moduleDir: resolve(projectRoot, 'src/api-go'),
-      entry: resolve(projectRoot, 'src/api-go/cmd/sample-api'),
-      // Strip the symbol table and the debug data: the binary is smaller and starts faster.
-      bundling: { goBuildFlags: ['-ldflags "-s -w"'] },
-      environment: { SAMPLE_API_GO_ENVIRONMENT: config.env },
     });
   }
 

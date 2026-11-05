@@ -19,8 +19,6 @@ type Built = { readonly stack: Stack; readonly template: Template };
 /** The Lambda runtime name that each kind must give. */
 const RUNTIMES: Record<Kind, string> = {
   node: 'nodejs24.x',
-  go: 'provided.al2023',
-  python: 'python3.14',
 };
 
 /** Creates a stack with one traced function of one kind. The context turns bundling off. */
@@ -272,6 +270,6 @@ describe('traced functions together', () => {
     ).toEqual([]);
     expect(
       Object.keys(Template.fromStack(stack).findResources('AWS::Lambda::Function')),
-    ).toHaveLength(3);
+    ).toHaveLength(KINDS.length);
   });
 });

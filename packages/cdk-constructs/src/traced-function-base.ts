@@ -60,10 +60,7 @@ export const RESERVED_ENVIRONMENT_KEYS = [
 const DEFAULT_MEMORY_MB = 512;
 const DEFAULT_TIMEOUT_SECONDS = 10;
 
-/**
- * Settings that all three traced functions share (`TracedNodeFunction`, `TracedGoFunction` and
- * `TracedPythonFunction`).
- */
+/** Settings of a traced function (`TracedNodeFunction`). */
 export type TracedFunctionBaseProps = {
   /** The service name. It becomes `OTEL_SERVICE_NAME`. */
   readonly serviceName: string;
@@ -99,8 +96,8 @@ function buildTelemetryEnvironment(
 }
 
 /**
- * The base of every Lambda construct for project code. It holds the logic that all three runtimes
- * share, so it exists in one place:
+ * The base of every Lambda construct for project code. It holds the logic that every runtime
+ * shares, so it exists in one place:
  *
  * - arm64, X-Ray active tracing and the ADOT collector-only layer,
  * - the OpenTelemetry environment variables (sampling 1.0 in non-prod, 0.1 in prod),
@@ -109,9 +106,8 @@ function buildTelemetryEnvironment(
  *
  * It sets no `AWS_LAMBDA_EXEC_WRAPPER`. The app starts the SDK itself (`initTelemetry`).
  *
- * Do not use this class directly. Use `TracedNodeFunction`, `TracedGoFunction` or
- * `TracedPythonFunction`. A subclass creates its function with `this.functionOptions`, then
- * calls `this.completeSetup()`.
+ * Do not use this class directly. Use `TracedNodeFunction`. A subclass creates its function with
+ * `this.functionOptions`, then calls `this.completeSetup()`.
  */
 export abstract class TracedFunctionBase extends Construct {
   /** The Lambda function. Use it for integrations and grants. */

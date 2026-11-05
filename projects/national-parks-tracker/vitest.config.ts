@@ -10,7 +10,9 @@ import type { TestProjectInlineConfiguration } from 'vitest/config';
 // and `web` (jsdom) for test/web. Coverage runs once over both. The thresholds apply to the sum,
 // and again to each folder, so the web app cannot hide behind the contracts. Playwright runs the
 // specs in web/e2e, so Vitest skips them.
-const shared = createVitestConfig().test ?? {};
+// CDK synth is CPU-heavy. On the CI runner, 5000 ms is too short (owner decision 2026-11-04).
+const CDK_SYNTH_TEST_TIMEOUT_MS = 30_000;
+const shared = createVitestConfig({ testTimeout: CDK_SYNTH_TEST_TIMEOUT_MS }).test ?? {};
 const { coverage = {}, reporters = ['default'], outputFile = {}, ...projectOptions } = shared;
 const { thresholds = {} } = coverage;
 const IGNORED_FILES = ['**/node_modules/**', '**/dist/**', '**/.next/**', 'web/e2e/**'];

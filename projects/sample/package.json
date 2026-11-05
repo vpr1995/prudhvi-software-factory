@@ -2,7 +2,7 @@
   "name": "@vprprudhvi/sample",
   "version": "0.0.0",
   "private": true,
-  "description": "The sample project: contracts, TypeScript, Python and Go APIs, Next.js web app and Bruno collection in one package. The CDK app (bin, lib) builds the API stack.",
+  "description": "The sample project: contracts, TypeScript API, Next.js web app and Bruno collection in one package. The CDK app (bin, lib) builds the API stack.",
   "type": "module",
   "main": "./dist/api/lambda.js",
   "files": [
@@ -18,11 +18,7 @@
     "build:cdk": "tsc -p tsconfig.cdk.json",
     "dev:web": "cd web && next dev",
     "e2e": "npm run _phase:e2e",
-    "gen:go": "bash src/api-go/scripts/generate-types.sh",
-    "gen:py": "bash src/api-py/scripts/generate-models.sh",
-    "license-check": "bash src/api-py/scripts/license-check.sh && bash src/api-go/scripts/license-check.sh",
     "lint": "npm run _phase:lint",
-    "security": "bash src/api-py/scripts/security.sh && bash src/api-go/scripts/security.sh",
     "start": "node dist/api/main.js",
     "start:web": "cd web && next start",
     "synth": "cdk synth",
@@ -30,8 +26,6 @@
     "typecheck": "npm run _phase:typecheck"
   },
   "dependencies": {
-    "@aws-cdk/aws-lambda-go-alpha": "2.273.0-alpha.0",
-    "@aws-cdk/aws-lambda-python-alpha": "2.273.0-alpha.0",
     "@fastify/aws-lambda": "^6.4.2",
     "@fastify/cors": "^11.3.1",
     "@fastify/helmet": "~13.2.0",

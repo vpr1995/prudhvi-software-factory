@@ -1,5 +1,5 @@
 // Prints the OpenAPI 3.1 document of this API to standard output. The build redirects it to dist/openapi.json.
-// Python and Go models are generated from that file. It reads only built output, so run it after `tsc`.
+// It reads only built output, so run it after `tsc`.
 import { z } from 'zod';
 
 import { ROUTES, SchemaRegistry } from '../dist/contracts/index.js';

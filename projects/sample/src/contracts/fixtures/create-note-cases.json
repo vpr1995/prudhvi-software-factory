@@ -1,5 +1,5 @@
 {
-  "description": "Shared edge cases for POST /v1/notes. The Zod schema in contracts/src/note.ts is the reference. contracts, api-py and api-go all run these cases. A case with status 201 also gives the title and the body of the stored note (the title is trimmed).",
+  "description": "Shared edge cases for POST /v1/notes. The Zod schema in contracts/src/note.ts is the reference. The contracts tests run these cases. A case with status 201 also gives the title and the body of the stored note (the title is trimmed).",
   "cases": [
     {
       "name": "minimal valid note",

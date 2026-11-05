@@ -45,7 +45,6 @@ export default defineConfig({
     projects: [nodeProject, webProject],
     coverage: {
       ...coverage,
-      // Not src/**: the Python and Go parts live in src/api-py and src/api-go and hold no TypeScript.
       include: [
         'src/contracts/**/*.ts',
         'src/api/**/*.ts',

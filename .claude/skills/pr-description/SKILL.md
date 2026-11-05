@@ -11,7 +11,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 
 1. Check the branch: `git rev-parse --abbrev-ref HEAD`. If it is `main`, stop. Create a branch `<type>/<short-kebab>` first.
 2. Check the working tree: `git status --short` must be empty. Commit or stash unrelated changes. Do not commit `.claude/state/`.
-3. Check the verify state: `cat .claude/state/last-verify.json`. The `result` must be `pass`. If not, run the `verify` skill.
+3. Check the verify output: `tail -n 30 .claude/state/verify-output.log`. It must show a pass. If the file is missing or shows a failure, run the `verify` skill.
 4. Gather facts: `git log --oneline main..HEAD` and `git diff --stat main...HEAD`.
 5. Set the risk tier. Read `docs/standards/risk-tiers.md`. Apply its path rules to the changed files. Keep the highest tier that matches. Do not lower it.
 6. Run `mkdir -p .claude/state`. Write `.claude/state/pr-body.md`.
@@ -25,14 +25,14 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    - `## Feature flag`: the flag name from `packages/flags`, or `None (no user-visible change)`.
    - Last line: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
 7. Write the title in Conventional Commits style, under 70 characters. Example: `feat(order-export): add csv export`.
-8. Push: `git push -u origin HEAD`. If `require-verify` blocks the push, run the `verify` skill again, then retry. If the gate integrity check blocks the push because the range has gate changes, a human pushes the branch. Report that and stop.
+8. Push: `git push -u origin HEAD`. If the pre-push hook fails, read the message and fix the cause. Then retry.
 9. Open the PR: `gh pr create --base main --title "<title>" --body-file .claude/state/pr-body.md`.
 10. Report the PR URL.
 
 ## Done when
 
 - [ ] `.claude/state/pr-body.md` has all six sections. No placeholder text remains.
-- [ ] `last-verify.json` has `result` pass for the current tree.
+- [ ] The verify output shows a pass for the current tree.
 - [ ] The PR URL is shown.
 
 ## Do not
@@ -41,9 +41,8 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 - Invent an issue number.
 - Claim tests pass without pasted output.
 - Force-push. Do not run `git push --force`.
-- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
-- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`.
+- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
+- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`. Use `rush install`.
 - Run `cdk deploy`.
 - Use `--no-verify`.

@@ -180,8 +180,7 @@ function buildCors(origins: readonly string[]): CorsPreflightOptions {
 }
 
 /**
- * An API Gateway HTTP API in front of one traced function (`TracedNodeFunction`, `TracedGoFunction` or
- * `TracedPythonFunction`).
+ * An API Gateway HTTP API in front of one traced function (`TracedNodeFunction`).
  *
  * - The API has no routes at first. Add each route with `addLambdaRoute`. There is no `$default`
  *   route and no `{proxy+}` route, so a request that matches no route gets a 404 from the gateway

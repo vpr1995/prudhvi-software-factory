@@ -1,4 +1,4 @@
-/** Gate file. Second layer for the import rules that eslint-plugin-boundaries enforces. */
+/** Second layer for the import rules that eslint-plugin-boundaries enforces. */
 
 const PROJECT = '^projects/([^/]+)';
 // The `test/` folder of a Rush project mirrors its source folders: test/api, test/web, test/infra.
@@ -46,7 +46,7 @@ module.exports = {
       severity: 'error',
       comment: 'web must not import api code.',
       from: { path: '^projects/[^/]+/(web|test/web)/' },
-      to: { path: '^projects/[^/]+/src/api(-py|-go)?/' },
+      to: { path: '^projects/[^/]+/src/api/' },
     },
     {
       name: 'api-not-web',

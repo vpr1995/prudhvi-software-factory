@@ -1,4 +1,4 @@
-// Gate file. Conventional Commits. Run by `rush commitlint --message-file <file>`.
+// Conventional Commits. Run by `rush commitlint --message-file <file>`.
 // @commitlint/config-conventional lives in the rush-commitlint autoinstaller, not in a root node_modules.
 const path = require('node:path');
 

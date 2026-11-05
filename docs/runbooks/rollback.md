@@ -15,7 +15,7 @@ Start with A when a flag exists. Then do C so that `main` is correct.
 ## 2. Step A: turn off the flag (kill switch)
 
 1. Find the flag name in the PR. The PR template has a Feature flag field.
-2. Run the `rollback.yml` workflow for the affected environment. Choose the flag name and the value `off`. (The workflow is planned. See `docs/standards/gates.md`.)
+2. Run the `rollback.yml` workflow for the affected environment. Choose the flag name and the value `off`. (The workflow is planned.)
 3. Approve the `prod` environment step if the environment asks for it.
 4. Check the behavior in the affected environment. Confirm that the new code path is off.
 5. Open an issue. Name the flag and the time that you turned it off.
@@ -42,7 +42,7 @@ Rollback does not undo a database migration or data written by the new code. Che
 6. Get the approvals for the tier. See `docs/standards/risk-tiers.md`.
 7. Merge through the merge queue.
 
-A revert PR passes the same gates as any other PR. A revert does not skip a gate.
+A revert PR passes the same checks as any other PR. A revert does not skip a check.
 
 ## 5. After the rollback
 

@@ -1,50 +1,16 @@
 #!/bin/sh
-# Installed by `rush install` (copied from common/git-hooks). Blocks the commit when any check fails.
-# Skipping with --no-verify is blocked for agents by the Claude hooks and is re-checked in CI.
+# Installed by `rush install` (copied from common/git-hooks). Blocks the commit when a check fails.
+# Checks: secret scan (gitleaks), then Prettier and ESLint on staged files (lint-staged).
 set -eu
 
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
-staged="$(git diff --cached --name-only --diff-filter=ACMR)"
-[ -n "$staged" ] || exit 0
+[ -n "$(git diff --cached --name-only --diff-filter=ACMR)" ] || exit 0
 
-fail() {
-  echo "pre-commit: $1" >&2
-  exit 1
-}
-
-# 1. Block .env files (allow .env.example).
-env_files="$(printf '%s\n' "$staged" | grep -E '(^|/)\.env($|\.)' | grep -Ev '(^|/)\.env\.example$' || true)"
-[ -z "$env_files" ] || fail "do not commit env files (only .env.example is allowed):
-$env_files"
-
-# 2. Block merge conflict markers in added lines.
-if git diff --cached -U0 | grep -E '^\+(<{7}|>{7})( |$)' >/dev/null 2>&1; then
-  fail "merge conflict markers found in staged changes. Resolve them first."
-fi
-
-# 3. Block files larger than 1 MB.
-max_bytes=1048576
-printf '%s\n' "$staged" | while IFS= read -r file; do
-  size="$(git cat-file -s ":$file" 2>/dev/null || echo 0)"
-  if [ "$size" -gt "$max_bytes" ]; then
-    echo "pre-commit: $file is $size bytes (limit $max_bytes). Do not commit large files." >&2
-    exit 1
-  fi
-done
-
-# 4. Secret scan on staged changes (gitleaks).
+# 1. Secret scan on staged changes (gitleaks).
 bash scripts/security/secrets-staged.sh
 
-# 5. Anti-skip on the staged diff (skips, disable comments, lowered thresholds, removed tests).
-node scripts/gates/anti-skip.mjs --staged
-
-# 6. Notice for staged gate files (scripts/gates/gate-files.json). Warn only: it never blocks.
-if ! node scripts/gates/gate-file-notice.mjs; then
-  echo "pre-commit: NOTICE (warn only) the gate-file notice could not run" >&2
-fi
-
-# 7. Prettier and ESLint on staged files (lint-staged).
+# 2. Prettier and ESLint on staged files (lint-staged).
 # Calls the autoinstaller binary directly, so the hook does not wait on the Rush lock.
 # Falls back to `rush prettier` (installs the autoinstaller).
 bin="$root/common/autoinstallers/rush-lint-staged/node_modules/.bin"

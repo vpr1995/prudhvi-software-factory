@@ -1,5 +1,5 @@
 {
-  // Gate file. Run by `rush audit` (scripts/security/audit.sh) against common/temp/pnpm-lock.yaml.
+  // Run by `rush audit` (scripts/security/audit.sh) against common/temp/pnpm-lock.yaml.
   "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
 
   // SPLIT POLICY. Human decision, 2026-10-22. Agents must not change it.

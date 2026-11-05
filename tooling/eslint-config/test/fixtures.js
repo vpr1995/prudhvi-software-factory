@@ -1,4 +1,4 @@
-// Gate fixtures: code that the shared configs must reject (or accept). Used by configs.test.js.
+// Fixtures: code that the shared configs must reject (or accept). Used by configs.test.js.
 // Each case names a repo-relative path because the rules depend on the path.
 
 const DECLARE_PROCESS =

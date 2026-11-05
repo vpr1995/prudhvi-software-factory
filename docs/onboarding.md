@@ -7,7 +7,6 @@ This document gives the steps to set up a local copy of the repository. It also 
 - Git.
 - Node 24. The exact version is in `.nvmrc`. Use nvm, fnm, or nvs to switch to it.
 - Do not install pnpm globally. Rush installs the pnpm version it needs.
-- Only if you work on a Python or Go backend: uv, Go 1.25 or later, and golangci-lint. See section 3.1.
 
 ## 2. Set up the repository
 
@@ -32,33 +31,18 @@ Git hooks install only when you run `rush install`. If a hook is missing, run th
 
 ## 3. Install the security tools
 
-The hooks call these tools. Install them on your `PATH`:
+The pre-commit hook calls gitleaks. Install it on your `PATH`. The other tools are for manual scans:
 
-| Tool        | Used by                     | How to install                         |
-| ----------- | --------------------------- | -------------------------------------- |
-| gitleaks    | pre-commit, Stop hook       | `brew install gitleaks`                |
-| Opengrep    | pre-push, Stop hook         | Download from its GitHub release page. |
-| Checkov     | pre-push when infra changed | `pip install checkov`                  |
-| osv-scanner | Dependency checks           | `brew install osv-scanner`             |
+| Tool        | Used by                | How to install                         |
+| ----------- | ---------------------- | -------------------------------------- |
+| gitleaks    | pre-commit             | `brew install gitleaks`                |
+| Opengrep    | Manual SAST scan       | Download from its GitHub release page. |
+| Checkov     | Manual infra scan      | `pip install checkov`                  |
+| osv-scanner | Manual dependency scan | `brew install osv-scanner`             |
 
-Check each tool with its version flag, for example `gitleaks version`. Use the versions that the team pins. CI runs the same checks, so a missing tool does not change the CI result. It does block the local hook.
+Check each tool with its version flag, for example `gitleaks version`. Use the versions that the team pins. A missing gitleaks blocks the local commit.
 
-### 3.1 Python and Go tools
-
-Install these only if you work on `api-py` or `api-go`.
-
-| Tool                  | Used for                                                              | How to install                                                                                |
-| --------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| uv                    | Python packages from `uv.lock`, ruff, mypy, pytest, bandit, pip-audit | `brew install uv`                                                                             |
-| Go 1.25 or later      | Go build, test, and module checks                                     | `brew install go`                                                                             |
-| golangci-lint         | Go lint (gosec, errcheck, revive, and others)                         | `brew install golangci-lint`                                                                  |
-| gofumpt and goimports | Go format                                                             | `go install mvdan.cc/gofumpt@latest` and `go install golang.org/x/tools/cmd/goimports@latest` |
-| govulncheck           | Go vulnerability check                                                | `go install golang.org/x/vuln/cmd/govulncheck@latest`                                         |
-| go-licenses           | Go license check                                                      | See its GitHub page.                                                                          |
-
-Python tools come from `uv.lock`. Do not install ruff, mypy, pytest, or bandit globally. Run them through `uv run` or `rush`.
-
-### 3.2 API requests and browser tests
+### 3.1 API requests and browser tests
 
 - The Bruno CLI (`@usebruno/cli`) comes from the repository. Do not install it globally. The `e2e` phase runs it.
 - The Bruno desktop app is optional. To use it, open the folder `projects/<name>/bruno` as a collection.
@@ -90,10 +74,10 @@ Agents write most of the code. Agents follow these files:
 | File                    | What it sets                                                                                                                                                                      |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CLAUDE.md`             | Repo conventions and a routing table to guides and skills. Read first. Nested `CLAUDE.md` files cover `projects/`, `platform/`, `packages/`, `tooling/`, `docs/`, and `.github/`. |
-| `docs/guides/*.md`      | How to work in one part: contracts, web, api, api-py, api-go, infra.                                                                                                              |
+| `docs/guides/*.md`      | How to work in one part: contracts, web, api, infra.                                                                                                                              |
 | `REVIEW.md`             | Rules for the AI reviewer.                                                                                                                                                        |
-| `docs/standards/*.md`   | Coding, testing, security, Git, gate, and risk rules.                                                                                                                             |
-| `.claude/settings.json` | Agent hooks and permissions.                                                                                                                                                      |
+| `docs/standards/*.md`   | Coding, testing, security, Git, and risk rules.                                                                                                                                   |
+| `.claude/settings.json` | Agent permissions.                                                                                                                                                                |
 
 The agent flow is:
 
@@ -104,11 +88,10 @@ The agent flow is:
 5. Run `pre-pr` for the review and security checks. Fix the findings.
 6. Open the PR with the template filled in.
 
-The Stop hook blocks the agent from finishing while a check fails. The `require-verify` hook blocks `git push` and `gh pr create` until `verify` passes on the current tree.
+No hook forces `verify`. Run it by hand before you open a PR. The pre-push hook runs `rush audit` only when the lockfile changed.
 
 ## 7. Your role as a human
 
 - Read the risk tier of each PR. The tier sets how many approvals you need.
-- Approve gate file changes. See `docs/standards/gates.md`.
-- Pass a blocked check with the steps in `docs/standards/gates.md`, section 6.
+- Review high-risk changes, such as `platform/**`, `packages/**`, `tooling/**` and `.github/**`. See `docs/standards/risk-tiers.md`.
 - Use `docs/runbooks/rollback.md` when a change causes harm.

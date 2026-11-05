@@ -68,25 +68,24 @@ The `Co-Authored-By` footer stays in the message. Do not remove it.
 
 ## 3. Git hooks
 
-Git hooks install on `rush install`. Each hook calls a Rush command. CI runs the same checks.
+Git hooks install on `rush install`. Each hook runs a script or a Rush command.
 
-| Hook                          | Runs                                                                                                                                                                                    | Blocks when                  |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `pre-commit`                  | lint-staged: Prettier, ESLint with `--max-warnings 0` on staged files, gitleaks on staged files, gate-file warning, large-file check (over 1 MB), merge-conflict markers, `.env*` files | Any step fails.              |
-| `prepare-commit-msg`          | Adds the branch ticket ID to the message, if one exists.                                                                                                                                | Never blocks.                |
-| `commit-msg`                  | commitlint with the type list and scope rule                                                                                                                                            | The message format is wrong. |
-| `pre-push`                    | `rush change --verify`, impacted build and tests, `rush typecheck`, `audit-ci`, license check, Opengrep on changed files, Checkov when infra changed                                    | Any step fails.              |
-| `post-checkout`, `post-merge` | Prints `run rush install` when the lockfile changed.                                                                                                                                    | Never blocks.                |
+| Hook                          | Runs                                                                                                         | Blocks when                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `pre-commit`                  | gitleaks on staged files, then lint-staged: Prettier and ESLint on staged files                              | Any step fails.              |
+| `prepare-commit-msg`          | Adds the branch ticket ID to the message, if one exists.                                                     | Never blocks.                |
+| `commit-msg`                  | commitlint with the type list and scope rule                                                                 | The message format is wrong. |
+| `pre-push`                    | `rush audit`, only when `common/config/rush/pnpm-lock.yaml` changed since `origin/main`. Otherwise it skips. | The audit fails.             |
+| `post-checkout`, `post-merge` | Prints `run rush install` when the lockfile changed.                                                         | Never blocks.                |
 
 Hooks install only on `rush install`. If a hook is missing, run `node common/scripts/install-run-rush.js install`.
 
-Hooks come from `common/git-hooks/`. That folder is a gate file.
+Hooks come from `common/git-hooks/`.
 
 ## 4. Bypass rules
 
 - Do not use `--no-verify`. This includes `git commit -n`.
 - Do not use `git push --force` or `git push --force-with-lease`.
-- The `guard-bash.sh` hook blocks `--no-verify` and `git push --force` for agents.
 - A hook failure is a signal. Fix the cause and run the command again.
 
 ## 5. Commits in a pull request
@@ -122,5 +121,5 @@ These operations are blocked for agents. A human does them.
 | Force push to any branch            | Rewrites shared history.     |
 | Delete `main` or a protected branch | Removes the release history. |
 | `git reset --hard` on `main`        | Loses local work.            |
-| Merge a PR with failing checks      | Breaks the gate.             |
-| Change a branch ruleset             | Changes the gate.            |
+| Merge a PR with failing checks      | Breaks the merge rule.       |
+| Change a branch ruleset             | Changes the merge rule.      |

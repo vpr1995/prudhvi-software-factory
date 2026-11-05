@@ -28,4 +28,4 @@ The team needs:
 - Positive: One lockfile. Consistent versions. Build cache. Impacted-only builds.
 - Positive: Rush blocks direct installs in each project folder.
 - Negative: Rush is less common than npm workspaces. New team members need onboarding (see `docs/onboarding.md`).
-- Negative: Rush config files are gate files. Changes need a human approval (see `docs/standards/gates.md`).
+- Negative: Rush config files are gate files. Changes need a human approval (see the gates standard, now removed).

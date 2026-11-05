@@ -26,14 +26,10 @@
     "typecheck": "npm run _phase:typecheck"
   },
   "peerDependencies": {
-    "@aws-cdk/aws-lambda-go-alpha": "2.273.0-alpha.0",
-    "@aws-cdk/aws-lambda-python-alpha": "2.273.0-alpha.0",
     "aws-cdk-lib": "^2.273.0",
     "constructs": "^10.8.1"
   },
   "devDependencies": {
-    "@aws-cdk/aws-lambda-go-alpha": "2.273.0-alpha.0",
-    "@aws-cdk/aws-lambda-python-alpha": "2.273.0-alpha.0",
     "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.0.5",
     "@vprprudhvi/tooling-eslint-config": "workspace:*",

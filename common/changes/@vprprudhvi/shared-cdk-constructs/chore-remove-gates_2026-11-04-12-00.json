@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-cdk-constructs",
+      "comment": "Remove Python and Go support. Breaking: TracedPythonFunction, TracedPythonFunctionProps, PYTHON_RUNTIME, PYTHON_DEFAULT_ASSET_EXCLUDES, TracedGoFunction, TracedGoFunctionProps and GO_RUNTIME are gone, and the peer dependencies @aws-cdk/aws-lambda-go-alpha and @aws-cdk/aws-lambda-python-alpha are removed. Use TracedNodeFunction.",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-cdk-constructs"
+}

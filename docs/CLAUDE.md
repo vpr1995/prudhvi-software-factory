@@ -2,16 +2,16 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## Where each document goes
 
-| Content                                                                 | Folder                                                                                     |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Rules for all code (naming, tests, security, Git, gates, risk, tracing) | `docs/standards/`                                                                          |
-| How to work in one part (web, api, api-py, api-go, contracts, infra)    | `docs/guides/`                                                                             |
-| A decision with its reason                                              | `docs/adr/`                                                                                |
-| Steps for an incident or a rollback                                     | `docs/runbooks/`                                                                           |
-| Review templates for each part                                          | `docs/templates/`                                                                          |
-| An explainer for one slice of code                                      | `docs/explainers/` (use the [explain-area](../.claude/skills/explain-area/SKILL.md) skill) |
-| Setup for a new machine                                                 | `docs/onboarding.md`                                                                       |
-| Plan, build status, roadmap, ideas and discussion notes                 | The [GitHub wiki](https://github.com/vpr1995/prudhvi-software-factory/wiki), not `docs/`   |
+| Content                                                          | Folder                                                                                     |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Rules for all code (naming, tests, security, Git, risk, tracing) | `docs/standards/`                                                                          |
+| How to work in one part (web, api, contracts, infra)             | `docs/guides/`                                                                             |
+| A decision with its reason                                       | `docs/adr/`                                                                                |
+| Steps for an incident or a rollback                              | `docs/runbooks/`                                                                           |
+| Review templates for each part                                   | `docs/templates/`                                                                          |
+| An explainer for one slice of code                               | `docs/explainers/` (use the [explain-area](../.claude/skills/explain-area/SKILL.md) skill) |
+| Setup for a new machine                                          | `docs/onboarding.md`                                                                       |
+| Plan, build status, roadmap, ideas and discussion notes          | The [GitHub wiki](https://github.com/vpr1995/prudhvi-software-factory/wiki), not `docs/`   |
 
 Put detail here. Keep the root `CLAUDE.md` and the nested `CLAUDE.md` files short. They link to documents in this folder.
 
@@ -47,8 +47,7 @@ File: `docs/adr/NNNN-<kebab-title>.md`. Use the next free number. Never reuse a 
 
 ## Who approves
 
-- `docs/standards/coding-conventions.md` is a gate file. Agents do not edit it.
-- A human reviews other files in `docs/`. Agents can propose edits in a PR. See [gates.md](standards/gates.md), section 2.2.
+- A human reviews each file in `docs/`. Agents can propose edits in a PR.
 
 ## Links
 

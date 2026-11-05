@@ -11,7 +11,7 @@ Rules:
 
 - Project constructs live in `projects/<name>/lib/constructs/<kebab>.ts`.
 - The stub CDK app already exists (`bin/app.ts`, `lib/<name>-app.ts`, `lib/<name>-stack.ts`, `cdk.json`, `tsconfig.cdk.json`). `new-project` creates it. Add constructs to `lib/` and wire them into the stack. Never create `cdk.json`.
-- The CDK app (`bin/`, `lib/`) uses the one project `package.json`. CDK bundles Lambda code at synth: `NodejsFunction` for TypeScript, `Code.fromAsset` with local bundling for Go (`go build`, `linux/arm64`) and Python (`uv`), Docker as fallback, local bundling for the OpenNext web build. Unit tests turn bundling off. Region is `us-east-1` only. See `docs/guides/infra.md`.
+- The CDK app (`bin/`, `lib/`) uses the one project `package.json`. CDK bundles Lambda code at synth: `NodejsFunction` for TypeScript, local bundling for the OpenNext web build. Unit tests turn bundling off. Region is `us-east-1` only. See `docs/guides/infra.md`.
 - Shared constructs go to `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
 - Platform constructs live in `platform/infra`. Only a human changes them.
 - Compute is Lambda-first. API = Fastify on Lambda (`@fastify/aws-lambda`) behind an API Gateway HTTP API. Web = Next.js via OpenNext (CloudFront, S3, Lambda). Ask the human before any container or instance compute.
@@ -27,7 +27,7 @@ Rules:
 6. Set the defaults:
    - Stateful resources: encryption at rest, and `removalPolicy: RETAIN`. Use `DESTROY` only when `config/local.ts` sets it, and never in prod.
    - Buckets: block public access. Web buckets use CloudFront Origin Access Control only.
-   - Lambda: explicit timeout and memory, log group with retention, active tracing. Use the shared Lambda construct from `@vprprudhvi/shared-cdk-constructs`. It adds the ADOT collector-only layer and sets `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_PROPAGATORS`, `OTEL_TRACES_SAMPLER`, and `OTEL_TRACES_SAMPLER_ARG`. Do not add the layer by hand. Do not set `AWS_LAMBDA_EXEC_WRAPPER`. If the shared construct does not offer them, stop and ask the human. See `docs/standards/observability.md`, section 8. Runtime from the build output: Node for TypeScript, `PROVIDED_AL2023` with a `bootstrap` binary for Go, the current Python runtime for Python.
+   - Lambda: explicit timeout and memory, log group with retention, active tracing. Use the shared Lambda construct from `@vprprudhvi/shared-cdk-constructs`. It adds the ADOT collector-only layer and sets `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_PROPAGATORS`, `OTEL_TRACES_SAMPLER`, and `OTEL_TRACES_SAMPLER_ARG`. Do not add the layer by hand. Do not set `AWS_LAMBDA_EXEC_WRAPPER`. If the shared construct does not offer them, stop and ask the human. See `docs/standards/observability.md`, section 8. Runtime: Node.
    - API Gateway HTTP API: a JWT authorizer on the Cognito pool for every route that needs a user. Any route without an authorizer needs a written reason in the test.
    - API Gateway HTTP API: no stage tracing. An HTTP API has no X-Ray support. It forwards `traceparent`. Lambda active tracing starts the X-Ray segment.
    - Cognito app client: one per project. Browser clients do not generate a secret.
@@ -62,9 +62,7 @@ Rules:
 - Update a snapshot only to make a test pass.
 - Edit `packages/cdk-constructs` or `platform/infra` without a human.
 - Run `cdk deploy` or `cdk destroy`. Run only `cdk synth` and read-only commands.
-- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
-- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`.
-- Write a gate file in place, such as `**/cdk.json` or a lockfile. Write it to `.claude/state/handoff/<name>/` (`docs/standards/gates.md`, section 2.4).
+- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
+- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`.
 - Use `--no-verify`.

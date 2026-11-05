@@ -27,7 +27,7 @@ Platform facts:
 ## Request a NEW platform resource (human-approved)
 
 1. Stop. A new platform resource is a change to `platform/infra`. Only a human can approve it.
-2. Write a proposal to `.claude/state/handoff/platform-<slug>/` as `.txt` files. Include the construct, the SSM keys, the IAM grants, the removal policy, and the projects that need it.
+2. Write a proposal in chat. Include the construct, the SSM keys, the IAM grants, the removal policy, and the projects that need it.
 3. Tell the human what to review. Do not edit `platform/infra`.
 4. Continue the project work only with values that already exist.
 
@@ -36,7 +36,7 @@ Platform facts:
 - [ ] Every platform value comes from the SSM helper, with an exact export name.
 - [ ] No project code imports `platform/infra`. No cross-stack reference to a platform stack.
 - [ ] Tests assert the SSM path. The `verify` output is pasted.
-- [ ] A new platform resource is only a handoff proposal, not an edit.
+- [ ] A new platform resource is only a proposal, not an edit.
 
 ## Do not
 
@@ -45,9 +45,8 @@ Platform facts:
 - Create a user pool, hosted zone, or wildcard certificate in a project.
 - Edit `platform/infra/**`. It needs a human.
 - Share one Cognito app client across projects or environments. Each project env gets its own.
-- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
-- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`.
+- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
+- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`.
 - Run `cdk deploy`, `cdk destroy`, or any AWS write command.
 - Use `--no-verify`.

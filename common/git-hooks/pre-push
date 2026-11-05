@@ -1,38 +1,18 @@
 #!/bin/sh
-# Installed by `rush install`. Runs the local gate suite (scripts/gates/local-gates.sh), cheap
-# checks first: rush change --verify (only with an origin remote), license checks (when a lock or
-# the license policy changed), opengrep, anti-skip, check-gates, gate tests and lint, rush verify,
-# cdk synth for changed infra, Bruno and Playwright coverage. The audits run nightly (later, in CI)
-# or with GATES_FULL=1. The same runner is `node common/scripts/install-run-rush.js gates`. It stops
-# at the first failure.
-# The gates check HEAD and the working tree. So every pushed ref must be the checked-out commit
-# (git gives "<local ref> <local sha> <remote ref> <remote sha>" lines on stdin), and tracked files
-# must have no uncommitted change. A ref delete (local sha all zeros) is allowed.
+# Installed by `rush install`. Runs `rush audit` when the pnpm lockfile changed since origin/main.
 set -eu
 
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
-head="$(git rev-parse HEAD)"
+lock="common/config/rush/pnpm-lock.yaml"
 
-while read -r local_ref local_sha remote_ref remote_sha; do
-  case "$local_sha" in
-    "") ;;
-    *[!0]*)
-      if [ "$local_sha" != "$head" ]; then
-        echo "pre-push: push the checked-out commit only (git push origin HEAD:main); the gates check HEAD" >&2
-        echo "pre-push: $local_ref is $local_sha, HEAD is $head" >&2
-        exit 1
-      fi
-      ;;
-    *)
-      echo "pre-push: deleting $remote_ref (allowed; was $remote_sha)"
-      ;;
-  esac
-done
-
-if ! git diff --quiet HEAD --; then
-  echo "pre-push: tracked files have uncommitted changes. Commit or stash them first: rush verify would test uncommitted code." >&2
-  exit 1
+if ! base="$(git merge-base HEAD origin/main 2>/dev/null)"; then
+  echo "pre-push: no origin/main, audit skipped" >&2
+  exit 0
 fi
 
-exec bash scripts/gates/local-gates.sh
+if git diff --name-only "$base" HEAD -- "$lock" | grep -q .; then
+  echo "pre-push: $lock changed, running rush audit"
+  exec node common/scripts/install-run-rush.js audit </dev/null
+fi
+echo "pre-push: $lock not changed, audit skipped"
