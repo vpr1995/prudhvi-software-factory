@@ -6,5 +6,5 @@ import { createRootConfig } from './tooling/eslint-config/src/index.js';
 export default createRootConfig({
   rootPath: import.meta.dirname,
   // Rush output and tool-owned config files are not application code.
-  ignores: ['common/**', '.dependency-cruiser.cjs', '.lintstagedrc.cjs', 'commitlint.config.cjs'],
+  ignores: ['common/**', '.lintstagedrc.cjs', 'commitlint.config.cjs'],
 });

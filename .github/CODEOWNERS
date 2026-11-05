@@ -87,7 +87,6 @@
 **/rush-project.json @vpr1995
 **/eslint.config.* @vpr1995
 **/vitest.config.* @vpr1995
-/.dependency-cruiser.* @vpr1995
 **/cdk.json @vpr1995
 /docker-compose.yml @vpr1995
 **/bruno/environments/ @vpr1995

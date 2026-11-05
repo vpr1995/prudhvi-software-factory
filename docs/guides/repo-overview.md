@@ -37,7 +37,7 @@ This guide holds the stack, the layout, the full import rules, and the non-goals
 - A project reads platform values only through SSM helpers in `@vprprudhvi/shared-cdk-constructs`.
 - Shared code goes in `packages/*`. That change needs a human.
 
-Enforcers: `eslint-plugin-boundaries` and `dependency-cruiser`. See `docs/standards/coding-conventions.md`, section D.
+Enforcer: `eslint-plugin-boundaries`. See `docs/standards/coding-conventions.md`, section D.
 
 ## 4. Non-goals
 
