@@ -26,7 +26,7 @@ const nodeProject: TestProjectInlineConfiguration = {
 };
 
 const webProject: TestProjectInlineConfiguration = {
-  // The nextjs tsconfig keeps `jsx` on `react-jsx` for Next.js. Vite needs the same setting for TSX.
+  // The web tsconfig keeps `jsx` on `react-jsx` for Next.js. Vite needs the same setting for TSX.
   esbuild: { jsx: 'automatic' },
   test: {
     ...projectOptions,

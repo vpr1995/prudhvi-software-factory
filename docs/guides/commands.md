@@ -17,6 +17,7 @@ node common/scripts/install-run-rush.js add -p <pkg> # alias: rush add -p <pkg>
 node common/scripts/install-run-rush.js prettier     # alias: rush prettier
 node common/scripts/install-run-rush.js audit        # alias: rush audit
 node common/scripts/install-run-rush.js license-check
+node tooling/tsconfig/scripts/check-tsconfigs.mjs     # tsconfig rules (CI runs it)
 ```
 
 Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>`.

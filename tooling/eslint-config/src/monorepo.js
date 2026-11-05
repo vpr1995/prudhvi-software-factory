@@ -56,11 +56,12 @@ export function createRootConfig({ rootPath, ignores = [] }) {
     ),
     ...scope(['projects/**', 'platform/**', 'packages/**', 'tooling/**'], boundaries({ rootPath })),
     // WARNING: file-scoped security exception. Repo owner decision, 2026-10-22.
-    // fs-io.mjs is the one module in scripts/security that reads and writes files with computed
-    // paths. Keep every computed-path fs call in that file.
+    // Each fs-io.mjs is the one module of its script that reads or writes files with computed
+    // paths (scripts/security and tooling/tsconfig/scripts). Keep every computed-path fs call in
+    // these files.
     {
-      name: 'tooling/exception-security-fs-io',
-      files: ['scripts/security/lib/fs-io.mjs'],
+      name: 'tooling/exception-fs-io',
+      files: ['scripts/security/lib/fs-io.mjs', 'tooling/tsconfig/scripts/lib/fs-io.mjs'],
       rules: { 'security/detect-non-literal-fs-filename': 'off' },
     },
   ];

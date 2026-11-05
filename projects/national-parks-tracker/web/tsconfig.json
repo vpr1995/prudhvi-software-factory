@@ -1,5 +1,5 @@
 {
-  "extends": "@vprprudhvi/tooling-tsconfig/nextjs.json",
+  "extends": "@vprprudhvi/tooling-tsconfig/web.json",
   "compilerOptions": {
     "jsx": "react-jsx",
     "noEmit": true,

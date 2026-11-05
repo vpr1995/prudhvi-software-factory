@@ -102,6 +102,9 @@ jobs:
       - name: Rush check
         run: node common/scripts/install-run-rush.js check
 
+      - name: Check tsconfig files
+        run: node tooling/tsconfig/scripts/check-tsconfigs.mjs
+
       - name: List the projects that the diff impacts
         id: impacted
         run: |

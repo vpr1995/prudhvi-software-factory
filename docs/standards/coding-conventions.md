@@ -876,6 +876,31 @@ export function getDiscount(order: Order): number {
 
 **Enforcer:** `max-depth` set to `3`, and `no-else-return`.
 
+### B.18 Strict compiler options live in one place
+
+**Rule:** Each tsconfig extends a preset from `@vprprudhvi/tooling-tsconfig` (`base`, `node`, `library`, `web`). A local tsconfig sets only paths, output and environment options. Strictness lives only in `tooling/tsconfig`.
+
+**Good:**
+
+```json
+{
+  "extends": "@vprprudhvi/tooling-tsconfig/node.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["src", "test"]
+}
+```
+
+**Bad:**
+
+```json
+{
+  "extends": "@vprprudhvi/tooling-tsconfig/node.json",
+  "compilerOptions": { "noEmit": true, "strict": false }
+}
+```
+
+**Enforcer:** `node tooling/tsconfig/scripts/check-tsconfigs.mjs`. CI runs it on each PR. The lists of allowed options are at the top of the script.
+
 ---
 
 ## C. Errors and logging

@@ -31,8 +31,8 @@ test('node.json uses NodeNext', () => {
   assert.equal(compilerOptions.moduleResolution, 'NodeNext');
 });
 
-test('nextjs.json uses bundler resolution and preserves JSX', () => {
-  const { compilerOptions } = readJson('nextjs.json');
+test('web.json uses bundler resolution and preserves JSX', () => {
+  const { compilerOptions } = readJson('web.json');
   assert.equal(compilerOptions.moduleResolution, 'Bundler');
   assert.equal(compilerOptions.jsx, 'preserve');
 });
@@ -44,7 +44,7 @@ test('library.json emits declarations and is composite', () => {
 });
 
 test('no config turns a required flag off', () => {
-  for (const name of ['node.json', 'nextjs.json', 'library.json']) {
+  for (const name of ['node.json', 'web.json', 'library.json']) {
     const { compilerOptions } = readJson(name);
     for (const flag of REQUIRED_FLAGS) {
       assert.notEqual(compilerOptions[flag], false, `${name} must not disable ${flag}`);
