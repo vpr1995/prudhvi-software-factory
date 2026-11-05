@@ -1,0 +1,26 @@
+import { describe, expect, it } from 'vitest';
+
+import { loadConfig } from '../../src/api/config.js';
+
+describe('loadConfig', () => {
+  it('uses the defaults for an empty environment', () => {
+    expect(loadConfig({})).toEqual({
+      serviceName: '__name__-api',
+      serviceVersion: '0.0.0',
+      environment: 'local',
+      host: '127.0.0.1',
+      port: 3000,
+      logLevel: 'info',
+    });
+  });
+
+  it('reads the prefixed variables', () => {
+    const config = loadConfig({ __NAME___API_PORT: '4000', __NAME___API_LOG_LEVEL: 'warn' });
+    expect(config.port).toBe(4000);
+    expect(config.logLevel).toBe('warn');
+  });
+
+  it('rejects a port that is not valid', () => {
+    expect(() => loadConfig({ __NAME___API_PORT: '70000' })).toThrow();
+  });
+});

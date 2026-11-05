@@ -1,0 +1,14 @@
+import { createLogger } from '@vprprudhvi/shared-logger';
+
+import { loadConfig } from '../../src/api/config.js';
+import type { Config } from '../../src/api/config.js';
+
+/** Test helper: a config with a fixed version and optional overrides. */
+export function makeTestConfig(source: Readonly<Record<string, string | undefined>> = {}): Config {
+  return loadConfig({ __NAME___API_VERSION: '9.9.9', ...source });
+}
+
+/** Test helper: a logger that writes nothing. */
+export function makeSilentLogger(): ReturnType<typeof createLogger> {
+  return createLogger({ serviceName: 'test', level: 'silent' });
+}

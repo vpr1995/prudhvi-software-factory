@@ -1,0 +1,35 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { App } from 'aws-cdk-lib';
+import { Bucket } from 'aws-cdk-lib/aws-s3';
+import { describe, expect, it } from 'vitest';
+
+import { add__Name__Stack } from '../../lib/__name__-app.js';
+
+/** Makes an app that writes to a temp folder. */
+function newApp(): App {
+  return new App({ outdir: mkdtempSync(join(tmpdir(), '__name__-app-')) });
+}
+
+describe('add__Name__Stack', () => {
+  it('adds one stack in us-east-1, and it synthesizes with the checks on', () => {
+    const app = newApp();
+
+    const stack = add__Name__Stack(app);
+
+    expect(stack.region).toBe('us-east-1');
+    expect(app.node.children).toContain(stack);
+    expect(app.synth().getStackByName(stack.stackName).template).toHaveProperty('Resources');
+  });
+
+  it('runs the AwsSolutions checks at synth, so a new finding stops the synth', () => {
+    const app = newApp();
+    const stack = add__Name__Stack(app);
+    // A bucket without any setting breaks AwsSolutions rules (for example S1 and S10).
+    new Bucket(stack, 'BadBucket');
+
+    expect(() => app.synth()).toThrow(/AwsSolutions-S/);
+  });
+});

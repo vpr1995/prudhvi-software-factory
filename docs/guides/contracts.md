@@ -2,6 +2,8 @@
 
 Part: `projects/<name>/src/contracts`. Package: `@vprprudhvi/<name>` (one package for the whole project). Read the root `CLAUDE.md` and `projects/CLAUDE.md` first.
 
+Contracts are optional. `rush new --project` and `rush add-part` do not make them. Add `src/contracts` when the project gets an endpoint with a request or a response body. The project owns its contracts.
+
 ## Purpose
 
 - Zod in `src/contracts` is the only source of the API shape. OpenAPI and JSON Schema are generated from it.

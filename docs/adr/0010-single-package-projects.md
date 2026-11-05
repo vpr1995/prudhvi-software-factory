@@ -1,6 +1,6 @@
 # ADR 0010: Single-package projects
 
-- Status: Accepted. Supersedes the layout decision of ADR 0002 and the package names of ADR 0007.
+- Status: Accepted. Supersedes the layout decision of ADR 0002 and the package names of ADR 0007. Partly replaced 2026-11-04: contracts and CDK are optional; see projects/CLAUDE.md
 - Date: 2026-10-22
 
 ## Context

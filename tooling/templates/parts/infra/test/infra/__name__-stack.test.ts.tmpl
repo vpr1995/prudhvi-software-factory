@@ -1,0 +1,15 @@
+import { App, CfnResource } from 'aws-cdk-lib';
+import { Template } from 'aws-cdk-lib/assertions';
+import { describe, expect, it } from 'vitest';
+
+import { __Name__Stack } from '../../lib/__name__-stack.js';
+
+describe('__Name__Stack', () => {
+  it('has only the placeholder resource', () => {
+    const stack = new __Name__Stack(new App(), 'Test__Name__');
+
+    const resources = stack.node.findAll().filter((child) => child instanceof CfnResource);
+    expect(resources).toHaveLength(1);
+    Template.fromStack(stack).resourceCountIs('AWS::CloudFormation::WaitConditionHandle', 1);
+  });
+});

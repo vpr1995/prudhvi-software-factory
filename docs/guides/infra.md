@@ -5,14 +5,14 @@ Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, const
 ## Folder layout
 
 - `bin/app.ts`: the CDK app entry. It creates the `App` and calls `add<Name>Stack` in `lib/<name>-app.ts`. That function adds the `AwsSolutionsChecks` plugin and the stacks.
-- `lib/<name>-app.ts` and `lib/<name>-stack.ts`: the app helper and the stack. A new project has both as a stub with one placeholder resource and no app resources (`new-project` skill).
+- `lib/<name>-app.ts` and `lib/<name>-stack.ts`: the app helper and the stack. The infra part starts with both as a stub with one placeholder resource and no app resources (`rush add-part --part infra`, `scaffold` skill).
 - `lib/constructs/`: constructs for this project only, in kebab-case files.
 - `lib/config/<env>.ts`: account-neutral settings per project environment (`local` or `prod`). Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
 - `lib/nag-acknowledgments/<stack>.ts`: the one cdk-nag acknowledgments file for a stack (see Rules).
-- `cdk.json` and `tsconfig.cdk.json` (project root). `new-project` writes them at creation, so later infra work does not change them.
+- `cdk.json` and `tsconfig.cdk.json` (project root). `rush add-part --part infra` writes them, so later infra work does not change them.
 - `bin` and `lib` use the one project `package.json`. They have no `package.json` of their own.
 - Shared constructs go in `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
-- Every new project has a stub CDK app from day one. If the project never uses infra, the files stay as a stub.
+- The CDK app is optional. A project gets it with `rush add-part --project <name> --part infra` when it needs infra.
 
 ## Bundling
 

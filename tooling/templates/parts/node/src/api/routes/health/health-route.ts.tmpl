@@ -1,0 +1,25 @@
+import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+
+import type { Config } from '../../config.js';
+
+/** The route options. */
+export type HealthRouteOptions = {
+  readonly config: Config;
+};
+
+/**
+ * `GET /v1/health`. It has no request input, so it needs no contract.
+ * Put the Zod schema of each new route in src/contracts/.
+ *
+ * @param app - The Fastify instance.
+ * @param options - The settings.
+ */
+export const healthRoute: FastifyPluginAsyncZod<HealthRouteOptions> = async (app, options) => {
+  const { serviceName, serviceVersion } = options.config;
+  app.get('/v1/health', { schema: { summary: 'Check that the service is up.' } }, () => ({
+    status: 'ok',
+    service: serviceName,
+    version: serviceVersion,
+  }));
+  await Promise.resolve();
+};

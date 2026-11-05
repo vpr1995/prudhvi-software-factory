@@ -134,6 +134,7 @@ lib/
 !projects/*/test/web/lib/
 !projects/*/lib/
 !platform/infra/lib/
+!tooling/templates/parts/infra/lib/
 *.tsbuildinfo
 playwright-report/
 test-results/

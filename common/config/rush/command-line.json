@@ -109,6 +109,14 @@
       // No Rush lock for this command: the script runs "rush update" at the end, and that takes the lock.
       "safeForSimultaneousRushProcesses": true,
       "shellCommand": "node tooling/templates/scripts/new.mjs"
+    },
+    {
+      "commandKind": "global",
+      "name": "add-part",
+      "summary": "Add a part (node, web or infra) to a project that rush new --project made. Example: rush add-part --project notes --part web",
+      // No Rush lock for this command: the script runs "rush update" at the end, and that takes the lock.
+      "safeForSimultaneousRushProcesses": true,
+      "shellCommand": "node tooling/templates/scripts/add-part.mjs"
     }
   ],
 
@@ -156,6 +164,22 @@
       "argumentName": "NAME",
       "required": false,
       "associatedCommands": ["new"]
+    },
+    {
+      "parameterKind": "string",
+      "longName": "--project",
+      "description": "rush new: create the project projects/NAME (@vprprudhvi/NAME) with no parts. rush add-part: the project that gets the part. NAME is kebab-case.",
+      "argumentName": "NAME",
+      "required": false,
+      "associatedCommands": ["new", "add-part"]
+    },
+    {
+      "parameterKind": "string",
+      "longName": "--part",
+      "description": "The part to add: node (Fastify server in src/api), web (Next.js app in web/) or infra (CDK app in bin/ and lib/).",
+      "argumentName": "PART",
+      "required": false,
+      "associatedCommands": ["add-part"]
     }
   ]
 }

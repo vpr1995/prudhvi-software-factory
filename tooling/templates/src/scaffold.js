@@ -1,11 +1,14 @@
 // Scaffolder engine for `rush new`. It copies a template folder, fills the placeholders,
-// adds the project to rush.json and writes a Rush change file.
+// adds the project to rush.json and writes a Rush change file when the kind needs one.
 // Template files end in ".tmpl", so no lint, typecheck, tsconfig check or Prettier run reads them.
 import { listFiles, pathExists, readText, replaceText, writeNewText } from './fs-io.js';
 
 export const NAME_PLACEHOLDER = '__name__';
+// The same name in PascalCase (class names) and in UPPER_SNAKE_CASE (environment variables).
+export const PASCAL_NAME_PLACEHOLDER = '__Name__';
+export const CONSTANT_NAME_PLACEHOLDER = '__NAME__';
 export const VERSION_PLACEHOLDER = '__version__';
-const TEMPLATE_SUFFIX = '.tmpl';
+export const TEMPLATE_SUFFIX = '.tmpl';
 const RUSH_JSON = 'rush.json';
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies'];
 const JSON_INDENT = 2;
@@ -39,6 +42,17 @@ export const KINDS = {
     versionsFrom: 'packages/result/package.json',
     changeFile: true,
   },
+  project: {
+    template: 'project',
+    folder: 'projects/__name__',
+    packageName: '@vprprudhvi/__name__',
+    shouldPublish: false,
+    tags: ['project/__name__'],
+    // The sample has every part, so it has a version for each dependency of each part.
+    versionsFrom: 'projects/sample/package.json',
+    // A project does not publish, so Rush needs no change file.
+    changeFile: false,
+  },
 };
 
 /**
@@ -56,11 +70,16 @@ export function nameProblem(name) {
 
 /**
  * @param {string} text - Template text.
- * @param {string} name - Project name.
- * @returns {string} The text with each "__name__" replaced.
+ * @param {string} name - Project name in kebab-case.
+ * @returns {string} The text with each "__name__", "__Name__" and "__NAME__" replaced.
  */
 export function fillName(text, name) {
-  return text.replaceAll(NAME_PLACEHOLDER, name);
+  const words = name.split('-');
+  const pascal = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join('');
+  return text
+    .replaceAll(NAME_PLACEHOLDER, name)
+    .replaceAll(PASCAL_NAME_PLACEHOLDER, pascal)
+    .replaceAll(CONSTANT_NAME_PLACEHOLDER, words.join('_').toUpperCase());
 }
 
 /**
@@ -197,7 +216,7 @@ export async function scaffold({ root, templatesFolder, kind, name, now = new Da
       packageName,
       projectFolder: folder,
       shouldPublish: settings.shouldPublish,
-      tags: settings.tags,
+      tags: settings.tags.map((tag) => fillName(tag, name)),
     }),
   );
   files.push(RUSH_JSON);

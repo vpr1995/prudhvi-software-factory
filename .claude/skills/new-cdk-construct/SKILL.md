@@ -10,7 +10,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 Rules:
 
 - Project constructs live in `projects/<name>/lib/constructs/<kebab>.ts`.
-- The stub CDK app already exists (`bin/app.ts`, `lib/<name>-app.ts`, `lib/<name>-stack.ts`, `cdk.json`, `tsconfig.cdk.json`). `new-project` creates it. Add constructs to `lib/` and wire them into the stack. Never create `cdk.json`.
+- The stub CDK app (`bin/app.ts`, `lib/<name>-app.ts`, `lib/<name>-stack.ts`, `cdk.json`, `tsconfig.cdk.json`) comes from `rush add-part --project <name> --part infra` (the `scaffold` skill). If `cdk.json` does not exist, run that command first. Add constructs to `lib/` and wire them into the stack. Never create `cdk.json` by hand.
 - The CDK app (`bin/`, `lib/`) uses the one project `package.json`. CDK bundles Lambda code at synth: `NodejsFunction` for TypeScript, local bundling for the OpenNext web build. Unit tests turn bundling off. Region is `us-east-1` only. See `docs/guides/infra.md`.
 - Shared constructs go to `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
 - Platform constructs live in `platform/infra`. Only a human changes them.
