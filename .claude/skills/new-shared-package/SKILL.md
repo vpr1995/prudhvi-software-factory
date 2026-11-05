@@ -24,7 +24,7 @@ Rules: `packages/*` never import from `projects/*`. Shared packages publish (`sh
 7. Write the config files and the `rush.json` entry.
    - `rush.json`: add this entry to the `projects` array:
      `{ "packageName": "@vprprudhvi/shared-<pkg>", "projectFolder": "packages/<pkg>", "shouldPublish": true, "tags": ["shared"] }`
-   - `packages/<pkg>/tsconfig.json`, `packages/<pkg>/eslint.config.mjs`, `packages/<pkg>/vitest.config.ts`: each one extends the base config in `tooling/`. Read the exact names in `tooling/` first.
+   - `packages/<pkg>/tsconfig.json`, `packages/<pkg>/eslint.config.mjs`, `packages/<pkg>/vitest.config.ts`: each one extends the base config in `tooling/`. Read the exact names in `tooling/` first. A tsconfig extends a `@vprprudhvi/tooling-tsconfig` preset and sets only allowed options (coding-conventions.md, B.18).
 8. Then:
    - Run `rush update`.
    - Add each dependency with `rush add -p <pkg> [--dev]` from `packages/<pkg>`. List each new package with its version and license in your report. Never run `npm`, `pnpm` or `yarn` to add a package.

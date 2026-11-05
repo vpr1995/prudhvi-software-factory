@@ -7,17 +7,18 @@
   "files": [
     "base.json",
     "node.json",
-    "nextjs.json",
+    "web.json",
     "library.json"
   ],
   "exports": {
     "./base.json": "./base.json",
     "./node.json": "./node.json",
-    "./nextjs.json": "./nextjs.json",
+    "./web.json": "./web.json",
     "./library.json": "./library.json"
   },
   "scripts": {
     "_phase:test": "node --test \"test/**/*.test.js\"",
+    "check": "node scripts/check-tsconfigs.mjs",
     "test": "npm run _phase:test"
   },
   "engines": {

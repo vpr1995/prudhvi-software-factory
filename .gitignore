@@ -129,6 +129,7 @@ dist/
 lib/
 # These lib folders hold source or test code, not build output.
 !scripts/security/lib/
+!tooling/tsconfig/scripts/lib/
 !projects/*/web/lib/
 !projects/*/test/web/lib/
 !projects/*/lib/

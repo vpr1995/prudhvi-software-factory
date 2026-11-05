@@ -20,7 +20,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 ## What lives here
 
 - `eslint-config/`: flat config, boundaries, naming, `no-console`, restricted imports.
-- `tsconfig/`: base tsconfigs.
+- `tsconfig/`: presets `base`, `node`, `library` and `web`. They hold all strictness. `scripts/check-tsconfigs.mjs` checks each tsconfig in the repo. See [coding-conventions.md](../docs/standards/coding-conventions.md) (B.18).
 - `vitest-config/`: shared config and coverage thresholds (lines 80, branches 75).
 - `opengrep/`: SAST rules.
 - `license-allowlist.json`: allowed licenses.

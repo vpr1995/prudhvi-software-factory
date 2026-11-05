@@ -86,7 +86,6 @@
 # Build, lint, test, and boundary settings
 **/rush-project.json @vpr1995
 **/eslint.config.* @vpr1995
-**/tsconfig*.json @vpr1995
 **/vitest.config.* @vpr1995
 /.dependency-cruiser.* @vpr1995
 **/cdk.json @vpr1995
