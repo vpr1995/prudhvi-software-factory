@@ -132,13 +132,53 @@ The owner picks the findings to fix. Then a design PR with `risk:low`. The owner
 
 ### 6.6 Gates (deterministic)
 
-| Gate          | Where                                                                      | Catches                                                                                                                                                |
-| ------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Doc lint      | CI                                                                         | Doc names a missing path, script, Rush command, skill, or agent. Broken links.                                                                         |
-| Test guard    | CI                                                                         | Deleted test files, deleted `it`/`test` blocks, lowered thresholds, new `eslint-disable`, changed lint or Vitest config without the `risk:high` label. |
-| Verify gate   | Stop hook (`command`, `onFailure: "block"`, checks `stop_hook_active`) [P] | "Done" with no verify output in the session.                                                                                                           |
-| Commit gate   | PreToolUse hook, `if: "Bash(git commit *)"` [P]                            | Commit before lint and typecheck pass on staged files.                                                                                                 |
-| Mutation test | CI, Stryker incremental on changed files [P]                               | Weak assertions that coverage cannot see. Later stage (effort M).                                                                                      |
+| Gate          | Where                                                             | Catches                                                                                                                                                |
+| ------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Doc lint      | CI                                                                | Doc names a missing path, script, Rush command, skill, or agent. Broken links.                                                                         |
+| Test guard    | CI                                                                | Deleted test files, deleted `it`/`test` blocks, lowered thresholds, new `eslint-disable`, changed lint or Vitest config without the `risk:high` label. |
+| Verify gate   | Stop and SubagentStop hooks (`command`, `onFailure: "block"`) [P] | Stop with source changes that no passing `rush test` covers. See 6.6.1.                                                                                |
+| Commit gate   | PreToolUse hook, `if: "Bash(git commit *)"` [P]                   | Commit before lint and typecheck pass on staged files.                                                                                                 |
+| Mutation test | CI, Stryker incremental on changed files [P]                      | Weak assertions that coverage cannot see. Later stage (effort M).                                                                                      |
+
+#### 6.6.1 Verify gate (Stop and SubagentStop hooks)
+
+Lesson from the old `stop-gate` (removed in PR #43): it ran lint, typecheck, and tests inside the hook at each stop, and it blocked when it crashed. Each turn end was slow. This gate checks proof only. It runs no tests and no Rush command. Target run time: under 1 second.
+
+**Writers.** Parallel subagents must be read-only (reviewers, lenses, research). Writer subagents run one at a time in the shared working tree. Reasons: Rush runs one command at a time, and the research says to keep writers single-threaded. Worktrees for parallel writers are out of scope.
+
+**State.** The hooks write state under `.claude/state/` (gitignored):
+
+- PostToolUse on Edit and Write: add `file_path` to `agents/<agent_id>.json`. The main session uses the id `main`.
+- PostToolUse on Bash: when `install-run-rush.js test` or `verify` exits 0, store a hash of the current content of each covered project's changed files. The key is the project. A hook writes this state. The agent does not.
+- Unverified: the hook input has `agent_id` for subagents, and the Bash PostToolUse input has the exit code. Probe both live before the build. Plan B: the implementer writes its own `agents/<name>.json`, and the hook parses the Rush summary line.
+
+**Logic at each stop:**
+
+1. The agent edited no source files (`*.ts`, `*.tsx`, `*.js`, `*.mjs` under `projects/`, `packages/`, `platform/`, `tooling/`): allow. Q&A turns and doc-only turns pass.
+2. Group the edited files by project (`rush.json`). For each project, compare the current hash with the stored "verified" hash.
+3. All projects match: allow.
+4. Else block. The message names each unverified project and its files, and gives the command: `rush test --only <project> …`.
+
+- SubagentStop checks only the files of that subagent. Another agent's files never block it.
+- The main Stop checks all files that the session edited. The orchestrator owns the integration.
+
+**Hard block.** A subagent cannot stop until its projects are verified, or it reports the failing check to the orchestrator in its final message. The main session cannot stop either, with one exception: a deferral.
+
+**Deferral (main session only).** The agent runs `stop-gate defer "<reason>"`, for example to ask the owner a question. The deferral:
+
+- covers only the current hashes. The next code change blocks again;
+- shows the owner a system message: `Verify deferred: <reason> (projects: …)`;
+- appends a line to `.claude/state/deferrals.log`. The drift report counts deferrals.
+
+**Crash.** Any hook error blocks the stop (`onFailure: "block"`) and names the error. The owner can turn the gate off with `FACTORY_STOP_GATE=off` in user settings or the shell. This variable is not in repo settings, so an agent PR cannot turn the gate off. The gate script has unit tests in `tooling/`. Note: Claude Code releases a Stop hook after 8 blocks in a row with no tool call between them [P].
+
+**Scale.** Proof costs grow with the changed projects, not with their dependents:
+
+| Where                        | Command                                                                                                              | Scope                                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Stop proof                   | `rush test --only <owning projects>`                                                                                 | Projects that own the changed files. A library change tests the library only.   |
+| Before a PR (`verify` skill) | `rush verify --only <owning projects>`; when a shared package changed, also `rush typecheck --impacted-by <package>` | Typecheck finds breaks in dependents. The build cache skips unchanged projects. |
+| CI                           | Matrix job per impacted project (exists)                                                                             | All dependents, in parallel, with the build cache.                              |
 
 ### 6.7 Deploy on merge
 
@@ -169,7 +209,7 @@ One PR per step. Each step is checked before the next.
 | #   | PR                                                                                                                                     | Effort |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | 1   | Rule changes from section 7 + doc lint + test guard in CI                                                                              | M      |
-| 2   | Verify Stop hook + commit gate (probe hook fields live first)                                                                          | S      |
+| 2   | Verify gate (6.6.1): Stop + SubagentStop hooks, state hooks, deferral, unit tests; commit gate. Probe hook fields live first.          | M      |
 | 3   | `/brainstorm` + 8 lens agents                                                                                                          | M      |
 | 4   | `/design` + template + `/design-review` (5 stages)                                                                                     | M      |
 | 5   | `/plan-tickets`                                                                                                                        | S      |
@@ -185,9 +225,12 @@ One PR per step. Each step is checked before the next.
 - Token cost: lens and review fan-outs multiply tokens [P] (Anthropic multi-agent post). Mitigation: Haiku for lint-type checks, Sonnet for lenses, Opus for critic and security; metrics line per run.
 - Prompt injection through issue text. Mitigation: only owner-authored issues run; no secrets beyond what the task needs; read-only reviewers.
 - Hook gates fail open on timeout. Mitigation: `onFailure: "block"` [P].
+- A crashing gate locks the session (the PR #43 lesson). Mitigation: unit tests for the gate script, and the owner-only `FACTORY_STOP_GATE=off` switch.
+- Deferral abuse. Mitigation: each deferral shows a system message to the owner and goes to a log that the drift report counts.
 - A judge can be fooled. Mitigation: the judge is one gate of several. CI test guard and mutation tests stay.
 
 ## 10. Decision log
 
 - 2026-11-05: designs live in `docs/designs/<slug>/`. CI deploys on merge. 8 lenses. Small fixes skip design. Reviewers run locally. No bot account. Tickets start by hand.
 - 2026-11-05: `docs/designs/` exempt from the implemented-only rule. CI is the only prod deployer (reverses the test-deploy permission in rule 4). Git worktrees and CI checkouts do not break rule 13. Spec-compliance judge runs locally in `pre-pr`.
+- 2026-11-05: verify gate (6.6.1). Writers run one at a time; only read-only subagents run in parallel. Proof is `rush test --only` on the owning projects; CI covers dependents. Hard block, with a visible and logged deferral for the main session. A gate crash blocks; the owner-only `FACTORY_STOP_GATE=off` turns the gate off.
