@@ -1,0 +1,62 @@
+name: Ticket
+description: Create a ticket for one unit of work. One ticket is one PR.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One ticket is one PR. The PR body has `Closes #n`.
+
+        Only a human edits **Acceptance**. An agent asks for a change in a comment.
+
+        The owner adds the label `agent:ready` when **Context** and **Acceptance** are complete.
+
+        Read these rules before you write a ticket:
+
+        - [Definition of Done](https://github.com/vpr1995/prudhvi-software-factory/wiki/Definition-of-Done)
+        - [Ticket Workflow](https://github.com/vpr1995/prudhvi-software-factory/wiki/Ticket-Workflow)
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why is this work needed? What exists now? Which project or package paths are affected?
+      placeholder: |
+        Why:
+        Current state:
+        Paths: projects/<name>/..., packages/<name>/...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: Observable results. Each item must be testable.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk tier (guess)
+      description: Pick the highest tier that matches a changed path. See docs/standards/risk-tiers.md.
+      options:
+        - low
+        - medium
+        - high
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Links, constraints, out of scope, open questions.
+    validations:
+      required: false
+  - type: checkboxes
+    id: dod
+    attributes:
+      label: Definition of Done
+      options:
+        - label: The Definition of Done applies to this ticket.
+          required: true
