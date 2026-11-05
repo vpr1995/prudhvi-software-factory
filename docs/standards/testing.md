@@ -31,6 +31,8 @@ The web test setup file is `projects/<name>/test/web/setup.ts`.
 | Lines     | 80%   | `tooling/vitest-config` | `rush test`, CI |
 | Branches  | 75%   | `tooling/vitest-config` | `rush test`, CI |
 
+A CDK app project sets its Vitest config with `createAppVitestConfig()`. It adds `{ web: true }` for a `web/` part. The thresholds apply to the sum and again to `src/`, `lib/` and `web/`.
+
 ## 3. Test types by part
 
 ### 3.1 API (`projects/<name>/src/api`)

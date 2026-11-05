@@ -1,6 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { TestProjectInlineConfiguration } from 'vitest/config';
 
-import { COVERAGE_THRESHOLDS, createVitestConfig } from '../src/config.js';
+import { COVERAGE_THRESHOLDS, createAppVitestConfig, createVitestConfig } from '../src/config.js';
+
+/** Reads the inline test sets of an app config. */
+function appProjects(options?: Parameters<typeof createAppVitestConfig>[0]): {
+  readonly node: TestProjectInlineConfiguration | undefined;
+  readonly web: TestProjectInlineConfiguration | undefined;
+  readonly count: number;
+} {
+  const projects = (createAppVitestConfig(options).test?.projects ??
+    []) as TestProjectInlineConfiguration[];
+  return {
+    count: projects.length,
+    node: projects.find((project) => project.test?.name === 'node'),
+    web: projects.find((project) => project.test?.name === 'web'),
+  };
+}
 
 describe('createVitestConfig', () => {
   it('uses v8 coverage with the fixed thresholds', () => {
@@ -74,5 +90,114 @@ describe('createVitestConfig', () => {
     const { createVitestConfig: freshFactory } = await import('../src/config.js');
 
     expect(freshFactory().test?.reporters).toContain('junit');
+  });
+});
+
+describe('createAppVitestConfig', () => {
+  const { lines, branches, functions, statements } = COVERAGE_THRESHOLDS;
+  const folderThresholds = { lines, branches, functions, statements };
+
+  it('keeps the fixed settings of createVitestConfig', () => {
+    const { test } = createAppVitestConfig();
+
+    expect(test?.coverage).toMatchObject({ provider: 'v8', reportsDirectory: 'coverage' });
+    expect(test?.coverage?.thresholds).toMatchObject(COVERAGE_THRESHOLDS);
+    expect(test?.reporters).toContain('default');
+    expect(test?.outputFile).toStrictEqual({ junit: 'coverage/junit.xml' });
+    expect(appProjects().node?.test).toMatchObject({ restoreMocks: true, unstubEnvs: true });
+  });
+
+  it('runs one node set that skips test/web when web is off', () => {
+    const { node, web, count } = appProjects();
+
+    expect(count).toBe(1);
+    expect(web).toBeUndefined();
+    expect(node?.test).toMatchObject({
+      name: 'node',
+      environment: 'node',
+      include: ['test/**/*.test.{ts,tsx,js}'],
+    });
+    expect(node?.test?.exclude).toStrictEqual(
+      expect.arrayContaining([
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/.next/**',
+        'web/e2e/**',
+        'test/web/**',
+      ]),
+    );
+  });
+
+  it('adds a jsdom web set when web is on', () => {
+    const { node, web, count } = appProjects({ web: true });
+
+    expect(count).toBe(2);
+    expect(node?.test?.exclude).toContain('test/web/**');
+    expect(web?.esbuild).toStrictEqual({ jsx: 'automatic' });
+    expect(web?.test).toMatchObject({
+      name: 'web',
+      environment: 'jsdom',
+      setupFiles: ['./test/web/setup.ts'],
+      include: ['test/web/**/*.test.{ts,tsx}'],
+    });
+    expect(web?.test?.exclude).not.toContain('test/web/**');
+  });
+
+  it('uses a 30 000 ms test timeout and lets a project override it', () => {
+    expect(appProjects({ web: true }).node?.test?.testTimeout).toBe(30_000);
+    expect(appProjects({ web: true }).web?.test?.testTimeout).toBe(30_000);
+    expect(appProjects({ testTimeout: 60_000 }).node?.test?.testTimeout).toBe(60_000);
+  });
+
+  it('sets the alias on both test sets', () => {
+    const alias = { '@npt/visits': '/data/visits.json' };
+    const { node, web } = appProjects({ web: true, alias });
+
+    expect(node?.resolve?.alias).toStrictEqual(alias);
+    expect(web?.resolve?.alias).toStrictEqual(alias);
+    expect(appProjects().node?.resolve?.alias).toStrictEqual({});
+  });
+
+  it('measures src, bin and lib, and web only when web is on', () => {
+    expect(createAppVitestConfig().test?.coverage?.include).toStrictEqual([
+      'src/**/*.ts',
+      'bin/**/*.ts',
+      'lib/**/*.ts',
+    ]);
+    expect(createAppVitestConfig({ web: true }).test?.coverage?.include).toContain(
+      'web/**/*.{ts,tsx}',
+    );
+  });
+
+  it('excludes tests, type files, web build output and the extra globs from coverage', () => {
+    const exclude = createAppVitestConfig({ coverageExclude: ['src/generated/**'] }).test?.coverage
+      ?.exclude;
+
+    expect(exclude).toStrictEqual(
+      expect.arrayContaining([
+        '**/*.test.{ts,tsx,js,jsx}',
+        '**/*.d.ts',
+        'web/next.config.ts',
+        'web/e2e/**',
+        'web/.next/**',
+        'web/out/**',
+        'web/out-e2e/**',
+        'src/generated/**',
+      ]),
+    );
+  });
+
+  it('applies the global thresholds again to each folder', () => {
+    expect(createAppVitestConfig().test?.coverage?.thresholds).toStrictEqual({
+      ...COVERAGE_THRESHOLDS,
+      'src/**': folderThresholds,
+      'lib/**': folderThresholds,
+    });
+    expect(createAppVitestConfig({ web: true }).test?.coverage?.thresholds).toStrictEqual({
+      ...COVERAGE_THRESHOLDS,
+      'src/**': folderThresholds,
+      'lib/**': folderThresholds,
+      'web/**': folderThresholds,
+    });
   });
 });
