@@ -36,7 +36,7 @@
     "@vprprudhvi/tooling-tsconfig": "workspace:*",
     "@vprprudhvi/tooling-vitest-config": "workspace:*",
     "eslint": "^10.13.0",
-    "typescript": "~6.0.3",
+    "typescript": "~7.0.2",
     "vite": "^7.3.0",
     "vitest": "^5.0.5"
   }

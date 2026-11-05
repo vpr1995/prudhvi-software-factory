@@ -73,5 +73,7 @@
     // "typescript": [
     //   "~2.4.0"
     // ]
+    // tooling/eslint-config keeps TypeScript 6. typescript-eslint supports TypeScript <6.1.0 only.
+    "typescript": ["~6.0.3"]
   }
 }
