@@ -1112,7 +1112,7 @@ export function isPaid(order: Order): boolean {
 }
 ```
 
-**Enforcer:** `eslint-plugin-boundaries` and `dependency-cruiser`. The no-runtime-logic check is in `REVIEW.md` ("Conventions with no tool enforcer").
+**Enforcer:** `eslint-plugin-boundaries`. The no-runtime-logic check is in `REVIEW.md` ("Conventions with no tool enforcer").
 
 ### D.4 Infra source layout (`bin/`, `lib/`)
 
