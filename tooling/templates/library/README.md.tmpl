@@ -1,0 +1,14 @@
+# @vprprudhvi/shared-__name__
+
+Shared library. `rush new --library __name__` made this package.
+
+## Use
+
+1. Add the package to a project: `rush add -p @vprprudhvi/shared-__name__`.
+2. Import from the package root: `import { packageName } from '@vprprudhvi/shared-__name__';`.
+
+## Change
+
+- Put the code in `src/`. Export the public API from `src/index.ts` only.
+- Put the tests in `test/`. The path under `test/` mirrors `src/`.
+- Run `rush verify --to @vprprudhvi/shared-__name__`.

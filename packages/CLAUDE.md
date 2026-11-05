@@ -26,7 +26,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## How to add a package
 
-- Use the [new-shared-package](../.claude/skills/new-shared-package/SKILL.md) skill. It writes the files directly. A human reviews the PR.
+- Use the [new-shared-package](../.claude/skills/new-shared-package/SKILL.md) skill. It runs `rush new --library <pkg>`. A human reviews the PR.
 
 ## Links
 

@@ -51,6 +51,12 @@
       "tags": ["tooling"]
     },
     {
+      "packageName": "@vprprudhvi/tooling-templates",
+      "projectFolder": "tooling/templates",
+      "shouldPublish": false,
+      "tags": ["tooling"]
+    },
+    {
       "packageName": "@vprprudhvi/shared-result",
       "projectFolder": "packages/result",
       "shouldPublish": true,
