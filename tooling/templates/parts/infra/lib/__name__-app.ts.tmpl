@@ -1,0 +1,19 @@
+import { Validations } from 'aws-cdk-lib';
+import type { App } from 'aws-cdk-lib';
+import { AwsSolutionsChecks } from 'cdk-nag';
+
+import { __Name__Stack } from './__name__-stack.js';
+
+/**
+ * Adds the __name__ stack and the cdk-nag AwsSolutions checks to a CDK app.
+ *
+ * @param app - The CDK app.
+ * @returns The __name__ stack.
+ */
+export function add__Name__Stack(app: App): __Name__Stack {
+  Validations.of(app).addPlugins(new AwsSolutionsChecks(app));
+  return new __Name__Stack(app, '__Name__', {
+    env: { region: 'us-east-1' },
+    description: 'The __name__ stack. It has no app resources yet.',
+  });
+}

@@ -1,0 +1,17 @@
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { describe, expect, it, vi } from 'vitest';
+
+describe('bin/app', () => {
+  it('synthesizes the stack', async () => {
+    const outdir = mkdtempSync(join(tmpdir(), '__name__-bin-'));
+    vi.stubEnv('CDK_OUTDIR', outdir);
+    vi.resetModules();
+
+    await import('../../../bin/app.js');
+
+    expect(existsSync(join(outdir, '__Name__.template.json'))).toBe(true);
+  });
+});

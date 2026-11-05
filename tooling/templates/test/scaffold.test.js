@@ -14,6 +14,7 @@ import {
 } from '../src/fs-io.js';
 import {
   changeFileStamp,
+  fillName,
   fillVersions,
   insertProject,
   nameProblem,
@@ -24,6 +25,7 @@ import {
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const TEMPLATES = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 const REFERENCE = 'packages/result/package.json';
+const PROJECT_REFERENCE = 'projects/sample/package.json';
 const NOW = new Date('2026-11-04T09:05:00Z');
 const LIBRARY_FILES = [
   'README.md',
@@ -43,6 +45,7 @@ beforeEach(async () => {
   root = await makeTemporaryFolder();
   await writeNewText(root, 'rush.json', await readText(REPO_ROOT, 'rush.json'));
   await writeNewText(root, REFERENCE, await readText(REPO_ROOT, REFERENCE));
+  await writeNewText(root, PROJECT_REFERENCE, await readText(REPO_ROOT, PROJECT_REFERENCE));
 });
 
 afterEach(async () => {
@@ -113,6 +116,69 @@ describe('scaffold library', () => {
       ],
       packageName: '@vprprudhvi/shared-date-utils',
     });
+  });
+});
+
+describe('scaffold project', () => {
+  const makeProject = (name = 'notes-app') =>
+    scaffold({ root, templatesFolder: TEMPLATES, kind: 'project', name, now: NOW });
+
+  it('writes a bare project with no part', async () => {
+    const result = await makeProject();
+
+    expect(result.folder).toBe('projects/notes-app');
+    expect(result.packageName).toBe('@vprprudhvi/notes-app');
+    expect(await listFiles(`${root}/projects/notes-app`)).toEqual([
+      'README.md',
+      'REVIEW.md',
+      'config/rush-project.json',
+      'eslint.config.js',
+      'package.json',
+      'scripts/phase.mjs',
+      'test/project.test.ts',
+      'tsconfig.json',
+      'vitest.config.ts',
+    ]);
+    expect(await readText(root, 'projects/notes-app/test/project.test.ts')).toContain(
+      "toBe('@vprprudhvi/notes-app')",
+    );
+    expect(await readText(root, 'projects/notes-app/vitest.config.ts')).toContain(
+      'createAppVitestConfig()',
+    );
+  });
+
+  it('is private, has the five phases and takes versions from the sample', async () => {
+    await makeProject();
+    const reference = JSON.parse(await readText(root, PROJECT_REFERENCE));
+    const manifest = JSON.parse(await readText(root, 'projects/notes-app/package.json'));
+
+    expect(manifest.private).toBe(true);
+    for (const phase of ['build', 'lint', 'typecheck', 'test', 'e2e']) {
+      expect(manifest.scripts[`_phase:${phase}`]).toBe(`node scripts/phase.mjs ${phase}`);
+    }
+    expect(manifest.dependencies).toBeUndefined();
+    for (const [dependency, version] of Object.entries(manifest.devDependencies)) {
+      expect(version).toBe(reference.devDependencies[dependency]);
+    }
+  });
+
+  it('adds a rush.json entry with the project tag and writes no change file', async () => {
+    const result = await makeProject();
+
+    expect(parseProjects(await readText(root, 'rush.json')).at(-1)).toEqual({
+      packageName: '@vprprudhvi/notes-app',
+      projectFolder: 'projects/notes-app',
+      shouldPublish: false,
+      tags: ['project/notes-app'],
+    });
+    expect(result.files.filter((file) => file.startsWith('common/changes'))).toEqual([]);
+    expect(await pathExists(root, 'common/changes')).toBe(false);
+  });
+
+  it('rejects a project that exists', async () => {
+    await expect(makeProject('sample')).rejects.toThrow(
+      'rush.json already has @vprprudhvi/sample (projects/sample)',
+    );
   });
 });
 
@@ -187,6 +253,12 @@ describe('helpers', () => {
     });
     const filled = JSON.parse(fillVersions(text, { devDependencies: { a: '~2.0.0' } }, 'ref'));
     expect(filled).toEqual({ dependencies: { a: '~2.0.0' }, peerDependencies: { b: '^1.0.0' } });
+  });
+
+  it('fillName fills the kebab, Pascal and constant forms', () => {
+    expect(fillName('__name__ __Name__ __NAME___API_', 'notes-app2')).toBe(
+      'notes-app2 NotesApp2 NOTES_APP2_API_',
+    );
   });
 
   it('changeFileStamp uses UTC minutes', () => {

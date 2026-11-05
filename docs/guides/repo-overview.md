@@ -9,13 +9,13 @@ This guide holds the stack, the layout, the full import rules, and the non-goals
 - Web: Next.js (App Router). API: Fastify (TypeScript).
 - Contracts: Zod schemas and types in `src/contracts` of each project. It is the single source of truth.
 - Compute: Lambda first. API: Fastify on Lambda (`@fastify/aws-lambda`) behind API Gateway HTTP API. Web: Next.js through OpenNext (CloudFront, S3, Lambda).
-- Infrastructure: AWS CDK. `platform/infra` owns shared AWS resources. Each project has its own CDK app in `bin` and `lib`.
+- Infrastructure: AWS CDK. `platform/infra` owns shared AWS resources. A project that needs infra has its own CDK app in `bin` and `lib`.
 - Tests: Vitest, Testing Library, Bruno (API requests), Playwright and axe (web), CDK assertions.
 - Tracing: OpenTelemetry. See `docs/standards/observability.md`.
 
 ## 2. Layout
 
-- `projects/<name>/`: one product and one Rush project (`@vprprudhvi/<name>`, one `package.json`). Parts are folders: `src/contracts`, `src/api`, `web`, and the CDK app in `bin` and `lib`. `src/contracts` is always present. The other parts are optional. Guide: `docs/guides/`.
+- `projects/<name>/`: one product and one Rush project (`@vprprudhvi/<name>`, one `package.json`). Parts are folders: `src/api`, `web`, and the CDK app in `bin` and `lib`. Each part is optional. When the project has an endpoint, its contract lives in `src/contracts`. `rush new --project` and `rush add-part` make them. Guide: `docs/guides/`.
 - `projects/<name>/bruno/`: the Bruno collection of the project.
 - `projects/sample/`: the sample product. It has every part.
 - `platform/infra`: shared AWS resources (one Cognito user pool, imported Route53 zone, ACM wildcard certificate). Package `@vprprudhvi/platform-infra`. It writes IDs to SSM under `/platform/<env>/...`.

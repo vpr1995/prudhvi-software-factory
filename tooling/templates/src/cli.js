@@ -1,6 +1,7 @@
-// Command line for `rush new`. Rush adds the "--library" parameter to the shell command.
+// Command lines for `rush new` and `rush add-part`. Rush adds the parameters to the shell command.
 import { parseArgs } from 'node:util';
 
+import { addPart, PARTS } from './add-part.js';
 import { KINDS, scaffold } from './scaffold.js';
 
 /**
@@ -13,7 +14,49 @@ import { KINDS, scaffold } from './scaffold.js';
  * @property {Date} [now] - Time for the change file name.
  */
 
-const USAGE = `Usage: rush new --library <name>`;
+const USAGE = `Usage: rush new --library <name> | rush new --project <name>`;
+const ADD_PART_USAGE = `Usage: rush add-part --project <name> --part <${Object.keys(PARTS).join('|')}>`;
+
+/**
+ * @param {string} kind - Key of KINDS.
+ * @param {{ folder: string, packageName: string }} result - What `scaffold` made.
+ * @returns {string[]} The next steps for the user.
+ */
+function nextSteps(kind, { folder, packageName }) {
+  if (kind === 'project') {
+    const name = folder.slice(folder.lastIndexOf('/') + 1);
+    return [
+      `  1. Add each part that the project needs: rush add-part --project ${name} --part <${Object.keys(PARTS).join('|')}>`,
+      `  2. Edit the description in ${folder}/package.json and ${folder}/README.md.`,
+      `  3. Run: rush verify --to ${packageName}`,
+    ];
+  }
+  return [
+    `  1. Write the code in ${folder}/src and the tests in ${folder}/test.`,
+    `  2. Edit the description in ${folder}/package.json and ${folder}/README.md.`,
+    `  3. Edit the comment in the change file under common/changes/${packageName}/.`,
+    `  4. Run: rush verify --to ${packageName}`,
+  ];
+}
+
+/**
+ * Write what was made, run `rush update`, and report its result.
+ *
+ * @param {{ command: string, title: string, files: string[] }} made - Command name for messages, first line of the report, and the paths that were written.
+ * @param {CliContext} context - Paths and output functions.
+ * @returns {number} The exit code of `rush update`.
+ */
+function report({ command, title, files }, context) {
+  context.out(`${title}\n${files.map((file) => `  ${file}\n`).join('')}`);
+  context.out('Running rush update...\n');
+  const code = context.update();
+  if (code !== 0) {
+    context.err(
+      `${command}: rush update failed (exit ${code}). The files stay. Fix the cause, then run rush update.\n`,
+    );
+  }
+  return code;
+}
 
 /**
  * Run `rush new`. Exactly one kind flag must be given.
@@ -58,24 +101,70 @@ export async function run(argv, context) {
     context.err(`rush new: ${error instanceof Error ? error.message : String(error)}\n`);
     return 1;
   }
-  context.out(
-    `Created ${result.packageName}:\n${result.files.map((file) => `  ${file}\n`).join('')}`,
+  const code = report(
+    { command: 'rush new', title: `Created ${result.packageName}:`, files: result.files },
+    context,
   );
-  context.out('Running rush update...\n');
-  const code = context.update();
-  if (code !== 0) {
+  if (code !== 0) return code;
+  context.out(['Next steps:', ...nextSteps(kind, result), ''].join('\n'));
+  return 0;
+}
+
+/**
+ * Run `rush add-part`. Both parameters are required.
+ *
+ * @param {string[]} argv - Arguments after the script name.
+ * @param {CliContext} context - Paths and output functions.
+ * @returns {Promise<number>} The exit code.
+ */
+export async function runAddPart(argv, context) {
+  /** @type {{ project?: string | undefined, part?: string | undefined }} */
+  let values;
+  try {
+    ({ values } = parseArgs({
+      args: argv,
+      options: { project: { type: 'string' }, part: { type: 'string' } },
+      strict: true,
+      allowPositionals: false,
+    }));
+  } catch (error) {
     context.err(
-      `rush new: rush update failed (exit ${code}). The files stay. Fix the cause, then run rush update.\n`,
+      `rush add-part: ${error instanceof Error ? error.message : String(error)}\n${ADD_PART_USAGE}\n`,
     );
-    return code;
+    return 1;
   }
+  const { project, part } = values;
+  if (project === undefined || part === undefined) {
+    context.err(`rush add-part: give --project and --part\n${ADD_PART_USAGE}\n`);
+    return 1;
+  }
+
+  let result;
+  try {
+    result = await addPart({
+      root: context.root,
+      templatesFolder: context.templatesFolder,
+      project,
+      part,
+    });
+  } catch (error) {
+    context.err(`rush add-part: ${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+  const code = report(
+    {
+      command: 'rush add-part',
+      title: `Added the ${part} part to ${result.packageName}:`,
+      files: result.files,
+    },
+    context,
+  );
+  if (code !== 0) return code;
   context.out(
     [
       'Next steps:',
-      `  1. Write the code in ${result.folder}/src and the tests in ${result.folder}/test.`,
-      `  2. Edit the description in ${result.folder}/package.json and ${result.folder}/README.md.`,
-      `  3. Edit the comment in the change file under common/changes/${result.packageName}/.`,
-      `  4. Run: rush verify --to ${result.packageName}`,
+      ...result.nextSteps.map((step, index) => `  ${String(index + 1)}. ${step}`),
+      `  ${String(result.nextSteps.length + 1)}. Run: rush verify --to ${result.packageName}`,
       '',
     ].join('\n'),
   );

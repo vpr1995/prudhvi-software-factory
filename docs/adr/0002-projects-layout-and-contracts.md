@@ -1,6 +1,6 @@
 # ADR 0002: Use a projects layout with per-project contracts and import boundaries
 
-- Status: Superseded by ADR 0010
+- Status: Superseded by ADR 0010. Partly replaced 2026-11-04: contracts and CDK are optional; see projects/CLAUDE.md
 - Date: 2026-10-22
 
 ## Context

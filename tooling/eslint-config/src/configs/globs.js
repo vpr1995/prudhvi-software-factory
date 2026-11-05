@@ -29,4 +29,6 @@ export const IGNORED_PATHS = [
   '**/temp/**',
   'common/temp/**',
   '**/*.d.ts',
+  // File templates of `rush new` (tooling/templates). They hold placeholders, so they are not code.
+  '**/*.tmpl',
 ];

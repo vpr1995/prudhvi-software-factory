@@ -1,0 +1,7 @@
+{
+  // Web settings for the web tests. ESLint finds the nearest tsconfig.json of each file, and the
+  // package tsconfig.json excludes this folder. `web/tsconfig.json` also includes it for typecheck.
+  "extends": "../../web/tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [".", "../../web/next-env.d.ts"]
+}

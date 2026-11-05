@@ -1,0 +1,50 @@
+import { z } from 'zod';
+
+const DEFAULT_PORT = 3000;
+const MAX_PORT = 65_535;
+const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_VERSION = '0.0.0';
+
+/** The service name. It is the `service.name` of logs and traces. */
+export const SERVICE_NAME = '__name__-api';
+
+const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'] as const;
+
+const EnvironmentSchema = z.object({
+  __NAME___API_PORT: z.coerce.number().int().min(0).max(MAX_PORT).default(DEFAULT_PORT),
+  __NAME___API_HOST: z.string().min(1).default(DEFAULT_HOST),
+  __NAME___API_LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
+  __NAME___API_ENVIRONMENT: z.string().min(1).default('local'),
+  __NAME___API_VERSION: z.string().min(1).default(DEFAULT_VERSION),
+});
+
+/** The validated settings of the API. */
+export type Config = {
+  readonly serviceName: string;
+  readonly serviceVersion: string;
+  readonly environment: string;
+  readonly host: string;
+  readonly port: number;
+  readonly logLevel: (typeof LOG_LEVELS)[number];
+};
+
+/**
+ * Reads and validates the settings. It throws a `ZodError` when a value is not valid.
+ * This is the only file that reads the environment.
+ *
+ * @param source - The environment variables. Defaults to the process environment.
+ * @returns The settings.
+ */
+export function loadConfig(
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): Config {
+  const parsed = EnvironmentSchema.parse(source);
+  return {
+    serviceName: SERVICE_NAME,
+    serviceVersion: parsed.__NAME___API_VERSION,
+    environment: parsed.__NAME___API_ENVIRONMENT,
+    host: parsed.__NAME___API_HOST,
+    port: parsed.__NAME___API_PORT,
+    logLevel: parsed.__NAME___API_LOG_LEVEL,
+  };
+}
