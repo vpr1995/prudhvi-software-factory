@@ -1,4 +1,4 @@
-# Gate file. A human adds allowlist entries, each with a reason. Agents must not edit it.
+# A human adds allowlist entries, each with a reason.
 title = "projects-monorepo gitleaks config"
 
 [extend]

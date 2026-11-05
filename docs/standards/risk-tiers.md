@@ -2,15 +2,15 @@
 
 Each pull request has one risk tier: `risk:low`, `risk:medium`, or `risk:high`. The tier sets the number of human approvals.
 
-The `risk-classify.yml` workflow runs `scripts/gates/classify-risk.mjs` on each PR. The script uses path rules and a Claude classifier. It sets the label.
+The `risk-classify.yml` workflow (planned) sets the label from path rules and a Claude classifier.
 
 ## 1. Tiers and approvals
 
-| Tier   | Label         | Human approvals | Typical changes                                                 |
-| ------ | ------------- | --------------- | --------------------------------------------------------------- |
-| Low    | `risk:low`    | 0               | Docs, copy, tests only. Additive change behind a flag.          |
-| Medium | `risk:medium` | 1               | A normal code change in one project, with no high-tier path.    |
-| High   | `risk:high`   | 2               | A high-tier path (section 2), a new dependency, or a gate file. |
+| Tier   | Label         | Human approvals | Typical changes                                              |
+| ------ | ------------- | --------------- | ------------------------------------------------------------ |
+| Low    | `risk:low`    | 0               | Docs, copy, tests only. Additive change behind a flag.       |
+| Medium | `risk:medium` | 1               | A normal code change in one project, with no high-tier path. |
+| High   | `risk:high`   | 2               | A high-tier path (section 2), or a new dependency.           |
 
 Single-maintainer rule: see section 3.
 
@@ -27,19 +27,18 @@ A PR that changes any path below is `risk:high`.
 | `packages/**`                                                      | Shared code. A change has a wide effect.                                                          |
 | New dependency, or a change to `common/config/rush/pnpm-lock.yaml` | Supply chain.                                                                                     |
 | `.github/**`                                                       | CI and release controls.                                                                          |
-| Gate files in `docs/standards/gates.md`, section 2.1               | Controls for all other changes.                                                                   |
 
 ### 2.1 Medium-tier paths
 
 A PR that changes the paths below, and no high-tier path, is `risk:medium`.
 
-| Path or change                              | Why                                                                                                 |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `projects/*/bin/**` and `projects/*/lib/**` | Cloud resources and IAM for one project. The infra reviewer, cdk-nag and the synth gate check them. |
+| Path or change                              | Why                                                                                 |
+| ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `projects/*/bin/**` and `projects/*/lib/**` | Cloud resources and IAM for one project. The infra reviewer and cdk-nag check them. |
 
-`projects/*/cdk.json` is a gate file and stays high risk.
+`projects/*/cdk.json` stays high risk.
 
-Changes to the human-reviewed documents in `docs/standards/gates.md`, section 2.2, are at least `risk:medium`. They need a CODEOWNERS approval.
+Changes to `CLAUDE.md` files, `REVIEW.md` files, `docs/guides/**`, and `docs/standards/**` are at least `risk:medium`. They need a CODEOWNERS approval.
 
 ## 3. Approval rules
 
@@ -59,7 +58,7 @@ Use this setup:
 2. The maintainer reviews and approves each PR from the human account.
 3. Section 1 requires two approvals for `risk:high`. Until a second maintainer exists, `risk:high` needs:
    - one human approval from `@vpr1995`, and
-   - all automated reviews that pass: AI review (`claude-review.yml`), security review, and `check-gates`.
+   - all automated reviews that pass: AI review (`claude-review.yml`), and security review.
 4. The PR must name this degraded rule in the Risk tier section. Write: "Single maintainer: 1 human approval plus passing automated reviews."
 5. When a second maintainer exists, restore the two-approval rule in the ruleset and in this section.
 
@@ -67,13 +66,13 @@ This degraded rule is a known gap. Record the change in a new ADR when the secon
 
 ## 4. How the label is set
 
-1. `risk-classify.yml` runs on each PR event.
-2. `scripts/gates/classify-risk.mjs` checks the changed paths against section 2.
-3. The script asks the classifier for a second opinion on the change.
-4. The workflow sets one label: `risk:low`, `risk:medium`, or `risk:high`.
+1. `risk-classify.yml` (planned) runs on each PR event.
+2. It checks the changed paths against section 2.
+3. It asks the classifier for a second opinion on the change.
+4. It sets one label: `risk:low`, `risk:medium`, or `risk:high`.
 5. The ruleset reads the label and requires the number of approvals in section 1.
 
-If a PR has a high-tier path, the label is `risk:high`. An agent cannot set or remove a risk label. See `docs/standards/gates.md`, section 5.
+If a PR has a high-tier path, the label is `risk:high`.
 
 ## 5. Choosing the tier for a PR you write
 

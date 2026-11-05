@@ -127,7 +127,7 @@ function parseCreateNote(raw: string): ReturnType<typeof CreateNoteSchema.safePa
   }
 }
 
-describe('fixtures/create-note-cases.json (shared with api-py and api-go)', () => {
+describe('fixtures/create-note-cases.json', () => {
   it('matches the Zod schema, which is the reference for every API', async () => {
     const cases = await readCreateNoteCases();
 

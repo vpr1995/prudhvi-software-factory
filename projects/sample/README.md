@@ -1,6 +1,6 @@
 # sample
 
-`sample` is one product in one Rush project. The Rush name is `@vprprudhvi/sample`. It has one `package.json`. It holds the contracts, three APIs (TypeScript, Python, Go), a web app, and a Bruno collection. It is the model for each new project.
+`sample` is one product in one Rush project. The Rush name is `@vprprudhvi/sample`. It has one `package.json`. It holds the contracts, a TypeScript API, a web app, and a Bruno collection. It is the model for each new project.
 
 Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you change it.
 
@@ -8,12 +8,10 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
 
 | Folder           | What it is                                                                                                                                                                                                                                    |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/contracts/` | Zod schemas. They are the only source of the API shape. `fixtures/create-note-cases.json` holds edge cases that all three APIs must pass.                                                                                                     |
+| `src/contracts/` | Zod schemas. They are the only source of the API shape. `fixtures/create-note-cases.json` holds edge cases for the contracts.                                                                                                                 |
 | `src/api/`       | The TypeScript API (Fastify). It runs on Lambda (`lambda.ts`) or on your machine (`main.ts`). `domain/` holds pure code. `adapters/` holds storage. `routes/` holds the HTTP routes. `config.ts` is the only file that reads the environment. |
-| `src/api-py/`    | The Python API (Powertools). It has its own `pyproject.toml` and `uv.lock`. `src/sample_api/generated/` is generated code. Do not edit it.                                                                                                    |
-| `src/api-go/`    | The Go API. The module is `github.com/vprprudhvi/sample/api-go`. `internal/gen/` is generated code. Do not edit it.                                                                                                                           |
 | `web/`           | The Next.js app. `app/` holds the pages. `components/` and `lib/` hold the parts of the pages. `e2e/` holds the Playwright specs. `proxy.ts` sets the security headers.                                                                       |
-| `bruno/`         | One Bruno collection. It documents and tests every API route. The same collection runs against the three APIs.                                                                                                                                |
+| `bruno/`         | One Bruno collection. It documents and tests every API route. The collection runs against the TypeScript API.                                                                                                                                 |
 | `scripts/`       | Helpers for the phases: `phase.mjs` (runs a phase for every part), `emit-openapi.mjs` (writes the OpenAPI document), `e2e.mjs` (starts an API and runs Bruno).                                                                                |
 | `config/`        | The Rush settings (`rush-project.json`): which folders are build outputs.                                                                                                                                                                     |
 | `test/`          | The unit tests. The path under `test/` mirrors the source path. `test/web/setup.ts` sets up the web tests.                                                                                                                                    |
@@ -40,15 +38,13 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
 
 Rush runs each phase through the `_phase:*` script of `package.json`. Each script runs `scripts/phase.mjs`. The script runs every part one after the other. When a part fails, the phase stops and the message names the part.
 
-| Phase       | TypeScript and web                                                               | Python                                                              | Go                                                                           |
-| ----------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `build`     | `tsc` builds `dist/`, then `dist/openapi.json`. `next build` builds `web/.next`. | `compileall`                                                        | `go build` writes `dist/api-go/sample-api`                                   |
-| `lint`      | `eslint --max-warnings 0`                                                        | `ruff`, `bandit`, then `pip-licenses` against the license allowlist | `gofumpt`, `golangci-lint`, then `go-licenses` against the license allowlist |
-| `typecheck` | `tsc --noEmit`, `next typegen` and `tsc` for `web`                               | `mypy --strict`                                                     | `go vet`, `go build`                                                         |
-| `test`      | `vitest run --coverage` (lines, statements, functions 80, branches 75)           | drift check, then `pytest` (80)                                     | drift check, then `go test -race` (80)                                       |
-| `e2e`       | Bruno against the TypeScript API. Playwright and axe against the web app.        | Bruno against the Python API                                        | Bruno against the Go API                                                     |
-
-The drift checks regenerate the Python models and the Go types from `dist/openapi.json`. They fail when the committed generated code is different. They run in the `test` phase because that phase waits for the `build` phase of this project. The `lint` phase does not.
+| Phase       | What it runs                                                                     |
+| ----------- | -------------------------------------------------------------------------------- |
+| `build`     | `tsc` builds `dist/`, then `dist/openapi.json`. `next build` builds `web/.next`. |
+| `lint`      | `eslint --max-warnings 0`                                                        |
+| `typecheck` | `tsc --noEmit`, `next typegen` and `tsc` for `web`                               |
+| `test`      | `vitest run --coverage` (lines, statements, functions 80, branches 75)           |
+| `e2e`       | Bruno against the TypeScript API. Playwright and axe against the web app.        |
 
 Run the phases from the repo root:
 
@@ -64,22 +60,17 @@ node common/scripts/install-run-rush.js verify
 4. Start the web app in a second terminal: `cd projects/sample/web && ../node_modules/.bin/next dev`.
 5. For traces, run `docker compose up -d` in the repo root. Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`. Open `http://localhost:16686`.
 
-Start the Python API: `cd projects/sample/src/api-py && uv run python -m sample_api`. Start the Go API: `projects/sample/dist/api-go/sample-api`.
-
 ## Environment variables
 
-Each API reads its own prefix. Only `config.ts` (TypeScript), `config.py` (Python), and `config.go` (Go) read them.
+Each part reads its own prefix. Only `config.ts` reads them.
 
-| Part         | Prefix           | Service name    |
-| ------------ | ---------------- | --------------- |
-| `src/api`    | `SAMPLE_API_`    | `sample-api`    |
-| `src/api-py` | `SAMPLE_API_PY_` | `sample-api-py` |
-| `src/api-go` | `SAMPLE_API_GO_` | `sample-api-go` |
-| `web`        | `SAMPLE_WEB_`    | `sample-web`    |
+| Part      | Prefix        | Service name |
+| --------- | ------------- | ------------ |
+| `src/api` | `SAMPLE_API_` | `sample-api` |
+| `web`     | `SAMPLE_WEB_` | `sample-web` |
 
-## Regenerate the generated code
+## Regenerate the OpenAPI document
 
 1. Change the Zod schema in `src/contracts`.
 2. Run the `build` phase. It writes `dist/openapi.json`.
-3. Run `npm run gen:py` and `npm run gen:go` in this folder.
-4. Commit the result. Never edit the generated files by hand.
+3. Never edit `dist/` by hand.

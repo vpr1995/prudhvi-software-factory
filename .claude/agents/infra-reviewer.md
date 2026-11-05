@@ -42,7 +42,7 @@ Any change under `platform/infra/**` is high risk. Report it with at least one I
     Check each SSM path is under `/platform/<env>/`. A removed or renamed SSM parameter is Important.
 - DNS: records go only in the platform hosted zone, under the project's subdomain.
 - Compute: Lambda-first. Flag an ECS, Fargate, EC2, or container addition as Important unless the diff cites an ADR. API Gateway HTTP API routes without a JWT authorizer need a reason in code or tests.
-- Lambda: explicit timeout and memory, log retention set, tracing on, runtime matches the build output (Go uses `PROVIDED_AL2023` with a `bootstrap` binary).
+- Lambda: explicit timeout and memory, log retention set, tracing on, runtime matches the build output.
 - Public exposure: `0.0.0.0/0` ingress, public subnets for compute that does not need them, unauthenticated function URLs.
 - Cost: NAT gateways, provisioned concurrency, large memory settings, log groups with no retention.
 - Naming: PascalCase construct IDs. No physical names. No hard-coded account IDs or regions in constructs.

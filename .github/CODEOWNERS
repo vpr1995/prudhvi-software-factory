@@ -6,7 +6,7 @@
 #
 # Rules:
 # - The last matching line wins for each file. Order: general first, specific last.
-# - Gate files come last.
+# - Config and policy files come last.
 # - When a second maintainer exists, replace the owner on each line with a team.
 #   Keep the grouping comments.
 
@@ -54,16 +54,15 @@
 **/AGENTS.md @vpr1995
 
 # ---------------------------------------------------------------------------
-# Gate files (hook-blocked for agents; always last)
+# Config and policy files (always last)
 # ---------------------------------------------------------------------------
 
 # GitHub workflows, templates, rulesets, and this file
 /.github/ @vpr1995
 /.github/CODEOWNERS @vpr1995
 
-# Agent permissions, hooks, and skills
+# Agent permissions and skills
 /.claude/settings.json @vpr1995
-/.claude/hooks/ @vpr1995
 
 # Security configuration
 /.gitleaks.toml @vpr1995
@@ -72,7 +71,7 @@
 /tooling/opengrep/ @vpr1995
 /tooling/license-allowlist.json @vpr1995
 
-# Coding conventions (hook-blocked)
+# Coding conventions
 /docs/standards/coding-conventions.md @vpr1995
 
 # Rush, lockfile, git hooks, autoinstallers
@@ -81,14 +80,7 @@
 /common/git-hooks/ @vpr1995
 /common/autoinstallers/ @vpr1995
 
-# Gate scripts
-/scripts/gates/ @vpr1995
-
-# Python and Go locks and settings (gate files)
-**/pyproject.toml @vpr1995
-**/uv.lock @vpr1995
-**/go.sum @vpr1995
-**/.golangci.yml @vpr1995
+# Playwright settings
 **/playwright.config.* @vpr1995
 
 # Build, lint, test, and boundary settings

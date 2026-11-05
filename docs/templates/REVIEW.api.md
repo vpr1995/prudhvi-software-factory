@@ -76,6 +76,6 @@ Fix: attach the CreateOrderSchema to the route and remove the cast.
 - Each new or changed route has a Bruno request in `projects/<name>/bruno/`. Report `Important` if it does not.
 - The request has a `docs` block with purpose, auth, and error codes.
 - The request has an `assert` block with the status, the error envelope shape, and the key fields.
-- The request has no `skip-request` in a script. A request with no assertion fails `bruno-coverage`.
+- The request has no `skip-request` in a script. A request with no assertion is a defect.
 - Environment files hold no secrets. Secrets use `{{process.env.X}}`.
 - Changing a route without changing its request is `Important`. Name the route and the request file.

@@ -4,8 +4,8 @@ Part: `projects/<name>/src/contracts`. Package: `@vprprudhvi/<name>` (one packag
 
 ## Purpose
 
-- Zod in `src/contracts` is the only source of the API shape. Python and Go models are generated from it.
-- Never edit generated Python or Go code by hand. Change the Zod schema and regenerate.
+- Zod in `src/contracts` is the only source of the API shape. OpenAPI and JSON Schema are generated from it.
+- Never edit generated output by hand. Change the Zod schema and rebuild.
 
 ## Folder layout
 
@@ -25,18 +25,15 @@ Part: `projects/<name>/src/contracts`. Package: `@vprprudhvi/<name>` (one packag
 
 1. Change the Zod schema.
 2. Run `rush build --only @vprprudhvi/<name>`. The build phase emits JSON Schema and OpenAPI to `dist/`.
-3. Python: the same build phase runs `src/api-py/scripts/generate-models.sh`. `datamodel-code-generator` writes Pydantic v2 models to `src/api-py/src/<package>/generated/`.
-4. Go: the same build phase runs `src/api-go/scripts/generate-types.sh`. `oapi-codegen` writes types to `src/api-go/internal/gen/`.
-5. Commit the generated code. CI fails on drift.
+3. Use the schemas in `src/api` and `web` through the inferred types.
 
 ## Tests
 
 - Test each Zod schema with valid and invalid input. See `docs/standards/testing.md`, section 3.4.
 - Mutation tests (Stryker) run nightly on `src/contracts`.
-- Each generated Python model has a round-trip test. See `docs/standards/testing.md`, section 8.1.
 
 ## Links
 
 - Conventions: `docs/standards/coding-conventions.md`, sections A.8, A.13, A.14, C.3, D.3.
-- Skills: `.claude/skills/new-api-route/SKILL.md`, `.claude/skills/new-api-route-py/SKILL.md`, `.claude/skills/new-api-route-go/SKILL.md`.
-- ADR: `docs/adr/0002-projects-layout-and-contracts.md`, `docs/adr/0007-polyglot-backends.md`.
+- Skills: `.claude/skills/new-api-route/SKILL.md`.
+- ADR: `docs/adr/0002-projects-layout-and-contracts.md`.

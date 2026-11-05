@@ -20,7 +20,7 @@ function newApp(context: Record<string, unknown> = {}): App {
   });
 }
 
-/** The time that one stack build can take: it hashes the Python and Go code. */
+/** The time that one stack build can take. */
 const STACK_TIMEOUT_MS = 30_000;
 
 describe('addSampleApiStack', () => {

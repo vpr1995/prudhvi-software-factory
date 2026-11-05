@@ -1,5 +1,5 @@
 // Runs after `rush install` (eventHooks.postRushInstall).
-// Installs the non-npm binaries the git hooks need: gitleaks and opengrep.
+// Installs the non-npm binary the git hooks need: gitleaks.
 // Each download is pinned and checked with sha256 before it is used.
 // Env: CI or SKIP_TOOL_INSTALL=1 skips. INSTALL_TOOLS_DIR sets the install dir.
 import { execFileSync } from 'node:child_process';
@@ -17,8 +17,8 @@ import {
   realPath,
   removePath,
   writeBytes,
-} from '../gates/lib/fs-io.mjs';
-import { readEnv } from '../gates/lib/gates.config.mjs';
+} from './lib/fs-io.mjs';
+import { readEnv } from './lib/tools.config.mjs';
 
 const PINS = {
   gitleaks: {
@@ -44,32 +44,6 @@ const PINS = {
       'linux-arm64': {
         file: 'gitleaks_8.28.0_linux_arm64.tar.gz',
         sha256: 'eff65261156100e5d94a6b3dec313d532fddfe19ae1590bf7a2b4f2699128356',
-      },
-    },
-  },
-  opengrep: {
-    version: '1.30.2',
-    bin: 'opengrep',
-    versionArgs: ['--version'],
-    url: 'https://github.com/opengrep/opengrep/releases/download/v1.30.2/',
-    archive: false, // raw executable
-    hint: 'https://github.com/opengrep/opengrep/releases/tag/v1.30.2',
-    assets: {
-      'darwin-arm64': {
-        file: 'opengrep_osx_arm64',
-        sha256: 'f1aaa30b88959cb82522c4e1475816278a1f161f994509a518453c0455f9d24b',
-      },
-      'darwin-x64': {
-        file: 'opengrep_osx_x86',
-        sha256: 'fcf47da30d5c3a11119f2ec4e0d1ee55e3c3822e8f90d909bf9f33dfce99044a',
-      },
-      'linux-x64': {
-        file: 'opengrep_manylinux_x86',
-        sha256: 'a66aa3278457f02b287b985a45b6762aebcaba5000f2689245fd1ed86d1456c7',
-      },
-      'linux-arm64': {
-        file: 'opengrep_manylinux_aarch64',
-        sha256: '90acea5df4b733083f388d4feeb250ca802f671b33d1f222653d1e571dd2b0d8',
       },
     },
   },

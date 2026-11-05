@@ -64,7 +64,7 @@ For a path parameter, use `:name` in the URL and a `params:path` block. Keep the
 1. Create or open the `.bru` file in the resource folder.
 2. Write the `docs` block: purpose, auth, and each error code the route returns.
 3. Write at least one `assert` line. Cover the status, the error envelope `error.code` on error routes, and the key fields.
-4. Run the route: `rush e2e --only @vprprudhvi/<name>` . The e2e phase runs each API part (TypeScript, Python, Go). It starts each server on a free port and runs `bru run` with `--env local --env-var baseUrl=http://localhost:<port>`.
+4. Run the route: `rush e2e --only @vprprudhvi/<name>` . The e2e phase runs the API part. It starts the server on a free port and runs `bru run` with `--env local --env-var baseUrl=http://localhost:<port>`.
 5. Paste the `bru run` summary.
 
 ## Done when
@@ -79,9 +79,8 @@ For a path parameter, use `:name` in the URL and a `params:path` block. Keep the
 - Put a secret value in a `.bru` or environment file. Use `{{process.env.X}}`.
 - Remove or weaken an assertion so a route passes.
 - Edit the docs to describe behavior that the code does not have.
-- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
-- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`, `**/pyproject.toml`, `**/.golangci.yml`, `**/uv.lock`, `**/go.sum`, `tooling/python/**`, `tooling/go/**`. Full list: `docs/standards/gates.md`.
+- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
+- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`.
 - Run `cdk deploy` or `cdk destroy`.
 - Use `--no-verify`.

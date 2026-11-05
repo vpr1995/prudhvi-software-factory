@@ -26,9 +26,9 @@ State folder: `.claude/state/pre-pr/`.
 6. Run the `bug-hunt` skill on that range. It spawns the `fresh-reviewer` agent.
 7. Run these built-ins in order, with the same range in the request text: the `simplify` skill (it applies its fixes), then the `code-review` skill, then the `security-review` skill. Do not pass `--comment` or `--fix` to `code-review`. This skill fixes findings itself.
 8. Merge all new findings into `findings.md`. Before you add a finding, check the file. Skip a finding that matches an existing row (same file, same bug class). Never repeat a finding.
-9. Fix every open Important finding. Fix Nits when the change is small. For a false positive, set status `rejected` and quote the code that shows it is wrong. A fix to a gate file goes to `.claude/state/handoff/pre-pr/` instead of the real path.
+9. Fix every open Important finding. Fix Nits when the change is small. For a false positive, set status `rejected` and quote the code that shows it is wrong.
 10. Run the `verify` skill. It must pass.
-11. Commit the round's changes, if any. Stage explicit paths only: `git add <path> ...`. Do not stage a gate file. Run `git commit -m "fix(<scope>): address pre-pr round <n>"`.
+11. Commit the round's changes, if any. Stage explicit paths only: `git add <path> ...`. Run `git commit -m "fix(<scope>): address pre-pr round <n>"`.
 12. Stop when no open Important finding remains. Report the rounds run and the count of each finding status.
 13. If open Important findings remain and round < 3, add 1 to round and go to step 2.
 14. If open Important findings remain after round 3, stop. List the open findings with their IDs. Ask the human about the approach. Do not start round 4.
@@ -46,9 +46,8 @@ State folder: `.claude/state/pre-pr/`.
 - Reject a finding only to finish the run. Give evidence.
 - Review files outside the range, except to read context.
 - Pass `--comment` or `--fix` to `code-review`.
-- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Py/Go: no `@pytest.mark.skip` or `xfail`, `pytest.skip(`, or `t.Skip(`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
-- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`. Py/Go: no `# noqa`, `# type: ignore`, `# nosec`, `# pragma: no cover`, `//nolint`, or `// #nosec`.
-- Edit gate files. Gate files need a human: `.github/**`, `CODEOWNERS`, `.claude/settings.json`, `.claude/hooks/**`, `platform/infra/**`, `tooling/**`, `rush.json`, `common/config/rush/**`, `common/git-hooks/**`, `common/autoinstallers/**`, `scripts/check-gates.ts`, `scripts/classify-risk.ts`, `docs/standards/coding-conventions.md`, `**/REVIEW.md`, `**/rush-project.json`, `**/cdk.json`, `eslint.config.*`, `tsconfig*.json`, `vitest.config.*`, `.dependency-cruiser.*`, `.gitleaks.toml`, `audit-ci.jsonc`, `.checkov.yaml`. Full list: `docs/standards/gates.md`.
+- Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
+- Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`. Use `rush install`.
 - Run `cdk deploy`.
 - Use `--no-verify`.

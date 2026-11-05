@@ -34,7 +34,7 @@ const TSCONFIG = {
 
 const allCases = [...CASES, ...BOUNDARY_CASES];
 
-describe('shared ESLint config (gate fixtures)', () => {
+describe('shared ESLint config (fixtures)', () => {
   /** @type {string} */
   let root = '';
   /** @type {Map<string, string[]>} */

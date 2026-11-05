@@ -15,12 +15,6 @@ importers:
 
   ../../packages/cdk-constructs:
     devDependencies:
-      '@aws-cdk/aws-lambda-go-alpha':
-        specifier: 2.273.0-alpha.0
-        version: 2.273.0-alpha.0(aws-cdk-lib@2.273.0(constructs@10.8.1))(constructs@10.8.1)
-      '@aws-cdk/aws-lambda-python-alpha':
-        specifier: 2.273.0-alpha.0
-        version: 2.273.0-alpha.0(aws-cdk-lib@2.273.0(constructs@10.8.1))(constructs@10.8.1)
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
@@ -356,12 +350,6 @@ importers:
 
   ../../projects/sample:
     dependencies:
-      '@aws-cdk/aws-lambda-go-alpha':
-        specifier: 2.273.0-alpha.0
-        version: 2.273.0-alpha.0(aws-cdk-lib@2.273.0(constructs@10.8.1))(constructs@10.8.1)
-      '@aws-cdk/aws-lambda-python-alpha':
-        specifier: 2.273.0-alpha.0
-        version: 2.273.0-alpha.0(aws-cdk-lib@2.273.0(constructs@10.8.1))(constructs@10.8.1)
       '@fastify/aws-lambda':
         specifier: ^6.4.2
         version: 6.4.2
@@ -696,20 +684,6 @@ packages:
 
   '@aws-cdk/asset-node-proxy-agent-v6@2.1.3':
     resolution: {integrity: sha512-98We1QWfin9vtuuQtNFhIIAEWb8CreyYTAP0Vn8HqSBoNiFJM9nZgifJeQawT9Wq0NX1HCNFlxCyTccIrK1PSA==}
-
-  '@aws-cdk/aws-lambda-go-alpha@2.273.0-alpha.0':
-    resolution: {integrity: sha512-je6qm1EZGP04M5EGUfCc2EbzWKlH/GZymfpuqMZ3ztvXCroQWrLYJ0FAcRXvDrli5F0KBBT5aeGk6/f+3biOmQ==}
-    engines: {node: '>= 20.0.0'}
-    peerDependencies:
-      aws-cdk-lib: ^2.273.0
-      constructs: ^10.5.0
-
-  '@aws-cdk/aws-lambda-python-alpha@2.273.0-alpha.0':
-    resolution: {integrity: sha512-pS+GW4KrdzTgY0LDA0EZb2eDgPVoyeR9Ql9yhsYqNDBHCfXOOIRGHxCBN1ud8OfSGZMkUQU8q6sxBOR7V3xTpQ==}
-    engines: {node: '>= 20.0.0'}
-    peerDependencies:
-      aws-cdk-lib: ^2.273.0
-      constructs: ^10.5.0
 
   '@aws-cdk/cloud-assembly-schema@54.26.0':
     resolution: {integrity: sha512-zYI3XhQ/bpuSXuPaF77f7u2q6rZBPwdrPh8a0v+e/B3IxbRQAtQv0fmacQ8uYh9RPVuIVnExE6IsFJBSALH7BA==}
@@ -5924,16 +5898,6 @@ snapshots:
   '@aws-cdk/asset-awscli-v1@2.2.292': {}
 
   '@aws-cdk/asset-node-proxy-agent-v6@2.1.3': {}
-
-  '@aws-cdk/aws-lambda-go-alpha@2.273.0-alpha.0(aws-cdk-lib@2.273.0(constructs@10.8.1))(constructs@10.8.1)':
-    dependencies:
-      aws-cdk-lib: 2.273.0(constructs@10.8.1)
-      constructs: 10.8.1
-
-  '@aws-cdk/aws-lambda-python-alpha@2.273.0-alpha.0(aws-cdk-lib@2.273.0(constructs@10.8.1))(constructs@10.8.1)':
-    dependencies:
-      aws-cdk-lib: 2.273.0(constructs@10.8.1)
-      constructs: 10.8.1
 
   '@aws-cdk/cloud-assembly-schema@54.26.0': {}
 

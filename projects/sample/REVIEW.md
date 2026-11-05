@@ -2,7 +2,7 @@
 
 This file adds rules for `projects/sample/`. It applies together with `REVIEW.md` at the repository root. Read `CLAUDE.md` first.
 
-This project is one package. It has `web/`, `src/api` (TypeScript), `src/api-py` (Python), `src/api-go` (Go), `src/contracts`, `bruno/`, and (from Wave 3) the CDK app in `bin/` and `lib/`. Apply each section to the changed files only.
+This project is one package. It has `web/`, `src/api` (TypeScript), `src/contracts`, `bruno/`, and (from Wave 3) the CDK app in `bin/` and `lib/`. Apply each section to the changed files only.
 
 ## Review template: web (Next.js)
 
@@ -149,7 +149,7 @@ Fix: attach the CreateOrderSchema to the route and remove the cast.
 - Each new or changed route has a Bruno request in `projects/<name>/bruno/`. Report `Important` if it does not.
 - The request has a `docs` block with purpose, auth, and error codes.
 - The request has an `assert` block with the status, the error envelope shape, and the key fields.
-- The request has no `skip-request` in a script. A request with no assertion fails `bruno-coverage`.
+- The request has no `skip-request` in a script. A request with no assertion is a defect.
 - Environment files hold no secrets. Secrets use `{{process.env.X}}`.
 - Changing a route without changing its request is `Important`. Name the route and the request file.
 
@@ -235,11 +235,3 @@ Fix: grant s3:GetObject on the bucket ARN only, or use bucket.grantRead().
 - API Gateway routes use an authorizer (Cognito JWT or IAM) unless the route is public and the PR says why.
 - Each API Gateway stage sets throttling for a public route.
 - Logs have a retention period.
-
-## Python backend (api-py)
-
-Apply `docs/templates/REVIEW.api-py.md` to each change in `projects/sample/src/api-py/`.
-
-## Go backend (api-go)
-
-Apply `docs/templates/REVIEW.api-go.md` to each change in `projects/sample/src/api-go/`.

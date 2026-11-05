@@ -1,5 +1,5 @@
 /**
- * Rush monorepo configuration. Gate file: agents must not edit it (see CLAUDE.md).
+ * Rush monorepo configuration.
  * Docs: https://rushjs.io/pages/configs/rush_json/
  */
 {

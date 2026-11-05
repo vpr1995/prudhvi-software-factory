@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import type { ViteUserConfig } from 'vitest/config';
 
-/** Minimum coverage every project must meet. Lowering a value needs human approval (gate file). */
+/** Minimum coverage every project must meet. Lowering a value needs human approval. */
 export const COVERAGE_THRESHOLDS = {
   lines: 80,
   branches: 75,
@@ -41,8 +41,7 @@ export function createVitestConfig(options: CreateVitestConfigOptions = {}): Vit
       setupFiles: [...setupFiles],
       // Only a project that sets the option gets a time limit. The others keep the Vitest default.
       ...(testTimeout === undefined ? {} : { testTimeout }),
-      // Tests live in the `test/` folder at the project root. A test elsewhere never runs, and the
-      // `test-location` check of scripts/gates/check-gates.mjs fails on it.
+      // Tests live in the `test/` folder at the project root. A test elsewhere never runs.
       include: ['test/**/*.test.{ts,tsx,js,jsx}'],
       exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
       globals: false,

@@ -4,10 +4,10 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-// The context turns bundling off, so the app synthesizes without esbuild, Go or uv.
+// The context turns bundling off, so the app synthesizes without esbuild.
 const NO_BUNDLING = { 'aws:cdk:bundling-stacks': [] };
 
-/** The time that one stack build can take: it hashes the Python and Go code. */
+/** The time that one stack build can take. */
 const STACK_TIMEOUT_MS = 30_000;
 
 describe('bin/app', () => {

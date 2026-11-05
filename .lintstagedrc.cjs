@@ -1,4 +1,4 @@
-// Gate file. Used by `rush prettier` (scripts/git/lint-staged.sh) and the pre-commit hook.
+// Used by `rush prettier` (scripts/git/lint-staged.sh) and the pre-commit hook.
 // ESLint runs from the repo root with the root eslint.config.js, which picks the right config per path.
 // The eslint binary comes from @vprprudhvi/tooling-eslint-config (installed by `rush install`).
 const path = require('node:path');

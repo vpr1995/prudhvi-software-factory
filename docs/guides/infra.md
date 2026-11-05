@@ -1,6 +1,6 @@
 # Guide: infra (AWS CDK)
 
-Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, constructs). Package: `@vprprudhvi/<name>` (one package for the whole project). Read the root `CLAUDE.md` and `projects/CLAUDE.md` first. Changes to `projects/*/bin/**` and `projects/*/lib/**` are medium risk. The infra reviewer, cdk-nag and the synth gate check them. Changes to `platform/**` and `packages/**` (including `packages/cdk-constructs`) are high risk.
+Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, constructs). Package: `@vprprudhvi/<name>` (one package for the whole project). Read the root `CLAUDE.md` and `projects/CLAUDE.md` first. Changes to `projects/*/bin/**` and `projects/*/lib/**` are medium risk. The infra reviewer, and cdk-nag check them. Changes to `platform/**` and `packages/**` (including `packages/cdk-constructs`) are high risk.
 
 ## Folder layout
 
@@ -9,7 +9,7 @@ Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, const
 - `lib/constructs/`: constructs for this project only, in kebab-case files.
 - `lib/config/<env>.ts`: account-neutral settings per project environment (`local` or `prod`). Never hard-code an account, region, pool ID, zone ID, or certificate ARN.
 - `lib/nag-acknowledgments/<stack>.ts`: the one cdk-nag acknowledgments file for a stack (see Rules).
-- `cdk.json` and `tsconfig.cdk.json` (project root): gate files. `new-project` hands them over at creation, so later infra work does not change them.
+- `cdk.json` and `tsconfig.cdk.json` (project root). `new-project` writes them at creation, so later infra work does not change them.
 - `bin` and `lib` use the one project `package.json`. They have no `package.json` of their own.
 - Shared constructs go in `packages/cdk-constructs` (`@vprprudhvi/shared-cdk-constructs`). That needs a human.
 - Every new project has a stub CDK app from day one. If the project never uses infra, the files stay as a stub.
@@ -18,14 +18,12 @@ Part: `projects/<name>/bin` (app entry) and `projects/<name>/lib` (stacks, const
 
 CDK bundles the Lambda code at synth. Do not build code in a separate deploy step.
 
-| Part                   | Construct          | Bundling                                                                                      |
-| ---------------------- | ------------------ | --------------------------------------------------------------------------------------------- |
-| `src/api` (TypeScript) | `NodejsFunction`   | esbuild, entry `src/api/lambda.ts`                                                            |
-| `src/api-go`           | `Code.fromAsset`   | Local bundling: `go build` for `linux/arm64`, output file `bootstrap`. Docker fallback.       |
-| `src/api-py`           | `Code.fromAsset`   | Local bundling: `uv` installs the locked dependencies and copies the source. Docker fallback. |
-| `web`                  | OpenNext construct | Local bundling runs the OpenNext build.                                                       |
+| Part                   | Construct          | Bundling                                |
+| ---------------------- | ------------------ | --------------------------------------- |
+| `src/api` (TypeScript) | `NodejsFunction`   | esbuild, entry `src/api/lambda.ts`      |
+| `web`                  | OpenNext construct | Local bundling runs the OpenNext build. |
 
-- Unit tests turn bundling off, so `Template.fromStack` runs without Go, `uv`, Docker, or a web build. Use the `bundling` skip context value or a test-only asset.
+- Unit tests turn bundling off, so `Template.fromStack` runs without Docker or a web build. Use the `bundling` skip context value or a test-only asset.
 - Use local bundling first. Use Docker only when the local tool is missing.
 
 ## Rules
@@ -42,7 +40,7 @@ CDK bundles the Lambda code at synth. Do not build code in a separate deploy ste
 - Grant with `grantRead` and `grantWrite`. Never write `*` in IAM actions or resources.
 - Read platform values only through the SSM helper in `shared-cdk-constructs`. Never import `platform/infra`. See the `use-platform-resource` skill.
 - Each project makes its own Cognito app client, DNS records, and Lambdas.
-- cdk-nag 3: the app runs `Validations.of(app).addPlugins(new AwsSolutionsChecks(app))`. A finding makes `cdk synth` fail. Meet each rule. If a rule cannot be met, add one `Validations.of(construct).acknowledge({ id, reason })` to the one acknowledgments file of the stack. The id includes the bracket part, for example `AwsSolutions-IAM5[Resource::*]`. Give a reason for each one. The owner approves each one. `TracedFunctionBase` (the base of `TracedNodeFunction`, `TracedGoFunction` and `TracedPythonFunction`) holds two owner-approved acknowledgments (X-Ray `Resource: *`, log streams `<logGroupArn>:*`).
+- cdk-nag 3: the app runs `Validations.of(app).addPlugins(new AwsSolutionsChecks(app))`. A finding makes `cdk synth` fail. Meet each rule. If a rule cannot be met, add one `Validations.of(construct).acknowledge({ id, reason })` to the one acknowledgments file of the stack. The id includes the bracket part, for example `AwsSolutions-IAM5[Resource::*]`. Give a reason for each one. The owner approves each one. `TracedFunctionBase` (the base of `TracedNodeFunction`) holds two owner-approved acknowledgments (X-Ray `Resource: *`, log streams `<logGroupArn>:*`).
 - Never run `cdk deploy` or `cdk destroy`. Run `cdk synth` and read-only commands.
 
 ## Tests

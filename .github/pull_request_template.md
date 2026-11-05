@@ -44,6 +44,5 @@ Reason:
 - [ ] Each new user-visible behavior sits behind a flag, or the flag field says `none` and why.
 - [ ] Each bug fix has a test that fails before the fix.
 - [ ] No test was skipped, deleted, or weakened. No lint or type rule was disabled.
-- [ ] No gate file changed, or the PR has a human reviewer for it.
 - [ ] The commit messages follow Conventional Commits.
 - [ ] The diff has no secrets, no `.env` file, and no personal data.

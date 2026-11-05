@@ -2,14 +2,14 @@
 
 This document sets the rules for logs and traces. One request makes one trace. The trace starts in the browser and ends at the AWS call. Each log line of the request carries the trace id.
 
-Status: this document describes the target design (ADR 0009). An item marked "(planned)" is not yet active. Do not treat it as a working gate.
+Status: this document describes the target design (ADR 0009). An item marked "(planned)" is not yet active. Do not treat it as a working check.
 
 ## 1. Architecture
 
 ```mermaid
 flowchart LR
   B[Browser] -->|traceparent| N[Next.js server]
-  N -->|traceparent| A[API Lambda: TS, Python, or Go]
+  N -->|traceparent| A[API Lambda: TypeScript]
   A --> W[AWS services]
   N -.-> C[ADOT collector]
   A -.-> C
@@ -40,18 +40,16 @@ flowchart LR
 Rules:
 
 - Call `initTelemetry` once per process, before any other import that makes requests. In ESM, static imports run first. In `lambda.ts`, call `initTelemetry`, then load the server with `await import('./server.js')`.
-- Flush spans before the Lambda freezes. Node: `wrapLambdaHandler` calls `forceFlush`. Python: call `force_flush()` on the tracer provider at the end of the handler. Go: call `ForceFlush(ctx)` on the tracer provider at the end of the handler.
+- Flush spans before the Lambda freezes. `wrapLambdaHandler` calls `forceFlush`.
 - Do not rely on `@fastify/otel` to read `traceparent`. `@fastify/aws-lambda` injects the event into Fastify and opens no HTTP server. `wrapLambdaHandler` makes the extracted context active. `@fastify/otel` only names the route spans.
 - Do not import `@opentelemetry/*` SDK packages outside `packages/telemetry`.
 - Do not use `console`. Use `@vprprudhvi/shared-logger`.
 - Missing package rule. If `packages/telemetry` does not exist, skip the telemetry step and the trace test. List both as open items in your final message and in the PR. Do not create a stub. Do not import `@opentelemetry/*` directly.
 - If the package exists but is not a dependency of your part, stop. A new dependency needs a human.
 
-Python uses `opentelemetry-sdk` and `opentelemetry-instrumentation-*` (for Lambda: `opentelemetry-instrumentation-aws-lambda`, or extract the context from `event["headers"]` by hand). Do not use the Powertools Tracer. It wraps the X-Ray SDK, not OpenTelemetry. Go uses `go.opentelemetry.io/otel` with `otelhttp` and `otellambda`. Extract the context from `event.Headers` (for example with `otellambda.WithEventToCarrier`).
-
 ## 3. Log fields
 
-Each log line is one JSON object. TypeScript, Python, and Go use the same field names. No library emits all of these names by default. Each language needs mapping code (see below).
+Each log line is one JSON object. No library emits all of these names by default. The logger needs mapping code (see below).
 
 | Field          | Content                                                      |
 | -------------- | ------------------------------------------------------------ |
@@ -64,9 +62,6 @@ Each log line is one JSON object. TypeScript, Python, and Go use the same field 
 | `time`         | An ISO 8601 time stamp.                                      |
 
 - TypeScript: `shared-logger` (pino) adds the trace fields with an OpenTelemetry mixin. It sets `messageKey` to `msg`, writes `level` as a label, uses `isoTime` for `time`, and adds `service.name` as a base field.
-- Python: each api-py part has a custom Powertools formatter. The formatter reads the active span (`trace.get_current_span()`) and writes `trace_id`, `span_id`, and `trace_flags`. It renames `message` to `msg`, `timestamp` to `time`, and `service` to `service.name`. It writes `level` in lower case. The default Powertools names (`message`, `timestamp`, `service`, `xray_trace_id`) and the `otel*` names of `opentelemetry-instrumentation-logging` do not meet this table.
-- Go: each api-go part has a `slog` handler. It wraps `slog.NewJSONHandler`. `ReplaceAttr` writes `level` in lower case. The handler adds `trace_id`, `span_id`, `trace_flags`, and `service.name` from the context.
-- Owner of the mapping code: the api-py or api-go part, until a shared helper exists.
 - Put data in structured fields, not in `msg`. Example: `logger.info({ orderId, durationMs }, 'order exported')`.
 - A log line written outside a span has no trace fields. Do not invent ids.
 
@@ -139,11 +134,11 @@ fields @timestamp, service.name, level, msg
 | sort @timestamp asc
 ```
 
-## 11. Gates
+## 11. Checks
 
 Each rule has an enforcer. An enforcer marked "(planned)" is not active.
 
-| Gate                      | Rule                                                                                                 | Enforcer                                                                                                                                |
+| Check                     | Rule                                                                                                 | Enforcer                                                                                                                                |
 | ------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | Lint                      | No `console`.                                                                                        | `no-console` in `tooling/eslint-config`.                                                                                                |
 | Lint                      | No direct `@opentelemetry/*` SDK import outside `packages/telemetry`.                                | `no-restricted-imports` in `tooling/eslint-config` (planned).                                                                           |
@@ -153,13 +148,11 @@ Each rule has an enforcer. An enforcer marked "(planned)" is not active.
 | Test, web (browser fetch) | A browser call to the API carries `traceparent`. Applies only when a client component calls the API. | Playwright spec, in each web part (planned).                                                                                            |
 | Test, web (server fetch)  | The `lib/<resource>-client.ts` request carries `traceparent` when a span is active.                  | Vitest test of the lib client with a fake server, in each web part (planned).                                                           |
 | Test, Bruno               | The response has a `traceparent` header.                                                             | `assert` block in the `.bru` request (planned).                                                                                         |
-| Test, Python              | The log record has the trace id.                                                                     | pytest, in each api-py part (planned).                                                                                                  |
-| Test, Go                  | The log record has the trace id.                                                                     | `go test`, in each api-go part (planned).                                                                                               |
 | CDK                       | Each Lambda has the ADOT layer and active tracing.                                                   | `Template.fromStack` assertion in `shared-cdk-constructs` and each infra test (planned).                                                |
 
 ## 12. Links
 
 - Decision: `docs/adr/0009-opentelemetry-tracing.md`.
 - Logging rule: `docs/standards/coding-conventions.md`, section C.4 and C.5.
-- Test rules: `docs/standards/testing.md`, section 12.
-- Per-part wiring: `docs/guides/web.md`, `docs/guides/api.md`, `docs/guides/api-py.md`, `docs/guides/api-go.md`, `docs/guides/infra.md`.
+- Test rules: `docs/standards/testing.md`, section 11.
+- Per-part wiring: `docs/guides/web.md`, `docs/guides/api.md`, `docs/guides/infra.md`.

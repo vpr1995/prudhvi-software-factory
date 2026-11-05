@@ -1,7 +1,6 @@
-// Bruno e2e for one API of this project: node scripts/e2e.mjs <api|api-py|api-go>.
+// Bruno e2e for one API of this project: node scripts/e2e.mjs <api>.
 // It starts the built server on a free port, runs the Bruno collection in bruno/ against it,
-// stops the server, and exits with the exit code of `bru`. The same collection runs against the
-// TypeScript, the Python and the Go API.
+// stops the server, and exits with the exit code of `bru`.
 import { spawn } from 'node:child_process';
 import { get } from 'node:http';
 import { createServer } from 'node:net';
@@ -23,20 +22,6 @@ const SERVERS = {
     directory: '.',
     command: 'node',
     args: ['dist/api/main.js'],
-  },
-  'api-py': {
-    prefix: 'SAMPLE_API_PY_',
-    logLevel: 'WARNING',
-    directory: 'src/api-py',
-    command: '.venv/bin/python',
-    args: ['-m', 'sample_api'],
-  },
-  'api-go': {
-    prefix: 'SAMPLE_API_GO_',
-    logLevel: 'warn',
-    directory: '.',
-    command: 'dist/api-go/sample-api',
-    args: [],
   },
 };
 
