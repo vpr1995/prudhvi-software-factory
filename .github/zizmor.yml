@@ -1,0 +1,7 @@
+# zizmor config. A human adds each entry, with a reason.
+rules:
+  # Owner decision 2026-11-05. The audit wants `uses: $/...`, but actionlint 1.7.12 does not
+  # support `$/` (rhysd/actionlint#711), so ci.yml and warm-cache.yml keep
+  # `uses: ./.github/actions/repo-setup`. Remove this exception when actionlint supports `$/`.
+  self-repository:
+    disable: true

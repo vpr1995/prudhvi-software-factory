@@ -1,0 +1,57 @@
+# Warms the caches on main. Pull requests can read the caches of main, so the first run of a PR
+# restores the pnpm store and a Rush build cache that has every project.
+# The build cache scope is `main`. The restore-keys in .github/actions/repo-setup take this scope
+# when the PR has no entry of its own.
+name: warm-cache
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  warm-cache:
+    name: warm-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Saves the pnpm store and the Rush launcher on a miss.
+      - name: Repo setup
+        id: setup
+        uses: ./.github/actions/repo-setup
+        with:
+          build-cache-scope: main
+
+      - name: Rush build (all projects)
+        run: node common/scripts/install-run-rush.js build
+
+      # Entries older than 7 days are removed, so the saved cache does not grow without limit.
+      - name: Prune the Rush build cache
+        if: ${{ !cancelled() && steps.setup.outputs.build-cache-key != '' }}
+        run: |
+          mkdir -p common/temp/build-cache
+          find common/temp/build-cache -type f -mtime +7 -delete
+          du -sh common/temp/build-cache
+
+      - name: Save the Rush build cache
+        if: ${{ !cancelled() && steps.setup.outputs.build-cache-key != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: common/temp/build-cache
+          key: ${{ steps.setup.outputs.build-cache-key }}

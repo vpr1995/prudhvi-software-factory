@@ -16,7 +16,7 @@ Rule: show real output. Never say "pass" without pasted output.
 2. Check for the base branch: `git rev-parse --verify origin/main >/dev/null 2>&1 && echo HAS_ORIGIN || echo NO_ORIGIN`.
 3. Run the checks. `rush verify` runs `build`, `lint`, `typecheck`, `test`, and `e2e` for each project's `_phase:*` scripts.
    - If `HAS_ORIGIN`: `rush build --from git:origin/main > .claude/state/verify-output.log 2>&1 && rush verify --impacted-by git:origin/main >> .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
-     `--impacted-by` selects the changed projects and the projects that depend on them. It does not select their dependencies. `rush build --from` also builds the dependencies, so each dependency has its `dist/` folder, also on a fresh clone. `.github/workflows/ci.yml` uses the same build command.
+     `--impacted-by` selects the changed projects and the projects that depend on them. It does not select their dependencies. `rush build --from` also builds the dependencies, so each dependency has its `dist/` folder, also on a fresh clone. CI runs one job for each impacted project with `rush build --to <project>` and `--only <project>` for the other phases (see `docs/standards/testing.md` section 6).
    - If `NO_ORIGIN`: `rush verify > .claude/state/verify-output.log 2>&1; echo "exit=$?"; tail -n 120 .claude/state/verify-output.log`
      The e2e phase starts each api server, runs its Bruno collection, and runs Playwright for each web part.
 4. Find changed infra. This includes `projects/<name>/bin`, `projects/<name>/lib`, and `platform/infra`:

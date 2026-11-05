@@ -114,21 +114,33 @@ Run these checks on your change before you open a PR:
 2. `cdk synth` with cdk-nag, when `infra` changed.
 3. The forbidden-change list in section 4. Check your own diff.
 
-The pre-commit hook runs gitleaks on staged files and lint-staged (Prettier and ESLint).
+The pre-commit hook runs gitleaks on staged files and lint-staged (Prettier and ESLint). For staged `.github/workflows` and `.github/actions` files, lint-staged also runs actionlint, zizmor and pinact.
 
 ## 6. CI checks
 
 CI runs on pull requests. It checks the PR head against the merge base with the target branch.
 
-| Check              | Command                          | Blocks when                                       |
-| ------------------ | -------------------------------- | ------------------------------------------------- |
-| Rush check         | `rush check`                     | Dependency versions are not consistent.           |
-| Build              | `rush build --from <base>`       | A project does not build.                         |
-| Lint               | `rush lint --impacted-by <base>` | A lint rule fails.                                |
-| Test with coverage | `rush test --impacted-by <base>` | A test fails or a coverage threshold fails.       |
-| Audit              | `rush audit`                     | `pnpm-lock.yaml` changed and an audit pass fails. |
+The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secrets.yml`). `ci-result` passes only when `plan` and `workflow-lint` pass and `project` passes or skips. Make these two checks the only required checks of the `main` ruleset. Do not make the jobs of each project required checks. Their names change with the impacted projects.
 
-CI does not run typecheck, e2e, `cdk synth`, or a secret scan. Run `rush verify` before you push. Mutation tests run nightly (`nightly.yml`, planned). They report only. Open an issue for surviving mutants.
+`ci.yml` has these jobs:
+
+| Job             | Commands                                                                                                                                                  | Blocks when                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `plan`          | `rush check`, `node tooling/tsconfig/scripts/check-tsconfigs.mjs`, `rush audit`, `rush list --impacted-by git:<base> --json`                              | Versions are not consistent, a tsconfig rule fails, or `pnpm-lock.yaml` changed and an audit pass fails. |
+| `project`       | One job for each impacted project: `rush build --to <project>`, then `rush lint`, `rush typecheck`, `rush test`, `rush e2e`, each with `--only <project>` | A build, lint rule, type, test, coverage threshold, or e2e test fails.                                   |
+| `ci-result`     | Reads the results of `plan`, `project` and `workflow-lint`                                                                                                | `plan` or `workflow-lint` did not pass, or `project` did not pass or skip.                               |
+| `workflow-lint` | `bash scripts/security/workflow-lint.sh` (actionlint, zizmor, pinact)                                                                                     | A workflow or action file fails a check.                                                                 |
+
+`secrets.yml` runs gitleaks on the PR commits (merge base to head). A finding fails the job `gitleaks`.
+
+`warm-cache.yml` runs on each push to `main` and by hand. It runs `rush build` for all projects. Then it saves the pnpm store and the Rush build cache with the scope `main`. A pull request can read the caches of `main`.
+
+Notes:
+
+- When no project is impacted, `project` skips and `ci-result` passes.
+- `project` restores the Rush build cache (`common/temp/build-cache`), so unchanged dependencies do not build again. It takes the newest entry of the same project in the PR. If there is none, it takes the newest entry of `main`.
+- `project` installs Chromium only for a project that has `playwright.config.ts`.
+- CI does not run `cdk synth` for `platform/infra`. Run `rush verify` before you push. Mutation tests run nightly (`nightly.yml`, planned). They report only. Open an issue for surviving mutants.
 
 ## 7. When a test fails
 

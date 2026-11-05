@@ -59,9 +59,11 @@ Always run Rush through `node common/scripts/install-run-rush.js <cmd>`. Do not 
 ## Quality checks
 
 - The pre-commit hook runs a gitleaks scan of staged files, then lint-staged (Prettier and ESLint). The commit-msg hook runs commitlint. The pre-push hook runs `rush audit` only when `common/config/rush/pnpm-lock.yaml` changed. Otherwise it skips.
-- The `ci` workflow (`.github/workflows/ci.yml`) runs on every pull request to `main`. It runs install, `rush check`, `rush build --from`, and `rush lint --impacted-by`. It runs `rush audit` when `pnpm-lock.yaml` changed.
-- `rush verify`, `rush test` and `rush e2e` are not forced by a hook or by CI. Run them by hand.
-- The `main` ruleset requires a pull request and the `ci` check. It blocks force pushes and has no bypass.
+- The pre-commit hook also runs actionlint, zizmor and pinact on staged `.github/workflows` and `.github/actions` files.
+- The `ci` workflow (`.github/workflows/ci.yml`) runs on every pull request. Job `plan` runs `rush check`, the tsconfig check, and `rush audit` when `pnpm-lock.yaml` changed. Then it lists the impacted projects. Job `project` runs build, lint, typecheck, test and e2e for each impacted project. Job `ci-result` is the required check. Job `workflow-lint` runs actionlint, zizmor and pinact. Details: [testing.md](docs/standards/testing.md) section 6.
+- The `secrets` workflow (`.github/workflows/secrets.yml`) runs gitleaks on the commits of each pull request.
+- The `warm-cache` workflow (`.github/workflows/warm-cache.yml`) builds all projects on each push to `main` and saves the caches for pull requests.
+- The `main` ruleset requires a pull request and a passing required check. It blocks force pushes and has no bypass. Make `ci-result` and `gitleaks` the required checks.
 - Dependabot alerts and security updates are on.
 
 ## Working with agents
