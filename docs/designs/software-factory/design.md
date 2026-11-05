@@ -154,13 +154,13 @@ The owner picks the findings to fix. Then a design PR with `risk:low`. The owner
 - Opens one `drift` issue for each finding. The owner chooses: fix the doc or fix the code.
 - Runs locally first. Later: a scheduled `claude-code-action` job.
 
-## 7. Conflicts with current rules (owner decisions needed)
+## 7. Rule changes (owner decisions 2026-11-05)
 
-1. **D0 and docs/CLAUDE.md vs designs.** "Docs reflect only what is implemented" (2026-11-05), and `docs/CLAUDE.md` puts plans in the wiki. A design describes future work. Proposal: exempt `docs/designs/` only. Each design has `status: draft | approved | implemented | superseded`. Doc lint skips designs that are not `implemented`.
-2. **Rule 13 vs worktrees and runners.** Rule 13 forbids work in a copy. Proposal: rule 13 bans copies outside git. A git worktree and a CI checkout are allowed.
-3. **Test deploys vs CI deploys.** One account, one `prod` stage. An agent's test `cdk deploy` of a project stack changes prod, and the next CI deploy overwrites it. Options: (a) CI is the only prod deployer; agents test locally only; (b) test stacks get a suffix (needs cleanup, and `cdk destroy` is denied).
-4. **No bot vs Actions runner.** Phase 2 needs a GitHub App token. Phase 1 (local) does not.
-5. **Spec-compliance judge: local or CI.** The owner chose local review. Proposal: local in `pre-pr` first.
+1. **Designs may describe future work.** Only `docs/designs/` is exempt from "docs reflect only what is implemented" and from the `docs/CLAUDE.md` rule that puts plans in the wiki. Each design has `status: draft | approved | implemented | superseded`. Doc lint skips designs that are not `implemented`. Update `docs/CLAUDE.md` in build step 1.
+2. **CI is the only prod deployer.** Agents test locally (Fastify `inject`, Next dev server, Bruno against localhost). Root `CLAUDE.md` rule 4 drops the test-deploy permission. `.claude/settings.json` denies `cdk deploy` again. The `e2e-verify` skill drops its deploy step. Build step 1.
+3. **Rule 13 allows git worktrees and CI checkouts.** Rule 13 bans copies outside git (scratch folders, extra clones). Reword it in build step 1.
+4. **No bot vs Actions runner.** Phase 2 needs a GitHub App token. Phase 1 (local) does not. Decide before build step 10.
+5. **Spec-compliance judge runs locally** in `pre-pr`, before the quality pass. No CI judge.
 
 ## 8. Build order
 
@@ -168,7 +168,7 @@ One PR per step. Each step is checked before the next.
 
 | #   | PR                                                                                                                                     | Effort |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 1   | Doc lint + test guard in CI                                                                                                            | M      |
+| 1   | Rule changes from section 7 + doc lint + test guard in CI                                                                              | M      |
 | 2   | Verify Stop hook + commit gate (probe hook fields live first)                                                                          | S      |
 | 3   | `/brainstorm` + 8 lens agents                                                                                                          | M      |
 | 4   | `/design` + template + `/design-review` (5 stages)                                                                                     | M      |
@@ -190,3 +190,4 @@ One PR per step. Each step is checked before the next.
 ## 10. Decision log
 
 - 2026-11-05: designs live in `docs/designs/<slug>/`. CI deploys on merge. 8 lenses. Small fixes skip design. Reviewers run locally. No bot account. Tickets start by hand.
+- 2026-11-05: `docs/designs/` exempt from the implemented-only rule. CI is the only prod deployer (reverses the test-deploy permission in rule 4). Git worktrees and CI checkouts do not break rule 13. Spec-compliance judge runs locally in `pre-pr`.
