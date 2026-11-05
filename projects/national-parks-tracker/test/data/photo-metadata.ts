@@ -4,13 +4,13 @@
 // It reads the file structure only (no dependencies): JPEG segments, PNG chunks and WebP chunks.
 
 /** The photo formats that the site accepts. */
-export type PhotoFormat = 'jpeg' | 'png' | 'webp';
+type PhotoFormat = 'jpeg' | 'png' | 'webp';
 
 /**
  * A metadata block that can hold a GPS position. `APP1` is a JPEG APP1 segment of another kind,
  * for example extended XMP. The scan rejects every APP1 segment.
  */
-export type PhotoMetadata = 'EXIF' | 'XMP' | 'APP1';
+type PhotoMetadata = 'EXIF' | 'XMP' | 'APP1';
 
 /** What the scan found in a file. */
 export type PhotoScan = {

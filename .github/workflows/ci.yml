@@ -2,7 +2,8 @@
 # the target branch, for any target branch.
 # - plan: repo-wide checks, then the list of Rush projects that the diff impacts.
 # - project: one job for each impacted project (build, lint, typecheck, test, e2e).
-# - ci-result: a required check. It passes only when plan, project and workflow-lint pass.
+# - knip: Knip on the whole repo (unused files, exports, types and dependencies).
+# - ci-result: a required check. It passes only when plan, project, knip and workflow-lint pass.
 # - workflow-lint: actionlint, zizmor and pinact on .github/workflows and .github/actions.
 name: ci
 
@@ -199,22 +200,52 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # Repo-wide: Knip reads every workspace, so it runs on each PR, not once per project.
+  knip:
+    name: knip
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout the PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Repo setup
+        uses: ./.github/actions/repo-setup
+        with:
+          build-cache-scope: knip
+
+      # Knip loads each vitest.config.ts. They import the shared Vitest config from its dist/ folder.
+      - name: Build the shared Vitest config
+        run: node common/scripts/install-run-rush.js build --to @vprprudhvi/tooling-vitest-config
+
+      # scripts/quality/knip.sh adds the github-actions reporter (annotations) when GITHUB_ACTIONS=true.
+      - name: Rush knip
+        run: node common/scripts/install-run-rush.js knip
+
   ci-result:
     name: ci-result
-    needs: [plan, project, workflow-lint]
+    needs: [plan, project, knip, workflow-lint]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check the results of plan, project and workflow-lint
+      - name: Check the results of plan, project, knip and workflow-lint
         env:
           PLAN: ${{ needs.plan.result }}
           PROJECT: ${{ needs.project.result }}
+          KNIP: ${{ needs.knip.result }}
           WORKFLOW_LINT: ${{ needs.workflow-lint.result }}
         run: |
-          echo "plan: ${PLAN}, project: ${PROJECT}, workflow-lint: ${WORKFLOW_LINT}"
+          echo "plan: ${PLAN}, project: ${PROJECT}, knip: ${KNIP}, workflow-lint: ${WORKFLOW_LINT}"
           if [ "${PLAN}" != "success" ]; then
             echo "::error::plan did not pass (${PLAN})"
+            exit 1
+          fi
+          if [ "${KNIP}" != "success" ]; then
+            echo "::error::knip did not pass (${KNIP})"
             exit 1
           fi
           if [ "${WORKFLOW_LINT}" != "success" ]; then

@@ -1,0 +1,5 @@
+{
+  "name": "projects-monorepo-root",
+  "private": true,
+  "description": "Not a Rush project and has no dependencies. Knip (rush knip) needs a package.json at the repo root. No \"type\" field: the Rush launchers in common/scripts are CommonJS .js files."
+}

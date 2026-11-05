@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-cdk-constructs",
+      "comment": "Make RUSH_LOCK_FILE module-private. The package index never exported it (Knip finding).",
+      "type": "none"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-cdk-constructs"
+}

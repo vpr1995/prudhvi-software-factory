@@ -63,7 +63,7 @@ export const TripSchema = strictObject(
 export type Trip = z.infer<typeof TripSchema>;
 
 /** The file types of owner photos. */
-export const PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'] as const;
+const PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'] as const;
 
 const hasPhotoExtension = (path: string): boolean =>
   PHOTO_EXTENSIONS.some((extension) => path.toLowerCase().endsWith(extension));

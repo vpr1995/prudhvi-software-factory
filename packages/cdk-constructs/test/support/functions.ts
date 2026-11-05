@@ -18,7 +18,7 @@ export const PATHS = {
 } as const;
 
 /** The context value that turns bundling off, so no esbuild or Docker run. */
-export const NO_BUNDLING = { 'aws:cdk:bundling-stacks': [] } as const;
+const NO_BUNDLING = { 'aws:cdk:bundling-stacks': [] } as const;
 
 /** Makes an app that does not bundle. */
 export function newApp(): App {
