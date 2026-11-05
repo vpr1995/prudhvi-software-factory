@@ -26,6 +26,7 @@ import {
   JS_FILES,
   TS_FILES,
 } from './globs.js';
+import { prettier } from './prettier.js';
 
 const MAX_COGNITIVE_COMPLEXITY = 15;
 const MAX_FILE_LINES = 400;
@@ -286,4 +287,5 @@ export const base = defineConfig([
     { files: CONFIG_FILES, skip: ['process-env'] },
     { files: INDEX_FILES, skip: ['barrel'] },
   ]),
+  ...prettier,
 ]);

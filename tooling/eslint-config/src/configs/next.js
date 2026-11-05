@@ -2,6 +2,7 @@ import nextPlugin from '@next/eslint-plugin-next';
 import { defineConfig } from 'eslint/config';
 
 import { ALL_CODE_FILES } from './globs.js';
+import { prettier } from './prettier.js';
 import { reactConfig } from './react.js';
 
 /**
@@ -18,4 +19,5 @@ export const next = defineConfig([
     // App Router only: the rule looks for a pages/ directory.
     rules: { '@next/next/no-html-link-for-pages': 'off' },
   },
+  ...prettier,
 ]);

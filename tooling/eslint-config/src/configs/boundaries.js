@@ -4,6 +4,7 @@ import { defineConfig } from 'eslint/config';
 import boundariesPlugin from 'eslint-plugin-boundaries';
 
 import { ALL_CODE_FILES } from './globs.js';
+import { prettier } from './prettier.js';
 
 // boundaries loads resolvers relative to the linted file, where this package is not installed.
 // An absolute path avoids that.
@@ -247,5 +248,6 @@ export function boundaries({ rootPath = REPO_ROOT } = {}) {
         'boundaries/no-unknown': 'off',
       },
     },
+    ...prettier,
   ]);
 }

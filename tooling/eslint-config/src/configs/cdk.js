@@ -8,6 +8,7 @@ import {
 } from '../restricted-syntax.js';
 
 import { ALL_CODE_FILES } from './globs.js';
+import { prettier } from './prettier.js';
 
 const CDK_SYNTAX_RULES = [
   {
@@ -50,4 +51,5 @@ export const cdk = defineConfig([
     files: ALL_CODE_FILES,
     rules: { '@typescript-eslint/no-magic-numbers': 'off' },
   },
+  ...prettier,
 ]);

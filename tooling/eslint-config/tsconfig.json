@@ -12,7 +12,7 @@
     "src/restricted-syntax.js",
     "test/**/*.js"
   ],
-  // configs.test.js imports src/index.js. Type errors in the config sources (untyped plugins) stop
+  // These tests import src/index.js. Type errors in the config sources (untyped plugins) stop
   // the check there. Before the move, no test file had a typecheck. Remove this when they are fixed.
-  "exclude": ["test/configs.test.js"]
+  "exclude": ["test/configs.test.js", "test/prettier.test.js"]
 }
