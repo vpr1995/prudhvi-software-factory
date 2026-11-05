@@ -106,7 +106,7 @@ Hooks come from `common/git-hooks/`.
 
 ## 7. Merge
 
-- The `main` ruleset requires a pull request, passing required checks, and resolved review threads.
+- The `main` ruleset requires a pull request, passing required checks, and resolved review threads. The required CI checks are `ci-result` and `gitleaks` (see [testing.md](testing.md) section 6).
 - The ruleset requires linear history. Use squash merge or rebase merge.
 - Merge queue runs the checks again on the merged result.
 - Approvals depend on the risk tier. See `docs/standards/risk-tiers.md`.

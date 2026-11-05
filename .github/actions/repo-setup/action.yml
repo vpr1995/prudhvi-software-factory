@@ -1,0 +1,76 @@
+# Sets up a job after the caller checks out the repo: Node from .nvmrc, the pnpm store and Rush
+# launcher caches, `rush install`, and a restore of the Rush build cache (common/temp/build-cache).
+# Restore and save are separate steps (actions/cache/restore and actions/cache/save). Each save runs
+# right after the install, so a later failure in the job does not lose the caches.
+# The caller saves the build cache with the output `build-cache-key` after its Rush steps (a
+# composite action has no step at job end).
+name: repo setup
+description: Set up Node, restore caches, run rush install, restore the Rush build cache.
+
+inputs:
+  build-cache-scope:
+    description: >-
+      Name of the build cache entry, for example the project folder name. Each matrix job uses its
+      own scope, so parallel jobs do not save the same key.
+    required: true
+
+outputs:
+  build-cache-key:
+    description: Key for actions/cache/save of common/temp/build-cache.
+    value: ${{ steps.build-cache.outputs.cache-primary-key }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: .nvmrc
+        package-manager-cache: false
+
+    # Exact keys, no restore-keys: a changed lockfile or Rush version starts from an empty cache.
+    - name: Restore the pnpm store
+      id: cache-pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: common/temp/pnpm-store
+        key: ${{ runner.os }}-pnpm-${{ hashFiles('common/config/rush/pnpm-lock.yaml', 'rush.json') }}
+
+    - name: Restore the Rush launcher
+      id: cache-rush
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: common/temp/install-run
+        key: ${{ runner.os }}-rush-install-run-${{ hashFiles('rush.json') }}
+
+    - name: Rush install
+      shell: bash
+      run: node common/scripts/install-run-rush.js install
+
+    - name: Save the pnpm store
+      if: steps.cache-pnpm.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: common/temp/pnpm-store
+        key: ${{ steps.cache-pnpm.outputs.cache-primary-key }}
+
+    - name: Save the Rush launcher
+      if: steps.cache-rush.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: common/temp/install-run
+        key: ${{ steps.cache-rush.outputs.cache-primary-key }}
+
+    # The key has the commit, so each run saves a new entry. restore-keys take the newest entry of
+    # the same scope, then of scope `main` (warm-cache.yml builds every project on main, and a PR
+    # can read the caches of main), then of any scope. Rush restores each unchanged operation.
+    - name: Restore the Rush build cache
+      id: build-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: common/temp/build-cache
+        key: ${{ runner.os }}-rush-build-cache-${{ inputs.build-cache-scope }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-rush-build-cache-${{ inputs.build-cache-scope }}-
+          ${{ runner.os }}-rush-build-cache-main-
+          ${{ runner.os }}-rush-build-cache-

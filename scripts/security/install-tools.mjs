@@ -1,7 +1,10 @@
 // Runs after `rush install` (eventHooks.postRushInstall).
-// Installs the non-npm binary the git hooks need: gitleaks.
+// Installs the non-npm binaries the git hooks and CI need: gitleaks, actionlint, zizmor, pinact.
 // Each download is pinned and checked with sha256 before it is used.
 // Env: CI or SKIP_TOOL_INSTALL=1 skips. INSTALL_TOOLS_DIR sets the install dir.
+// CI jobs that need the tools run this script with CI set to an empty value.
+// Checksum sources: the release checksums file (gitleaks, actionlint, pinact). zizmor has no
+// checksums file: its sha256 is the GitHub release asset digest (the release also has attestations).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
@@ -44,6 +47,84 @@ const PINS = {
       'linux-arm64': {
         file: 'gitleaks_8.28.0_linux_arm64.tar.gz',
         sha256: 'eff65261156100e5d94a6b3dec313d532fddfe19ae1590bf7a2b4f2699128356',
+      },
+    },
+  },
+  actionlint: {
+    version: '1.7.12',
+    bin: 'actionlint',
+    versionArgs: ['-version'],
+    url: 'https://github.com/rhysd/actionlint/releases/download/v1.7.12/',
+    archive: true,
+    hint: 'https://github.com/rhysd/actionlint/releases/tag/v1.7.12',
+    assets: {
+      'darwin-arm64': {
+        file: 'actionlint_1.7.12_darwin_arm64.tar.gz',
+        sha256: 'aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f',
+      },
+      'darwin-x64': {
+        file: 'actionlint_1.7.12_darwin_amd64.tar.gz',
+        sha256: '5b44c3bc2255115c9b69e30efc0fecdf498fdb63c5d58e17084fd5f16324c644',
+      },
+      'linux-x64': {
+        file: 'actionlint_1.7.12_linux_amd64.tar.gz',
+        sha256: '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8',
+      },
+      'linux-arm64': {
+        file: 'actionlint_1.7.12_linux_arm64.tar.gz',
+        sha256: '325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6',
+      },
+    },
+  },
+  zizmor: {
+    version: '1.32.0',
+    bin: 'zizmor',
+    versionArgs: ['--version'],
+    url: 'https://github.com/zizmorcore/zizmor/releases/download/v1.32.0/',
+    archive: true,
+    hint: 'https://github.com/zizmorcore/zizmor/releases/tag/v1.32.0',
+    assets: {
+      'darwin-arm64': {
+        file: 'zizmor-aarch64-apple-darwin.tar.gz',
+        sha256: '6efed18c4539a663fd3c851a2be9533fd8456c4e646d9416206da059154a0d3c',
+      },
+      'darwin-x64': {
+        file: 'zizmor-x86_64-apple-darwin.tar.gz',
+        sha256: '6983143c719ada6845a69cc4dd2bacc215f971662fecd8bbd2678388e5ce5969',
+      },
+      'linux-x64': {
+        file: 'zizmor-x86_64-unknown-linux-gnu.tar.gz',
+        sha256: 'bb110cc765eca9cd7efb2e284a956be5974c60027b0970f16397d86208a9957b',
+      },
+      'linux-arm64': {
+        file: 'zizmor-aarch64-unknown-linux-gnu.tar.gz',
+        sha256: 'cb152b207f815116d7fa1c1ee4614f61578803351395052908095e79adfd9fd0',
+      },
+    },
+  },
+  pinact: {
+    version: '5.0.2',
+    bin: 'pinact',
+    versionArgs: ['version'],
+    url: 'https://github.com/suzuki-shunsuke/pinact/releases/download/v5.0.2/',
+    archive: true,
+    hint: 'https://github.com/suzuki-shunsuke/pinact/releases/tag/v5.0.2',
+    assets: {
+      'darwin-arm64': {
+        file: 'pinact_darwin_arm64.tar.gz',
+        sha256: '9b9545d53376654005daaee5ab736d579887205ca3df99925c8fe8358c6e7fdb',
+      },
+      'darwin-x64': {
+        file: 'pinact_darwin_amd64.tar.gz',
+        sha256: '8fb6a0ee87b59bc2778371527c58a46073d5e289919bbd1c2559eff7efeb74e3',
+      },
+      'linux-x64': {
+        file: 'pinact_linux_amd64.tar.gz',
+        sha256: '7f003d8f51e984c2264d2009d430e3e0e87ae404a0e2dc2a9a277b0f731bf5b7',
+      },
+      'linux-arm64': {
+        file: 'pinact_linux_arm64.tar.gz',
+        sha256: '326e27f5b3b5fca21e6a169b2785ba2023df3dd9ee82dd0f4e438cb1220b68d7',
       },
     },
   },

@@ -1,6 +1,9 @@
-# CI for pull requests only (no push trigger). Install, build, lint and test the projects that the PR
-# diff impacts, and run rush audit when the pnpm lockfile changed. The diff is the PR head against
-# its merge base with the target branch, for any target branch.
+# CI for pull requests only (no push trigger). The diff is the PR head against its merge base with
+# the target branch, for any target branch.
+# - plan: repo-wide checks, then the list of Rush projects that the diff impacts.
+# - project: one job for each impacted project (build, lint, typecheck, test, e2e).
+# - ci-result: a required check. It passes only when plan, project and workflow-lint pass.
+# - workflow-lint: actionlint, zizmor and pinact on .github/workflows and .github/actions.
 name: ci
 
 on:
@@ -11,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 defaults:
@@ -19,12 +22,13 @@ defaults:
     shell: bash
 
 jobs:
-  ci:
-    name: ci
+  plan:
+    name: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    permissions:
-      contents: read
+    timeout-minutes: 30
+    outputs:
+      projects: ${{ steps.impacted.outputs.projects }}
+      count: ${{ steps.impacted.outputs.count }}
     steps:
       - name: Checkout the PR head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -34,6 +38,13 @@ jobs:
           # Full history and every branch: the merge base needs the target branch.
           fetch-depth: 0
           persist-credentials: false
+
+      # No rush install here: rush check, rush list and the tsconfig check do not need it.
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
 
       - name: Show the diff that CI checks
         env:
@@ -49,62 +60,23 @@ jobs:
           echo "head: $(git rev-parse HEAD)"
           git diff --stat "${base}...HEAD"
 
-      # Caches. Each key is exact: no restore-keys, so a changed lock rebuilds from scratch. Every
-      # restore runs before the install, so hashFiles does not walk node_modules. Restore and save are
-      # two steps (actions/cache/restore and actions/cache/save): the save step of the combined
-      # actions/cache runs only when the job succeeds, so a failed run would cache nothing. Each save
-      # step sits right after the step that fills its cache. The save steps use the key that the
-      # restore step computed (cache-primary-key) and run only after a miss.
-      - name: Cache the pnpm store
-        id: cache-pnpm
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: common/temp/pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
-
-      - name: Cache the Rush launcher
-        id: cache-rush
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: common/temp/install-run
-          key: ${{ runner.os }}-rush-install-run-${{ hashFiles('rush.json') }}
-
-      # Toolchains. The built-in caches of the setup actions are off: actions/cache does the caching.
-      - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc # 24.11.1, inside the range of rush.json
-          package-manager-cache: false
-
-      - name: Show the tool versions
-        run: |
-          node --version
-
-      - name: Rush install
-        run: node common/scripts/install-run-rush.js install
-
-      # The install fills the pnpm store and the Rush launcher. Save them now, so that a later failure
-      # does not lose them.
-      - name: Save the pnpm store
-        if: steps.cache-pnpm.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: common/temp/pnpm-store
-          key: ${{ steps.cache-pnpm.outputs.cache-primary-key }}
-
-      - name: Save the Rush launcher
-        if: steps.cache-rush.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: common/temp/install-run
-          key: ${{ steps.cache-rush.outputs.cache-primary-key }}
-
       - name: Rush check
         run: node common/scripts/install-run-rush.js check
 
       - name: Check tsconfig files
         run: node tooling/tsconfig/scripts/check-tsconfigs.mjs
 
+      - name: Rush audit (pnpm lockfile changed)
+        run: |
+          if git diff --name-only "${BASE_SHA}" HEAD -- common/config/rush/pnpm-lock.yaml | grep -q .; then
+            node common/scripts/install-run-rush.js install
+            node common/scripts/install-run-rush.js audit
+          else
+            echo "pnpm-lock.yaml not changed, audit skipped"
+          fi
+
+      # Output: a compact JSON list of { name, path, slug }. slug is the path with "-" for "/". It is
+      # safe in cache keys and artifact names. An empty list gives count=0, and project skips.
       - name: List the projects that the diff impacts
         id: impacted
         run: |
@@ -112,47 +84,112 @@ jobs:
           node -e '
             const fs = require("node:fs");
             const text = fs.readFileSync(process.argv[1], "utf8");
-            const list = JSON.parse(text.slice(text.indexOf("{"))).projects;
-            fs.writeFileSync(process.argv[2], list.map((project) => project.path).join("\n") + "\n");
-          ' "${RUNNER_TEMP}/rush-list.json" "${RUNNER_TEMP}/impacted-paths.txt"
-          echo "Projects impacted by git:${BASE_SHA}:"
-          cat "${RUNNER_TEMP}/impacted-paths.txt"
-          echo "count=$(awk 'NF { n++ } END { print n + 0 }' "${RUNNER_TEMP}/impacted-paths.txt")" >>"$GITHUB_OUTPUT"
+            const list = JSON.parse(text.slice(text.indexOf("{"))).projects.map((project) => ({
+              name: project.name,
+              path: project.path,
+              slug: project.path.replaceAll("/", "-"),
+            }));
+            console.log("Projects impacted by git:" + process.env.BASE_SHA + ": " + list.length);
+            for (const project of list) console.log("  " + project.name + " (" + project.path + ")");
+            fs.appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              "projects=" + JSON.stringify(list) + "\ncount=" + list.length + "\n",
+            );
+          ' "${RUNNER_TEMP}/rush-list.json"
 
-      # The Rush phases, one step each. With no impacted project the steps skip.
-      # Build uses --from: the impacted projects, the projects that depend on them, and all the
-      # dependencies of that set. The workspace packages (packages/*, tooling/*) have no dist/ on a
-      # fresh runner, and the impacted projects import them, so they must build first.
-      # --impacted-by would select only the changed projects and their dependents, and not build
-      # their dependencies.
+  project:
+    name: ${{ matrix.project.name }}
+    needs: plan
+    # Skip with an empty list: fromJSON('[]') is not a valid matrix.
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        project: ${{ fromJSON(needs.plan.outputs.projects) }}
+    env:
+      PROJECT: ${{ matrix.project.name }}
+    steps:
+      - name: Checkout the PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Repo setup
+        id: setup
+        uses: ./.github/actions/repo-setup
+        with:
+          build-cache-scope: ${{ matrix.project.slug }}
+
+      # --to: the project and all its dependencies. Unchanged dependencies restore from the build cache.
       - name: Rush build
-        if: steps.impacted.outputs.count != '0'
-        run: node common/scripts/install-run-rush.js build --from "git:${BASE_SHA}"
+        id: build
+        run: node common/scripts/install-run-rush.js build --to "${PROJECT}"
 
-      # The other phases use --impacted-by: the diff scope only. They read the dist/ of the
-      # dependencies that the build step wrote.
-
+      # --only: this project only. The build step built the dependencies. Each check runs when the
+      # build passed, also when an earlier check failed, so one run shows every failure.
       - name: Rush lint
-        if: steps.impacted.outputs.count != '0'
-        run: node common/scripts/install-run-rush.js lint --impacted-by "git:${BASE_SHA}"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node common/scripts/install-run-rush.js lint --only "${PROJECT}"
+
+      - name: Rush typecheck
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node common/scripts/install-run-rush.js typecheck --only "${PROJECT}"
 
       - name: Rush test
-        if: steps.impacted.outputs.count != '0'
-        run: node common/scripts/install-run-rush.js test --impacted-by "git:${BASE_SHA}"
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node common/scripts/install-run-rush.js test --only "${PROJECT}"
 
-      - name: Rush audit (pnpm lockfile changed)
+      # e2e needs a browser only when the project has Playwright. The Bruno CLI is a dev dependency
+      # of the project, so rush install already installed it.
+      - name: Restore the Playwright browsers
+        id: cache-playwright
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && hashFiles(format('{0}/playwright.config.ts', matrix.project.path)) != '' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
+
+      - name: Install Chromium and its system packages
+        if: ${{ !cancelled() && steps.cache-playwright.outcome == 'success' }}
+        env:
+          PROJECT_PATH: ${{ matrix.project.path }}
+        run: '"${PROJECT_PATH}/node_modules/.bin/playwright" install --with-deps chromium'
+
+      - name: Save the Playwright browsers
+        if: ${{ !cancelled() && steps.cache-playwright.outcome == 'success' && steps.cache-playwright.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.cache-playwright.outputs.cache-primary-key }}
+
+      - name: Rush e2e
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node common/scripts/install-run-rush.js e2e --only "${PROJECT}"
+
+      # Entries older than 7 days are removed, so the saved cache does not grow without limit.
+      - name: Prune the Rush build cache
+        if: ${{ !cancelled() && steps.setup.outputs.build-cache-key != '' }}
         run: |
-          if git diff --name-only "${BASE_SHA}" HEAD -- common/config/rush/pnpm-lock.yaml | grep -q .; then
-            node common/scripts/install-run-rush.js audit
-          else
-            echo "pnpm-lock.yaml not changed, audit skipped"
-          fi
+          mkdir -p common/temp/build-cache
+          find common/temp/build-cache -type f -mtime +7 -delete
+          du -sh common/temp/build-cache
+
+      - name: Save the Rush build cache
+        if: ${{ !cancelled() && steps.setup.outputs.build-cache-key != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: common/temp/build-cache
+          key: ${{ steps.setup.outputs.build-cache-key }}
 
       - name: Keep the logs of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-failure-logs
+          name: ci-failure-logs-${{ matrix.project.slug }}
           path: |
             projects/*/rush-logs
             projects/*/test-results
@@ -161,3 +198,61 @@ jobs:
             platform/infra/rush-logs
           if-no-files-found: ignore
           retention-days: 7
+
+  ci-result:
+    name: ci-result
+    needs: [plan, project, workflow-lint]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the results of plan, project and workflow-lint
+        env:
+          PLAN: ${{ needs.plan.result }}
+          PROJECT: ${{ needs.project.result }}
+          WORKFLOW_LINT: ${{ needs.workflow-lint.result }}
+        run: |
+          echo "plan: ${PLAN}, project: ${PROJECT}, workflow-lint: ${WORKFLOW_LINT}"
+          if [ "${PLAN}" != "success" ]; then
+            echo "::error::plan did not pass (${PLAN})"
+            exit 1
+          fi
+          if [ "${WORKFLOW_LINT}" != "success" ]; then
+            echo "::error::workflow-lint did not pass (${WORKFLOW_LINT})"
+            exit 1
+          fi
+          if [ "${PROJECT}" != "success" ] && [ "${PROJECT}" != "skipped" ]; then
+            echo "::error::a project job did not pass (${PROJECT})"
+            exit 1
+          fi
+
+  workflow-lint:
+    name: workflow-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      # The script skips when CI is set. An empty CI runs it. Pinned versions and sha256 checks.
+      - name: Install the pinned tools
+        env:
+          CI: ''
+          INSTALL_TOOLS_DIR: ${{ runner.temp }}/tools
+        run: node scripts/security/install-tools.mjs
+
+      # GITHUB_TOKEN lets pinact check that each version comment names the version of its SHA.
+      - name: actionlint, zizmor, pinact
+        env:
+          INSTALL_TOOLS_DIR: ${{ runner.temp }}/tools
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash scripts/security/workflow-lint.sh

@@ -7,7 +7,11 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## What lives here
 
-- `workflows/ci.yml`: the only workflow. It runs on each pull request.
+- `workflows/ci.yml`: runs on each pull request. Jobs: `plan`, `project` (one job for each impacted project), `ci-result`, `workflow-lint`. `ci-result` is a required check. Details: [testing.md](../docs/standards/testing.md) section 6.
+- `workflows/secrets.yml`: runs gitleaks on the commits of each pull request. Its job `gitleaks` is a required check.
+- `workflows/warm-cache.yml`: runs on each push to `main` and by hand. It builds all projects and saves the caches that pull requests restore.
+- `zizmor.yml`: zizmor config. A human adds each entry, with a reason.
+- `actions/repo-setup/action.yml`: composite action. It sets up Node, restores the caches, runs `rush install`, and restores the Rush build cache.
 - `CODEOWNERS`: owner rules. The last matching line wins.
 - `pull_request_template.md`: Summary, Testing, Risk, How to revert, Flag.
 
@@ -20,9 +24,11 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## How to change a workflow
 
-1. Put the change in its own PR.
-2. Give the reason in the PR description.
-3. A human reviews it.
+1. Pin each `uses:` to a full commit SHA with a version comment (`pinact run`).
+2. Run `bash scripts/security/workflow-lint.sh`. The pre-commit hook runs it on staged files too.
+3. Put the change in its own PR.
+4. Give the reason in the PR description.
+5. A human reviews it.
 
 Do not run `gh` commands that change repo settings, labels, or rulesets. Do not run `cdk deploy`. Releases use `release.yml`.
 

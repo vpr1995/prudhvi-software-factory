@@ -12,11 +12,22 @@ const eslintBin = path.join(
   'eslint',
 );
 const quote = (files) => files.map((file) => `"${file}"`).join(' ');
+// GitHub workflow and action files also get actionlint, zizmor and pinact, after Prettier.
+const isGithubFile = (file) => /[/\\]\.github[/\\](workflows|actions)[/\\]/.test(file);
+const workflowLint = (files) => {
+  const githubFiles = files.filter(isGithubFile);
+  return githubFiles.length > 0
+    ? [`bash scripts/security/workflow-lint.sh ${quote(githubFiles)}`]
+    : [];
+};
 
 module.exports = {
   '*.{ts,tsx,js,jsx,mjs,cjs}': (files) => [
     `prettier --write ${quote(files)}`,
     `"${eslintBin}" --max-warnings 0 --no-warn-ignored ${quote(files)}`,
   ],
-  '*.{json,jsonc,yml,yaml,css}': (files) => [`prettier --write ${quote(files)}`],
+  '*.{json,jsonc,yml,yaml,css}': (files) => [
+    `prettier --write ${quote(files)}`,
+    ...workflowLint(files),
+  ],
 };
