@@ -30,6 +30,7 @@ jobs:
     outputs:
       projects: ${{ steps.impacted.outputs.projects }}
       count: ${{ steps.impacted.outputs.count }}
+      base-sha: ${{ steps.diff.outputs.base-sha }}
     steps:
       - name: Checkout the PR head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,6 +49,7 @@ jobs:
           package-manager-cache: false
 
       - name: Show the diff that CI checks
+        id: diff
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -57,6 +59,7 @@ jobs:
           }
           base="$(git merge-base "origin/${BASE_REF}" HEAD)"
           echo "BASE_SHA=${base}" >>"$GITHUB_ENV"
+          echo "base-sha=${base}" >>"$GITHUB_OUTPUT"
           echo "base (merge base of origin/${BASE_REF} and HEAD): ${base}"
           echo "head: $(git rev-parse HEAD)"
           git diff --stat "${base}...HEAD"
@@ -117,6 +120,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          # Full history: the coverage check on changed lines diffs against the merge base.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Repo setup
@@ -141,8 +146,19 @@ jobs:
         run: node common/scripts/install-run-rush.js typecheck --only "${PROJECT}"
 
       - name: Rush test
+        id: test
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node common/scripts/install-run-rush.js test --only "${PROJECT}"
+
+      # Changed lines (merge base to PR head) that lcov lists: at least 80% (the lines threshold)
+      # must run in tests. Only for a project with coverage/lcov.info. The build step built
+      # tooling/vitest-config, which each project with Vitest depends on.
+      - name: Coverage on changed lines
+        if: ${{ !cancelled() && steps.test.outcome == 'success' && hashFiles(format('{0}/coverage/lcov.info', matrix.project.path)) != '' }}
+        env:
+          BASE_SHA: ${{ needs.plan.outputs.base-sha }}
+          PROJECT_PATH: ${{ matrix.project.path }}
+        run: node tooling/vitest-config/dist/diff-coverage.js "${BASE_SHA}" "${PROJECT_PATH}" <"${PROJECT_PATH}/coverage/lcov.info"
 
       # e2e needs a browser only when the project has Playwright. The Bruno CLI is a dev dependency
       # of the project, so rush install already installed it.

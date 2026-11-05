@@ -59,6 +59,7 @@ export function createRootConfig({ rootPath, ignores = [] }) {
       'scripts/security/lib/fs-io.mjs',
       'tooling/tsconfig/scripts/lib/fs-io.mjs',
       'tooling/templates/src/fs-io.js',
+      'tooling/eslint-config/scripts/fs-io.mjs',
     ]),
     logRedactionTestException,
   ];
@@ -67,9 +68,10 @@ export function createRootConfig({ rootPath, ignores = [] }) {
 /**
  * WARNING: file-scoped security exception. Repo owner decision, 2026-10-22.
  * Each fs-io module is the one module of its script that reads or writes files with computed
- * paths (scripts/security, tooling/tsconfig/scripts and tooling/templates). Keep every
- * computed-path fs call in these files. The root config and the eslint.config.js of
- * tooling/templates use this block, so the two lint runs agree.
+ * paths (scripts/security, tooling/tsconfig/scripts, tooling/templates and
+ * tooling/eslint-config/scripts). Keep every computed-path fs call in these files. The root config
+ * and the eslint.config.js of tooling/templates and tooling/eslint-config use this block, so the
+ * lint runs agree.
  *
  * @param {string[]} files - Paths of the fs-io modules, relative to the config folder.
  * @returns {import('eslint').Linter.Config} The exception block.
