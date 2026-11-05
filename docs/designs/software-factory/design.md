@@ -36,17 +36,17 @@ The owner gives one feature idea. Today the path from idea to production has gap
 
 Five research reports (2026-11-05) agree on these points. Tag: **[P]** = primary source read, **[S]** = secondary or unverified.
 
-1. **Deterministic gates beat prompts.** "If a CLAUDE.md line keeps being ignored, move it to a hook." [P] https://code.claude.com/docs/en/best-practices. OpenAI "harness engineering": lints whose error messages tell the agent the fix [S].
+1. **Deterministic gates beat prompts.** "If a CLAUDE.md line keeps being ignored, move it to a hook." [P] <https://code.claude.com/docs/en/best-practices>. OpenAI "harness engineering": lints whose error messages tell the agent the fix [S].
 2. **Fresh-context review finds hidden assumptions.** Elephant/Goldfish: a comprehension test, a critic, a readiness test [P] (Rensin essay, google/elephant-goldfish-model). Claude Code docs: interview to SPEC.md, then a fresh session builds [P].
-3. **Too much spec hurts.** Kiro turned a small bug into "4 user stories with 16 acceptance criteria". Spec Kit files are "verbose and tedious to review" [P] https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html. Size tiers are the fix [P] (BMAD, Kiro Quick Spec).
-4. **Testable requirements with IDs.** EARS form: "WHEN <event> THE SYSTEM SHALL <behavior>" [P] https://kiro.dev/docs/specs/feature-specs/. Each ID maps to a test.
-5. **`[NEEDS CLARIFICATION]` markers and a read-only consistency check** between spec, plan, and tasks [P] https://github.com/github/spec-kit.
-6. **Agents game tests.** They hard-code results and edit tests [P] https://arxiv.org/html/2511.21654v1. An LLM judge with fresh context was the best detector there. CI must also block deleted tests and weakened thresholds.
-7. **Self-contained tickets.** An ExecPlan has acceptance, exact commands, a progress section, and a decision log [P] https://developers.openai.com/cookbook/articles/codex_exec_plans.
-8. **Two review passes:** spec compliance first, code quality second [P] https://github.com/obra/superpowers.
-9. **Caps and an escape hatch.** Stripe caps CI fix rounds at 2 [P] https://stripe.dev/blog/minions-stripes-one-shot-end-to-end-coding-agents. Headless runs have `--max-turns` and `--max-budget-usd`, and the JSON output has `total_cost_usd` [P] https://code.claude.com/docs/en/headless.
-10. **Prompt injection through issue text** is the main risk of an autonomous loop [P] https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/. Containment beats detection.
-11. **Docs drift unless CI checks them.** A doc lint fails when a doc names a missing path, script, or command [S] https://understandingdata.com/posts/doc-drift-detection-ci/.
+3. **Too much spec hurts.** Kiro turned a small bug into "4 user stories with 16 acceptance criteria". Spec Kit files are "verbose and tedious to review" [P] <https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html>. Size tiers are the fix [P] (BMAD, Kiro Quick Spec).
+4. **Testable requirements with IDs.** EARS form: `WHEN <event> THE SYSTEM SHALL <behavior>` [P] <https://kiro.dev/docs/specs/feature-specs/>. Each ID maps to a test.
+5. **`[NEEDS CLARIFICATION]` markers and a read-only consistency check** between spec, plan, and tasks [P] <https://github.com/github/spec-kit>.
+6. **Agents game tests.** They hard-code results and edit tests [P] <https://arxiv.org/html/2511.21654v1>. An LLM judge with fresh context was the best detector there. CI must also block deleted tests and weakened thresholds.
+7. **Self-contained tickets.** An ExecPlan has acceptance, exact commands, a progress section, and a decision log [P] <https://developers.openai.com/cookbook/articles/codex_exec_plans>.
+8. **Two review passes:** spec compliance first, code quality second [P] <https://github.com/obra/superpowers>.
+9. **Caps and an escape hatch.** Stripe caps CI fix rounds at 2 [P] <https://stripe.dev/blog/minions-stripes-one-shot-end-to-end-coding-agents>. Headless runs have `--max-turns` and `--max-budget-usd`, and the JSON output has `total_cost_usd` [P] <https://code.claude.com/docs/en/headless>.
+10. **Prompt injection through issue text** is the main risk of an autonomous loop [P] <https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/>. Containment beats detection.
+11. **Docs drift unless CI checks them.** A doc lint fails when a doc names a missing path, script, or command [S] <https://understandingdata.com/posts/doc-drift-detection-ci/>.
 12. **Measure the factory.** Cost per merged PR, review rounds, needs-human rate, change failure rate [S] DORA 2025.
 
 ## 5. Pipeline
@@ -196,7 +196,7 @@ Lesson from the old `stop-gate` (removed in PR #43): it ran lint, typecheck, and
 
 ## 7. Rule changes (owner decisions 2026-11-05)
 
-1. **Designs may describe future work.** Only `docs/designs/` is exempt from "docs reflect only what is implemented" and from the `docs/CLAUDE.md` rule that puts plans in the wiki. Each design has `status: draft | approved | implemented | superseded`. Doc lint skips designs that are not `implemented`. Update `docs/CLAUDE.md` in build step 1.
+1. **Designs can describe future work.** Only `docs/designs/` is exempt from "docs reflect only what is implemented" and from the `docs/CLAUDE.md` rule that puts plans in the wiki. Each design has `status: draft | approved | implemented | superseded`. Doc lint skips designs that are not `implemented`. Update `docs/CLAUDE.md` in build step 1.
 2. **CI is the only prod deployer.** Agents test locally (Fastify `inject`, Next dev server, Bruno against localhost). Root `CLAUDE.md` rule 4 drops the test-deploy permission. `.claude/settings.json` denies `cdk deploy` again. The `e2e-verify` skill drops its deploy step. Build step 1.
 3. **Rule 13 allows git worktrees and CI checkouts.** Rule 13 bans copies outside git (scratch folders, extra clones). Reword it in build step 1.
 4. **No bot vs Actions runner.** Phase 2 needs a GitHub App token. Phase 1 (local) does not. Decide before build step 10.
