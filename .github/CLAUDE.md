@@ -7,8 +7,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## What lives here
 
-- `workflows/ci.yml`: required checks on each PR and on the merge queue.
-- `workflows/`: security, risk-classify, review, nightly, infra, and release workflows.
+- `workflows/ci.yml`: the only workflow. It runs on each pull request.
 - `CODEOWNERS`: owner rules. The last matching line wins.
 - `pull_request_template.md`: Summary, Testing, Risk, How to revert, Flag.
 
