@@ -37,3 +37,4 @@ export default async function HomePage(): Promise<React.JSX.Element> {
     </main>
   );
 }
+// CI matrix proof. Do not merge.
