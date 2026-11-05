@@ -53,7 +53,7 @@ The command writes the part files, adds the part scripts and dependencies to `pa
 
 - Endpoint: the project owns its contracts. When a route has a request or a response body, write the Zod schema in `src/contracts/<resource>.ts` (see `docs/guides/contracts.md`). Then add the route with `new-api-route`. Each route gets a Bruno request with docs and assertions (`api-docs`).
 - Page: add it with `new-web-page`. Each page gets a Playwright spec with `page.goto` and an axe check.
-- Infra: add constructs with `new-cdk-construct`. Platform values come from `use-platform-resource`. To run the server on Lambda, add `src/api/lambda.ts` (see `projects/sample`) and a `NodejsFunction` construct. Never run `cdk deploy` or `cdk destroy`.
+- Infra: add constructs with `new-cdk-construct`. Platform values come from `use-platform-resource`. To run the server on Lambda, add `src/api/lambda.ts` (see `projects/sample`) and a `NodejsFunction` construct. Deploy rules: root CLAUDE.md rule 4.
 - Dependency: run `rush add -p <pkg> [--dev]` from the project folder. List each new package with its version and license in your report.
 - Telemetry: the node part starts OpenTelemetry in `src/api/run.ts` and echoes `traceparent`. See `docs/standards/observability.md` for the other parts.
 
@@ -73,4 +73,5 @@ The command writes the part files, adds the part scripts and dependencies to `pa
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`. Use `rush add -p`.
 - Hard-code account IDs, pool IDs, zone IDs, or certificate ARNs. Put a secret in a Bruno environment file.
-- Run `cdk deploy` or `cdk destroy`. Use `--no-verify`.
+- Run `cdk deploy` only as root CLAUDE.md rule 4 allows. Never run `cdk destroy`.
+- Use `--no-verify`.

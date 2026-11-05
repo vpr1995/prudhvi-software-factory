@@ -1,6 +1,6 @@
 # ADR 0004: Use open-source security tools only
 
-- Status: Accepted. Partly replaced 2026-11-05: Opengrep, OSV-Scanner and Checkov removed. See `docs/standards/security.md`.
+- Status: Accepted. Partly replaced 2026-11-05: Opengrep, OSV-Scanner and Checkov removed. TruffleHog, njsscan, cfn-lint and OpenSSF Scorecard are also not set up. See `docs/standards/security.md`.
 - Date: 2026-10-22
 
 ## Context

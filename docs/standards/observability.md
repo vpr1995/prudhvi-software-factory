@@ -2,8 +2,6 @@
 
 This document sets the rules for logs and traces. One request makes one trace. The trace starts in the browser and ends at the AWS call. Each log line of the request carries the trace id.
 
-Status: this document describes the target design (ADR 0009). An item marked "(planned)" is not yet active. Do not treat it as a working check.
-
 ## 1. Architecture
 
 ```mermaid
@@ -18,34 +16,32 @@ flowchart LR
 ```
 
 - The browser adds a `traceparent` header to each API call that a client component makes (W3C Trace Context). Most pages call the API from a Server Component. For those pages the trace starts at the Next.js server.
-- Browser spans are not exported. The browser only creates the trace id and sends `traceparent`. The trace view shows no browser span. A public OTLP endpoint for the browser is an open decision (a human owns it).
+- Browser spans are exported only when `initBrowserTelemetry` gets the optional `tracesUrl` (OTLP/HTTP). Without it, the browser only creates the trace id and sends `traceparent`, and the trace view shows no browser span. A public OTLP endpoint for the browser is an open decision (a human owns it).
 - The Next.js server registers telemetry in `instrumentation.ts`. It continues the browser trace and passes the header on to the API.
-- API Gateway (HTTP API) forwards `traceparent` in `event.headers`. The API handler wrapper extracts it (section 2). The API echoes `traceparent` in the response.
+- API Gateway (HTTP API) forwards `traceparent` in `event.headers`. `@fastify/otel` continues the trace from it (section 2). The API echoes `traceparent` in the response.
 - The API sets `requestId` in the error envelope to the trace id.
 - AWS SDK calls from the API are child spans.
 - Lambda sends spans to the ADOT collector layer. The collector exports to X-Ray and CloudWatch.
 
 ## 2. The shared package
 
-`@vprprudhvi/shared-telemetry` (`packages/telemetry`, planned) is the only package that imports the OpenTelemetry SDK (`@opentelemetry/sdk-*`, exporters, instrumentations). App code gets the API types from the re-exports of this package.
+`@vprprudhvi/shared-telemetry` (`packages/telemetry`) is the only package that imports the OpenTelemetry SDK (`@opentelemetry/sdk-*`, exporters, instrumentations). App code gets the API types from the re-exports of this package.
 
-| Export                                                           | Use                                                                                                                                                                                                                                                       |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `initTelemetry({ serviceName })`                                 | Start the SDK once, at process start. Sets W3C `tracecontext` and `baggage` propagators, the OTLP exporter, and the resource attributes `service.name`, `service.version`, `deployment.environment`, and `cloud.*`.                                       |
-| `withSpan(name, fn, attributes?)`                                | Run `fn` in a new span. It records an exception and sets the error status when `fn` throws. It ends the span.                                                                                                                                             |
-| `getTraceContext()`                                              | Return `{ traceId, spanId, traceFlags }` of the active span.                                                                                                                                                                                              |
-| `wrapLambdaHandler(handler)`                                     | Wrap a Lambda handler (planned). It extracts `traceparent` and `tracestate` from `event.headers` with `propagation.extract`. It runs the handler in that context. It sets `traceparent` in the response headers. It calls `forceFlush` before it returns. |
-| `@vprprudhvi/shared-telemetry/browser`: `initBrowserTelemetry()` | Browser entry (planned). It registers the `tracecontext` propagator and fetch instrumentation. It has no span exporter. Call it only when a client component calls the API.                                                                               |
+| Export                                                           | Use                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `initTelemetry({ serviceName })`                                 | Start the SDK once, at process start. Sets W3C `tracecontext` and `baggage` propagators, the OTLP exporter, and the resource attributes `service.name`, `service.version`, `deployment.environment`, and `cloud.*`. |
+| `withSpan(name, fn, attributes?)`                                | Run `fn` in a new span. It records an exception and sets the error status when `fn` throws. It ends the span.                                                                                                       |
+| `getTraceContext()`                                              | Return `{ traceId, spanId, traceFlags }` of the active span.                                                                                                                                                        |
+| `@vprprudhvi/shared-telemetry/browser`: `initBrowserTelemetry()` | Browser entry. It registers the `tracecontext` and `baggage` propagators and returns a traced `fetch`. It exports spans only when you pass `tracesUrl`. Call it only when a client component calls the API.         |
 
 Rules:
 
 - Call `initTelemetry` once per process, before any other import that makes requests. In ESM, static imports run first. In `lambda.ts`, call `initTelemetry`, then load the server with `await import('./server.js')`.
-- Flush spans before the Lambda freezes. `wrapLambdaHandler` calls `forceFlush`.
-- Do not rely on `@fastify/otel` to read `traceparent`. `@fastify/aws-lambda` injects the event into Fastify and opens no HTTP server. `wrapLambdaHandler` makes the extracted context active. `@fastify/otel` only names the route spans.
+- Flush spans before the Lambda freezes. The sample handler in `src/api/lambda.ts` calls `forceFlush` inline, with a time limit.
+- `@fastify/otel` makes one span for each request and continues an incoming `traceparent`. The `onSend` hook in `server.ts` sets the response `traceparent`.
 - Do not import `@opentelemetry/*` SDK packages outside `packages/telemetry`.
 - Do not use `console`. Use `@vprprudhvi/shared-logger`.
-- Missing package rule. If `packages/telemetry` does not exist, skip the telemetry step and the trace test. List both as open items in your final message and in the PR. Do not create a stub. Do not import `@opentelemetry/*` directly.
-- If the package exists but is not a dependency of your part, stop. A new dependency needs a human.
+- If the package is not a dependency of your part, add it with `rush add -p @vprprudhvi/shared-telemetry` in the project folder.
 
 ## 3. Log fields
 
@@ -99,7 +95,7 @@ Each log line is one JSON object. No library emits all of these names by default
 
 ## 8. Lambda: ADOT layer and environment
 
-- The shared Lambda construct in `@vprprudhvi/shared-cdk-constructs` adds the ADOT Lambda layer and sets the environment (planned). Project infra does not add the layer by hand.
+- The shared Lambda construct in `@vprprudhvi/shared-cdk-constructs` adds the ADOT Lambda layer and sets the environment (`TracedNodeFunction`, base `TracedFunctionBase`). Project infra does not add the layer by hand.
 - The layer is the ADOT collector-only layer. Do not use the auto-instrumentation layer. Do not set `AWS_LAMBDA_EXEC_WRAPPER`. The app starts the SDK through `initTelemetry`. A wrapper would start the SDK a second time.
 - The construct sets active tracing on the function. Lambda active tracing starts the X-Ray segment.
 - An API Gateway HTTP API has no X-Ray support. Do not set tracing on the stage. The HTTP API forwards `traceparent` in `event.headers`. To get stage tracing, the API must be a REST API. That change needs a human decision.
@@ -136,19 +132,18 @@ fields @timestamp, service.name, level, msg
 
 ## 11. Checks
 
-Each rule has an enforcer. An enforcer marked "(planned)" is not active.
+Each rule has an enforcer.
 
-| Check                     | Rule                                                                                                 | Enforcer                                                                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Lint                      | No secret or PII key in a logger call.                                                               | `local/no-secret-in-log` in `tooling/eslint-config`.                                                                                    |
-| Lint                      | No `console`.                                                                                        | `no-console` in `tooling/eslint-config`.                                                                                                |
-| Lint                      | No direct `@opentelemetry/*` SDK import outside `packages/telemetry`.                                | `no-restricted-imports` in `tooling/eslint-config` (planned).                                                                           |
-| Review                    | No PII key in a span attribute.                                                                      | Read the code. No automatic rule.                                                                                                       |
-| Test, TypeScript API      | An incoming `traceparent` continues: the response and the log line have the same trace id.           | Vitest test that calls the Lambda handler (wrapped with `wrapLambdaHandler`) with a fake HTTP API v2 event, in each api part (planned). |
-| Test, web (browser fetch) | A browser call to the API carries `traceparent`. Applies only when a client component calls the API. | Playwright spec, in each web part (planned).                                                                                            |
-| Test, web (server fetch)  | The `lib/<resource>-client.ts` request carries `traceparent` when a span is active.                  | Vitest test of the lib client with a fake server, in each web part (planned).                                                           |
-| Test, Bruno               | The response has a `traceparent` header.                                                             | `assert` block in the `.bru` request (planned).                                                                                         |
-| CDK                       | Each Lambda has the ADOT layer and active tracing.                                                   | `Template.fromStack` assertion in `shared-cdk-constructs` and each infra test (planned).                                                |
+| Check                     | Rule                                                                                                 | Enforcer                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Lint                      | No secret or PII key in a logger call.                                                               | `local/no-secret-in-log` in `tooling/eslint-config`.                                                   |
+| Lint                      | No `console`.                                                                                        | `no-console` in `tooling/eslint-config`.                                                               |
+| Review                    | No PII key in a span attribute.                                                                      | Read the code. No automatic rule.                                                                      |
+| Test, TypeScript API      | An incoming `traceparent` continues: the response and the log line have the same trace id.           | `test/api/trace-propagation.test.ts` (`fastify.inject` with a `traceparent` header), in each api part. |
+| Test, web (browser fetch) | A browser call to the API carries `traceparent`. Applies only when a client component calls the API. | Playwright spec `web/e2e/home.spec.ts`, in each web part.                                              |
+| Test, web (server fetch)  | The `lib/<resource>-client.ts` request carries `traceparent` when a span is active.                  | Vitest test of the lib client with a fake server, in each web part.                                    |
+| Test, Bruno               | The response has a `traceparent` header.                                                             | `assert` block in the `.bru` request (`bruno/health/get-health.bru`).                                  |
+| CDK                       | Each Lambda has the ADOT layer and active tracing.                                                   | `Template.fromStack` assertion in each infra test (`test/infra/sample-api-stack.test.ts`).             |
 
 ## 12. Links
 

@@ -56,13 +56,13 @@ Check each tool with its version flag, for example `gitleaks version`. Use the v
 
 ## 5. Add a package
 
-Use `rush add`. Do not use `npm` or `pnpm` directly.
+Use `rush add`. Run it in the folder of the project. Do not use `npm` or `pnpm` directly.
 
 ```
-node common/scripts/install-run-rush.js add -p <package> --to @vprprudhvi/sample
+node common/scripts/install-run-rush.js add -p <package>
 ```
 
-A new dependency needs a human approval. See `docs/standards/security.md`, section 4.
+A new dependency needs no human approval when `rush audit` passes. If the audit fails, stop and ask the human. See `docs/standards/security.md`, section 4.
 
 ## 6. How agents work here
 
@@ -74,7 +74,7 @@ Agents write most of the code. Agents follow these files:
 | `docs/guides/*.md`      | How to work in one part: contracts, web, api, infra.                                                                                                                              |
 | `REVIEW.md`             | Rules for the AI reviewer.                                                                                                                                                        |
 | `docs/standards/*.md`   | Coding, testing, security, Git, and risk rules.                                                                                                                                   |
-| `.claude/settings.json` | Agent permissions.                                                                                                                                                                |
+| `.claude/settings.json` | Agent permissions (allow and deny rules) and the lint-on-edit hook.                                                                                                               |
 
 The agent flow is:
 
@@ -89,6 +89,6 @@ No hook forces `verify`. Run it by hand before you open a PR. The pre-push hook 
 
 ## 7. Your role as a human
 
-- Read the risk tier of each PR. The tier sets how many approvals you need.
+- Read the risk tier of each PR. The tier sets the review focus. You review and merge each PR.
 - Review high-risk changes, such as `platform/**`, `packages/**`, `tooling/**` and `.github/**`. See `docs/standards/risk-tiers.md`.
 - Use `docs/runbooks/rollback.md` when a change causes harm.

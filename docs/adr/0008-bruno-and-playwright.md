@@ -1,6 +1,6 @@
 # ADR 0008: Bruno for API requests and tests, Playwright for web
 
-- Status: Accepted
+- Status: Accepted. Partly replaced 2026-11-05: `api-py`, `api-go`, the Stop hook and `check-gates` are removed (PR #43). The nightly run with Firefox and WebKit is not built. PR runs use Chromium.
 - Date: 2026-10-22
 
 ## Context

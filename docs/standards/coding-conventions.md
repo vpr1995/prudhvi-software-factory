@@ -8,7 +8,6 @@ This document sets the coding rules for this repo. Agents and humans must follow
 
 - A human reviews each change to this document.
 - Each convention has an enforcer. A convention with no tool enforcer is checked by the AI reviewer. Such entries are listed in `REVIEW.md` under "Conventions with no tool enforcer".
-- An enforcer marked "(planned)" is not yet active. Do not treat it as a working check.
 - To change a rule, open a PR that changes this file. Do not add an inline disable to pass a check.
 
 ## How to read each entry
@@ -230,7 +229,7 @@ export const createOrder = z.object({
 export type CreateOrderType = z.infer<typeof createOrder>;
 ```
 
-**Enforcer:** Custom rule in `tooling/eslint-config` (planned).
+**Enforcer:** `local/zod-schema-naming` in `tooling/eslint-config`.
 
 ### A.9 Generic type parameters
 
@@ -340,7 +339,7 @@ app.get('/v1/orderItem/:id', getOrderItemRoute);
 app.get('/order_items/:id', getOrderItemRoute);
 ```
 
-**Enforcer:** Custom lint rule on route registration (planned) and the contract test.
+**Enforcer:** The contract test. The AI reviewer checks the route names.
 
 ### A.14 JSON fields in the API
 
@@ -388,7 +387,7 @@ new s3.Bucket(this, 'assets-bucket', {
 });
 ```
 
-**Enforcer:** Custom lint rule for infra (planned).
+**Enforcer:** No tool enforcer. The AI reviewer checks it.
 
 ### A.16 AWS resource names
 
@@ -413,7 +412,7 @@ new s3.Bucket(this, 'AssetsBucket', {
 });
 ```
 
-**Enforcer:** cdk-nag and a custom rule (planned).
+**Enforcer:** cdk-nag. The AI reviewer checks the rest.
 
 ### A.17 Branch names
 
@@ -434,7 +433,7 @@ feature/OrderExport
 john-work
 ```
 
-**Enforcer:** Branch-name check in `commit-msg` or CI (planned). See `docs/standards/git-workflow.md`.
+**Enforcer:** No tool enforcer. The AI reviewer checks it. See `docs/standards/git-workflow.md`.
 
 ### A.18 Abbreviations
 
@@ -657,7 +656,7 @@ export * from './get-user.js';
 export * from './list-users.js';
 ```
 
-**Enforcer:** Custom rule or `no-restricted-imports` (planned).
+**Enforcer:** The `barrel` selector of `no-restricted-syntax` in `tooling/eslint-config/src/restricted-syntax.js`.
 
 ### B.10 Import order
 
@@ -759,7 +758,7 @@ export type OrderSummaryInput = {
 };
 ```
 
-**Enforcer:** `@typescript-eslint/prefer-readonly-parameter-types` (planned, warn level, off for React props types). This rule checks parameter types only. The `readonly` check on properties is in `REVIEW.md` ("Conventions with no tool enforcer").
+**Enforcer:** No tool enforcer. The `readonly` check is in `REVIEW.md` ("Conventions with no tool enforcer").
 
 ### B.14 Strict equality
 
@@ -959,7 +958,7 @@ export class UserNotFound extends Error {}
 throw new Error('USER_NOT_FOUND');
 ```
 
-**Enforcer:** Custom rule in `tooling/eslint-config` (planned).
+**Enforcer:** No tool enforcer. The AI reviewer checks it.
 
 ### C.3 API error envelope
 
@@ -1022,7 +1021,7 @@ await withSpan('orders.export', () => exportOrder(orderId));
 import { NodeSDK } from '@opentelemetry/sdk-node'; // only packages/telemetry imports the SDK
 ```
 
-**Enforcer:** `no-restricted-imports` in `tooling/eslint-config` (planned). The test checks are in `docs/standards/observability.md`, section 11.
+**Enforcer:** No tool enforcer. The AI reviewer checks it. The test checks are in `docs/standards/observability.md`, section 11.
 
 ---
 
@@ -1116,21 +1115,21 @@ export function isPaid(order: Order): boolean {
 
 ### D.4 Infra source layout (`bin/`, `lib/`)
 
-**Rule:** Put the CDK app entry in `bin/<name>.ts`. Put infra code in `lib/stacks/`, `lib/constructs/`, and `lib/config/<env>.ts`. Keep `lib/constructs/` for this project only. Put shared constructs in `packages/cdk-constructs`.
+**Rule:** Put the CDK app entry in `bin/app.ts`. Put infra code in `lib/<name>-stack.ts`, `lib/constructs/`, and `lib/config/<env>.ts`. Keep `lib/constructs/` for this project only. Put shared constructs in `packages/cdk-constructs`.
 Read shared AWS resources (user pool, zone, certificate) through SSM helpers in `@vprprudhvi/shared-cdk-constructs`. Never import `platform/infra` code.
 
 **Good:**
 
 ```ts
-// projects/sample/lib/stacks/api-stack.ts
-import { ApiService } from '@vprprudhvi/shared-cdk-constructs';
+// projects/sample/lib/sample-api-stack.ts
+import { TracedHttpApi } from '@vprprudhvi/shared-cdk-constructs';
 ```
 
 **Bad:**
 
 ```ts
-// projects/sample/lib/stacks/api-stack.ts
-import { OtherApiStack } from '../../../other/lib/stacks/api-stack.js'; // never: another project
+// projects/sample/lib/sample-api-stack.ts
+import { OtherApiStack } from '../../other/lib/other-api-stack.js'; // never: another project
 import { UserPool } from '@vprprudhvi/platform-infra'; // never: platform code is not imported
 ```
 
@@ -1181,7 +1180,7 @@ export function toPaymentAmount(orderTotal: number): number {
 // TODO: fix this later
 ```
 
-**Enforcer:** `no-warning-comments` and a custom regex rule (planned).
+**Enforcer:** `local/todo-with-issue` in `tooling/eslint-config`.
 
 ### E.3 No commented-out code
 
@@ -1267,9 +1266,15 @@ const dbUrl = process.env.SAMPLE_API_DB_URL;
 **Good:**
 
 ```ts
-import { flags } from '@vprprudhvi/shared-flags';
+// config.ts (the only file that reads process.env)
+import { createEnvFlagProvider, createFlagClient, defineFlags } from '@vprprudhvi/shared-flags';
 
-if (await flags.isEnabled('orders.export')) {
+const registry = defineFlags({
+  ordersExport: { defaultValue: false, description: 'Show the export button.' },
+});
+const flags = createFlagClient(registry, [createEnvFlagProvider(process.env)]);
+
+if (flags.isEnabled('ordersExport')) {
   renderExportButton();
 }
 ```
@@ -1308,7 +1313,7 @@ it('returns a response', async () => {
 
 ### F.5 One change per PR
 
-**Rule:** Each PR must change one thing. The soft limit is 2000 changed lines. A `large-pr` label from a human is required above 10000 changed lines.
+**Rule:** Each PR must change one thing. The soft limit is 2000 changed lines.
 
 **Good:**
 

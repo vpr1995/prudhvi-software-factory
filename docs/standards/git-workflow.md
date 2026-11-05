@@ -16,8 +16,6 @@ This document sets the rules for branches, commits, hooks, and pull requests.
 | `fix/null-user-email` | `fix_user`            | Use hyphens, not underscores.        |
 | `chore/bump-rush`     | `my-branch`           | The branch needs a type.             |
 
-CI checks the branch name.
-
 ## 2. Commit messages
 
 Commit messages use Conventional Commits. The `commit-msg` hook runs commitlint.
@@ -39,7 +37,6 @@ Allowed types:
 | `feat`     | A new behavior.                        |
 | `fix`      | A bug fix.                             |
 | `docs`     | Documentation only.                    |
-| `style`    | Formatting only. No logic change.      |
 | `refactor` | A code change with no behavior change. |
 | `perf`     | A performance change.                  |
 | `test`     | Tests only.                            |
@@ -93,7 +90,7 @@ Hooks come from `common/git-hooks/`.
 - Each PR changes one thing.
 - Keep each commit small and complete. Each commit must pass the checks.
 - Do not rewrite the history of a PR after review starts. Add a new commit.
-- Squash or rebase only when the PR is ready to merge.
+- Choose the merge method when the PR is ready to merge.
 
 ## 6. Pull requests
 
@@ -106,11 +103,10 @@ Hooks come from `common/git-hooks/`.
 
 ## 7. Merge
 
-- The `main` ruleset requires a pull request, passing required checks, and resolved review threads. The required CI checks are `ci-result` and `gitleaks` (see [testing.md](testing.md) section 6).
-- The ruleset requires linear history. Use squash merge or rebase merge.
-- Merge queue runs the checks again on the merged result.
-- Approvals depend on the risk tier. See `docs/standards/risk-tiers.md`.
-- Do not merge a PR that has an open review thread.
+- The `main` ruleset requires a pull request, the checks `ci-result` and `gitleaks` (see [testing.md](testing.md) section 6), and an up-to-date branch. It blocks deletion and force push.
+- The ruleset requires 0 approvals. It has no code-owner rule, no review-thread rule, no linear-history rule, and no merge queue.
+- Merge, squash, and rebase are all allowed.
+- The owner reviews and merges each PR. This is a convention. See `docs/standards/risk-tiers.md`.
 
 ## 8. Protected operations
 

@@ -1,6 +1,6 @@
 ---
 name: use-platform-resource
-description: Let a project use a shared platform resource such as the Cognito user pool, the imported Route53 hosted zone, or the ACM wildcard certificate. Reads platform values from SSM under /platform/<env>/ through the helper in shared-cdk-constructs, and explains how to request a NEW platform resource, which needs human approval in platform/infra. Triggers include use platform, platform resource, user pool, Cognito app client, hosted zone, wildcard cert, SSM platform value, add a platform resource.
+description: Let a project use a shared platform resource such as the Cognito user pool. Reads platform values from SSM under /platform/<env>/ through the helper in shared-cdk-constructs, and explains how to request a NEW platform resource, which needs human approval in platform/infra. Triggers include use platform, platform resource, user pool, Cognito app client, SSM platform value, add a platform resource.
 ---
 
 # use-platform-resource
@@ -9,19 +9,19 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 
 Platform facts:
 
-- `platform/infra` (`@vprprudhvi/platform-infra`) owns one Cognito user pool, the imported Route53 hosted zone, and the ACM wildcard certificate.
-- It publishes their IDs and ARNs to SSM under `/platform/<env>/...`. The platform env is always `prod`. Read `/platform/prod/...`. See [ADR 0011](../../../docs/adr/0011-local-and-prod-environments.md).
+- `platform/infra` (`@vprprudhvi/platform-infra`) owns one Cognito user pool with Google sign-in and a hosted sign-in domain. It has no Route53 zone and no certificate.
+- It publishes the pool ID, ARN, and domain to SSM under `/platform/<env>/...`. The platform env is always `prod`. Read `/platform/prod/...`. See [ADR 0011](../../../docs/adr/0011-local-and-prod-environments.md).
 - Projects read those values through the SSM helper exported by `@vprprudhvi/shared-cdk-constructs` (folder `packages/cdk-constructs`).
 - Projects never import code from `platform/infra`. They never use CloudFormation cross-stack references to platform stacks.
 
 ## Consume an existing platform value
 
-1. Read the key list. Run `ls platform/infra/src` and read the file that publishes the `/platform/` keys. Do not guess key names.
-2. Read the helper. Run `grep -n "export" packages/cdk-constructs/src/index.ts`. Use the exact export names. If no SSM helper is exported, stop and ask the human.
+1. Read the key list. Read `packages/cdk-constructs/src/platform-parameters.ts` (`PLATFORM_PARAMETER_PATHS`) and `platform/infra/lib/platform-stack.ts` (what the platform writes). Do not guess key names.
+2. Read the helper. Run `grep -n "export" packages/cdk-constructs/src/index.ts`. Use the exact export names, for example `readPlatformUserPool`. If no SSM helper is exported, stop and ask the human.
 3. Check the value exists (read-only): `aws ssm get-parameter --name /platform/prod/<key> --query Parameter.Name --output text`. If AWS credentials are missing, say so. Do not skip the rest.
 4. In the project infra stack, call the helper with `platformEnv` from `projects/<name>/lib/config/<env>.ts`. `platformEnv` is always `prod`. Do not pass the project `env` (`local` or `prod`) to the helper. Do not hard-code a pool ID, zone ID, certificate ARN, or account ID.
-5. Create only project resources: one Cognito app client on the platform user pool for each project env (`local` and `prod`), DNS records in the platform hosted zone under this project's subdomain, the project custom domain, and the project Lambdas. Use `new-cdk-construct` for each one.
-6. Never create a user pool, hosted zone, or wildcard certificate in a project stack.
+5. Create only project resources: one Cognito app client on the platform user pool for each project env (`local` and `prod`), and the project Lambdas. Do not read the DNS and ACM keys in `platform-parameters.ts`: nothing writes them. Use `new-cdk-construct` for each one.
+6. Never create a user pool in a project stack.
 7. Run `Template.fromStack` tests that assert the helper's SSM path, then run the `verify` skill.
 
 ## Request a NEW platform resource (human-approved)
@@ -42,11 +42,11 @@ Platform facts:
 
 - Guess SSM key names or helper export names.
 - Hard-code a pool ID, zone ID, certificate ARN, or account ID.
-- Create a user pool, hosted zone, or wildcard certificate in a project.
+- Create a user pool in a project.
 - Edit `platform/infra/**`. It needs a human.
 - Share one Cognito app client across projects or environments. Each project env gets its own.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`.
-- Run `cdk deploy`, `cdk destroy`, or any AWS write command.
+- Run `cdk deploy` only as root CLAUDE.md rule 4 allows. Never run `cdk destroy`.
 - Use `--no-verify`.

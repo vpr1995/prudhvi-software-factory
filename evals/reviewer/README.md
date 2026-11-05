@@ -28,7 +28,7 @@ Use the `incident-to-eval` skill, or follow these steps.
 
 ## Run the evals
 
-The nightly workflow (`nightly.yml`) runs the cases. Each case passes when the reviewer reports the expected bug class at the expected file and line. A case fails when the reviewer misses the bug or reports a false claim named in the case.
+Run the `fresh-reviewer` agent on the buggy diff of a case by hand. No workflow runs the cases. Each case passes when the reviewer reports the expected bug class at the expected file and line. A case fails when the reviewer misses the bug or reports a false claim named in the case.
 
 ## Rules
 

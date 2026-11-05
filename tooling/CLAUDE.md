@@ -19,9 +19,9 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## What lives here
 
-- `eslint-config/`: flat config, boundaries, naming, `no-console`, restricted imports.
+- `eslint-config/`: flat config, boundaries, naming, `no-console`, restricted imports. `scripts/lint-on-edit.mjs` is the PostToolUse hook that runs ESLint and tsc for an edited file.
 - `tsconfig/`: presets `base`, `node`, `library` and `web`. They hold all strictness. `scripts/check-tsconfigs.mjs` checks each tsconfig in the repo. See [coding-conventions.md](../docs/standards/coding-conventions.md) (B.18).
-- `vitest-config/`: shared config and coverage thresholds (lines 80, branches 75). `createVitestConfig` is for packages. `createAppVitestConfig` is for CDK app projects (options: `web`, `testTimeout`, `alias`, `coverageExclude`).
+- `vitest-config/`: shared config and coverage thresholds (lines 80, branches 75, functions 80, statements 80). `createVitestConfig` is for packages. `createAppVitestConfig` is for CDK app projects (options: `web`, `testTimeout`, `alias`, `coverageExclude`).
 - `templates/`: file templates (`*.tmpl`) and the scaffolder behind `rush new` and `rush add-part`. `library/` is the template for `rush new --library`, `project/` for `rush new --project`, and `parts/<part>/` for `rush add-part`.
 - `license-allowlist.json`: allowed licenses.
 

@@ -1,18 +1,16 @@
 # Risk tiers
 
-Each pull request has one risk tier: `risk:low`, `risk:medium`, or `risk:high`. The tier sets the number of human approvals.
+Each pull request has one risk tier: `risk:low`, `risk:medium`, or `risk:high`. The tier tells the reviewer where to look. It does not change the number of approvals. The agent sets the label. Nothing automates it. The `main` ruleset does not read it.
 
-The `risk-classify.yml` workflow (planned) sets the label from path rules and a Claude classifier.
+## 1. Tiers
 
-## 1. Tiers and approvals
+| Tier   | Label         | Typical changes                                              |
+| ------ | ------------- | ------------------------------------------------------------ |
+| Low    | `risk:low`    | Docs, copy, tests only. Additive change behind a flag.       |
+| Medium | `risk:medium` | A normal code change in one project, with no high-tier path. |
+| High   | `risk:high`   | A high-tier path (section 2), or a new dependency.           |
 
-| Tier   | Label         | Human approvals | Typical changes                                              |
-| ------ | ------------- | --------------- | ------------------------------------------------------------ |
-| Low    | `risk:low`    | 0               | Docs, copy, tests only. Additive change behind a flag.       |
-| Medium | `risk:medium` | 1               | A normal code change in one project, with no high-tier path. |
-| High   | `risk:high`   | 2               | A high-tier path (section 2), or a new dependency.           |
-
-Single-maintainer rule: see section 3.
+Review rules: see section 3.
 
 ## 2. High-tier paths
 
@@ -25,8 +23,9 @@ A PR that changes any path below is `risk:high`.
 | `platform/**`                                                      | Shared AWS resources (Cognito user pool, hosted zone, certificate, SSM parameters). Always human. |
 | `packages/cdk-constructs/**`                                       | Shared infrastructure. Every project uses it.                                                     |
 | `packages/**`                                                      | Shared code. A change has a wide effect.                                                          |
-| New dependency, or a change to `common/config/rush/pnpm-lock.yaml` | Supply chain.                                                                                     |
-| `.github/**`                                                       | CI and release controls.                                                                          |
+| `tooling/**`                                                       | Shared lint, TypeScript, test, and SAST config. Every project uses it.                            |
+| New dependency, or a change to `common/config/rush/pnpm-lock.yaml` | Supply chain. `rush audit` checks it.                                                             |
+| `.github/**`                                                       | CI and repository controls.                                                                       |
 
 ### 2.1 Medium-tier paths
 
@@ -38,41 +37,21 @@ A PR that changes the paths below, and no high-tier path, is `risk:medium`.
 
 `projects/*/cdk.json` stays high risk.
 
-Changes to `CLAUDE.md` files, `REVIEW.md` files, `docs/guides/**`, and `docs/standards/**` are at least `risk:medium`. They need a CODEOWNERS approval.
+Changes to `CLAUDE.md` files, `REVIEW.md` files, `docs/guides/**`, and `docs/standards/**` are at least `risk:medium`. CODEOWNERS marks them for the owner's review.
 
-## 3. Approval rules
+## 3. Review rules
 
-- A bot approval does not count. This includes the AI reviewer and the security action.
-- The person who prompted the agent counts as a required reviewer.
-- Each new commit clears the approvals. A human approves the latest commit.
-- Open review threads block merge. Resolve each thread before merge.
-- The `main` ruleset enforces these rules. Admins do not bypass them.
-
-### 3.1 Single maintainer (current state)
-
-The repository has one human maintainer, `@vpr1995`. GitHub does not let an author approve their own pull request. Without a change, the maintainer cannot approve a PR that the maintainer's own account opened.
-
-Use this setup:
-
-1. Agents open PRs from a separate bot account or a GitHub App. The human account does not open agent PRs.
-2. The maintainer reviews and approves each PR from the human account.
-3. Section 1 requires two approvals for `risk:high`. Until a second maintainer exists, `risk:high` needs:
-   - one human approval from `@vpr1995`, and
-   - all automated reviews that pass: AI review (`claude-review.yml`), and security review.
-4. The PR must name this degraded rule in the Risk tier section. Write: "Single maintainer: 1 human approval plus passing automated reviews."
-5. When a second maintainer exists, restore the two-approval rule in the ruleset and in this section.
-
-This degraded rule is a known gap. Record the change in a new ADR when the second maintainer joins.
+- The `main` ruleset requires a PR, the checks `ci-result` and `gitleaks`, and an up-to-date branch. It requires 0 approvals. It blocks deletion and force push.
+- Agents open PRs with the owner's own GitHub user. There is no bot account.
+- The owner reviews and merges each PR. This is a convention. GitHub does not enforce it.
+- CODEOWNERS marks the paths that need the owner's review.
+- Merge, squash, and rebase are all allowed.
 
 ## 4. How the label is set
 
-1. `risk-classify.yml` (planned) runs on each PR event.
-2. It checks the changed paths against section 2.
-3. It asks the classifier for a second opinion on the change.
-4. It sets one label: `risk:low`, `risk:medium`, or `risk:high`.
-5. The ruleset reads the label and requires the number of approvals in section 1.
-
-If a PR has a high-tier path, the label is `risk:high`.
+1. The agent checks the changed paths against section 2.
+2. The agent sets one label: `risk:low`, `risk:medium`, or `risk:high`. The tier is the highest tier that matches a changed path.
+3. The agent writes the reason in the PR template.
 
 ## 5. Choosing the tier for a PR you write
 

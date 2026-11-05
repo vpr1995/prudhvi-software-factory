@@ -1,6 +1,6 @@
 # ADR 0009: OpenTelemetry for end-to-end tracing and log correlation
 
-- Status: Accepted
+- Status: Accepted. Partly replaced 2026-11-05: Python and Go are removed. `wrapLambdaHandler` is not built (the sample flushes inline in `src/api/lambda.ts`). The lint rule for SDK imports is not set up. Trace tests and CDK assertions exist.
 - Date: 2026-10-22
 
 ## Context
