@@ -23,6 +23,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - `tsconfig/`: presets `base`, `node`, `library` and `web`. They hold all strictness. `scripts/check-tsconfigs.mjs` checks each tsconfig in the repo. See [coding-conventions.md](../docs/standards/coding-conventions.md) (B.18).
 - `vitest-config/`: shared config and coverage thresholds (lines 80, branches 75). `createVitestConfig` is for packages. `createAppVitestConfig` is for CDK app projects (options: `web`, `testTimeout`, `alias`, `coverageExclude`).
 - `opengrep/`: SAST rules.
+- `templates/`: file templates (`*.tmpl`) and the `rush new` scaffolder. `library/` is the template for `rush new --library`.
 - `license-allowlist.json`: allowed licenses.
 
 ## Links

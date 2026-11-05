@@ -101,6 +101,14 @@
       "summary": "Fail on high or critical advisories in the pnpm lockfile (audit-ci).",
       "autoinstallerName": "rush-security",
       "shellCommand": "bash scripts/security/audit.sh"
+    },
+    {
+      "commandKind": "global",
+      "name": "new",
+      "summary": "Create a project from a template in tooling/templates. Example: rush new --library date-utils",
+      // No Rush lock for this command: the script runs "rush update" at the end, and that takes the lock.
+      "safeForSimultaneousRushProcesses": true,
+      "shellCommand": "node tooling/templates/scripts/new.mjs"
     }
   ],
 
@@ -140,6 +148,14 @@
       "argumentName": "FILE",
       "required": true,
       "associatedCommands": ["commitlint"]
+    },
+    {
+      "parameterKind": "string",
+      "longName": "--library",
+      "description": "Create the shared library packages/NAME (@vprprudhvi/shared-NAME). NAME is kebab-case.",
+      "argumentName": "NAME",
+      "required": false,
+      "associatedCommands": ["new"]
     }
   ]
 }

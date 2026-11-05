@@ -1,0 +1,39 @@
+{
+  "name": "@vprprudhvi/shared-__name__",
+  "version": "0.0.0",
+  "description": "Shared __name__ library.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "_phase:build": "tsc -p tsconfig.build.json",
+    "_phase:lint": "eslint --max-warnings 0 .",
+    "_phase:test": "vitest run --coverage",
+    "_phase:typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "npm run _phase:build",
+    "lint": "npm run _phase:lint",
+    "test": "npm run _phase:test",
+    "typecheck": "npm run _phase:typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "__version__",
+    "@vitest/coverage-v8": "__version__",
+    "@vprprudhvi/tooling-eslint-config": "workspace:*",
+    "@vprprudhvi/tooling-tsconfig": "workspace:*",
+    "@vprprudhvi/tooling-vitest-config": "workspace:*",
+    "eslint": "__version__",
+    "typescript": "__version__",
+    "vite": "__version__",
+    "vitest": "__version__"
+  }
+}

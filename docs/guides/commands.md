@@ -14,6 +14,7 @@ node common/scripts/install-run-rush.js verify --to <pkg>
 node common/scripts/install-run-rush.js build --from git:origin/main
 node common/scripts/install-run-rush.js verify --impacted-by git:origin/main
 node common/scripts/install-run-rush.js add -p <pkg> # alias: rush add -p <pkg>
+node common/scripts/install-run-rush.js new --library <name> # alias: rush new; makes packages/<name>
 node common/scripts/install-run-rush.js prettier     # alias: rush prettier
 node common/scripts/install-run-rush.js audit        # alias: rush audit
 node common/scripts/install-run-rush.js license-check
@@ -25,6 +26,7 @@ Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>`.
 ## Notes
 
 - Use `rush verify --to <pkg>` to check one package and its dependencies.
+- `rush new --library <name>` makes a shared library from `tooling/templates/library`. It adds the `rush.json` entry and a change file, then runs `rush update`. On a bad name, it stops and writes nothing.
 - To check only the parts that your branch changes, run `rush build --from git:origin/main`, then `rush verify --impacted-by git:origin/main`. `--impacted-by` selects the changed projects and the projects that depend on them, but not their dependencies. `rush build --from` builds the dependencies too, so they have a `dist/` folder, also on a fresh clone. `.github/workflows/ci.yml` uses the same build command.
 - `--only <pkg>` also selects no dependencies. Use it only when the dependencies are already built.
 - Use the `verify` skill (`.claude/skills/verify/SKILL.md`) before any done claim. Use the `e2e-verify` skill (`.claude/skills/e2e-verify/SKILL.md`) for the running app.
