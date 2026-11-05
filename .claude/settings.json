@@ -9,5 +9,19 @@
       "Bash(gh pr view:*)"
     ],
     "deny": ["Read(**/.env)", "Read(**/.env.*)", "Read(~/.aws/**)", "Read(~/.ssh/**)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/tooling/eslint-config/scripts/lint-on-edit.mjs",
+            "timeout": 90
+          }
+        ]
+      }
+    ]
   }
 }

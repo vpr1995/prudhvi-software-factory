@@ -27,6 +27,7 @@ Agent entry point for this Rush monorepo (TypeScript, AWS CDK). This file is a t
   - Haiku: the cheapest. For large amounts of simple writing. For example, Markdown documents, data files, boilerplate, and mechanical edits.
 - Use a workflow (multi-agent script) or orchestrate step by step. Choose what fits the task.
 - The orchestrator verifies each result with real command output before it commits (rule 1).
+- After each edit of a source file, a hook gives ESLint and tsc findings for that file's project. Fix them before you continue. See [commands.md](docs/guides/commands.md).
 
 ## Routing table
 

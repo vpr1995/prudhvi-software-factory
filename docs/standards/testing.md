@@ -31,6 +31,18 @@ The web test setup file is `projects/<name>/test/web/setup.ts`.
 | Lines     | 80%   | `tooling/vitest-config` | `rush test`, CI |
 | Branches  | 75%   | `tooling/vitest-config` | `rush test`, CI |
 
+### 2.1 Coverage on changed lines
+
+In CI, tests must run at least 80% of the changed coverable lines of each project. The value is the lines threshold (`COVERAGE_THRESHOLDS.lines`). A changed line is a line that the PR adds or changes (merge base to PR head). A coverable line is a line that `coverage/lcov.info` lists. Other lines (comments, types, files outside coverage) do not count. With no changed coverable line, the check passes. On a fail, the check lists each uncovered line as `file:line`.
+
+To run the check locally, run the tests with coverage, then:
+
+```
+node tooling/vitest-config/dist/diff-coverage.js <base-sha> <project-path> < <project-path>/coverage/lcov.info
+```
+
+Locally, the check compares the base with the working tree. It does not see untracked files.
+
 A CDK app project sets its Vitest config with `createAppVitestConfig()`. It adds `{ web: true }` for a `web/` part. The thresholds apply to the sum and again to `src/`, `lib/` and `web/`.
 
 ## 3. Test types by part
@@ -124,13 +136,13 @@ The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secret
 
 `ci.yml` has these jobs:
 
-| Job             | Commands                                                                                                                                                  | Blocks when                                                                                              |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `plan`          | `rush check`, `node tooling/tsconfig/scripts/check-tsconfigs.mjs`, `rush audit`, `rush list --impacted-by git:<base> --json`                              | Versions are not consistent, a tsconfig rule fails, or `pnpm-lock.yaml` changed and an audit pass fails. |
-| `project`       | One job for each impacted project: `rush build --to <project>`, then `rush lint`, `rush typecheck`, `rush test`, `rush e2e`, each with `--only <project>` | A build, lint rule, type, test, coverage threshold, or e2e test fails.                                   |
-| `knip`          | `rush build --to @vprprudhvi/tooling-vitest-config`, then `rush knip` (default and `github-actions` reporters)                                            | Knip finds an unused file, export, type or dependency, an unlisted dependency, or an unresolved import.  |
-| `ci-result`     | Reads the results of `plan`, `project`, `knip` and `workflow-lint`                                                                                        | `plan`, `knip` or `workflow-lint` did not pass, or `project` did not pass or skip.                       |
-| `workflow-lint` | `bash scripts/security/workflow-lint.sh` (actionlint, zizmor, pinact)                                                                                     | A workflow or action file fails a check.                                                                 |
+| Job             | Commands                                                                                                                                                                                                              | Blocks when                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `plan`          | `rush check`, `node tooling/tsconfig/scripts/check-tsconfigs.mjs`, `rush audit`, `rush list --impacted-by git:<base> --json`                                                                                          | Versions are not consistent, a tsconfig rule fails, or `pnpm-lock.yaml` changed and an audit pass fails. |
+| `project`       | One job for each impacted project: `rush build --to <project>`, then `rush lint`, `rush typecheck`, `rush test`, `rush e2e`, each with `--only <project>`. After `rush test`: coverage on changed lines (section 2.1) | A build, lint rule, type, test, coverage threshold, coverage on changed lines, or e2e test fails.        |
+| `knip`          | `rush build --to @vprprudhvi/tooling-vitest-config`, then `rush knip` (default and `github-actions` reporters)                                                                                                        | Knip finds an unused file, export, type or dependency, an unlisted dependency, or an unresolved import.  |
+| `ci-result`     | Reads the results of `plan`, `project`, `knip` and `workflow-lint`                                                                                                                                                    | `plan`, `knip` or `workflow-lint` did not pass, or `project` did not pass or skip.                       |
+| `workflow-lint` | `bash scripts/security/workflow-lint.sh` (actionlint, zizmor, pinact)                                                                                                                                                 | A workflow or action file fails a check.                                                                 |
 
 `secrets.yml` runs gitleaks on the PR commits (merge base to head). A finding fails the job `gitleaks`.
 

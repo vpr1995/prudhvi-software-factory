@@ -10,6 +10,8 @@
     "src/plugin.js",
     "src/naming.js",
     "src/restricted-syntax.js",
+    "scripts/lint-on-edit.mjs",
+    "scripts/fs-io.mjs",
     "test/**/*.js"
   ],
   // These tests import src/index.js. Type errors in the config sources (untyped plugins) stop

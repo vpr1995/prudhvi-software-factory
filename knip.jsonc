@@ -39,7 +39,8 @@
     },
     "tooling/vitest-config": {
       // package.json exports point at dist/. src/index.ts is the source of that entry.
-      "entry": ["src/index.ts"],
+      // src/diff-coverage.ts: CI runs its build output (.github/workflows/ci.yml).
+      "entry": ["src/index.ts", "src/diff-coverage.ts"],
     },
     "tooling/templates": {
       // Run by name from common/config/rush/command-line.json (rush new, rush add-part).
