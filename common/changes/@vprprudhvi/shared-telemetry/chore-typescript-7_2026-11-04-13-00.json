@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-telemetry",
+      "comment": "Build with TypeScript 7.",
+      "type": "none"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-telemetry"
+}

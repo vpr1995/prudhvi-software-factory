@@ -44,11 +44,11 @@
     "eslint-plugin-unicorn": "^78.0.0",
     "globals": "^17.13.0",
     "ts-declaration-location": "^1.0.7",
+    "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.0"
   },
   "peerDependencies": {
-    "eslint": "^10.13.0",
-    "typescript": "~6.0.3"
+    "eslint": "^10.13.0"
   },
   "devDependencies": {
     "@types/estree": "^1.0.8",
@@ -58,7 +58,6 @@
     "@vprprudhvi/tooling-tsconfig": "workspace:*",
     "@vprprudhvi/tooling-vitest-config": "workspace:*",
     "eslint": "^10.13.0",
-    "typescript": "~6.0.3",
     "vite": "^7.3.0",
     "vitest": "^5.0.5"
   }
