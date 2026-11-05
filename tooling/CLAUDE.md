@@ -2,7 +2,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## Scope
 
-- `tooling/**` holds the shared config for ESLint, TypeScript, Vitest, and Opengrep. It also holds the license allowlist.
+- `tooling/**` holds the shared config for ESLint, TypeScript, and Vitest. It also holds the license allowlist.
 - This is a high-risk area. A human reviews each change. Agents can edit it.
 
 ## When a rule blocks you
@@ -22,7 +22,6 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - `eslint-config/`: flat config, boundaries, naming, `no-console`, restricted imports.
 - `tsconfig/`: presets `base`, `node`, `library` and `web`. They hold all strictness. `scripts/check-tsconfigs.mjs` checks each tsconfig in the repo. See [coding-conventions.md](../docs/standards/coding-conventions.md) (B.18).
 - `vitest-config/`: shared config and coverage thresholds (lines 80, branches 75). `createVitestConfig` is for packages. `createAppVitestConfig` is for CDK app projects (options: `web`, `testTimeout`, `alias`, `coverageExclude`).
-- `opengrep/`: SAST rules.
 - `templates/`: file templates (`*.tmpl`) and the scaffolder behind `rush new` and `rush add-part`. `library/` is the template for `rush new --library`, `project/` for `rush new --project`, and `parts/<part>/` for `rush add-part`.
 - `license-allowlist.json`: allowed licenses.
 

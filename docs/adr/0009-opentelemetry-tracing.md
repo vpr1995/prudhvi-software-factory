@@ -29,4 +29,4 @@ One user action crosses the browser, the Next.js server, an API Lambda, and AWS 
 - Negative: Each Lambda gains a layer. Cold starts grow a little.
 - Negative: Prod sampling is head based. The Lambda layer cannot keep all error traces. Tail sampling needs a central collector. That design is open and a human owns it.
 - Negative: The browser SDK adds bundle size. Sample the browser calls.
-- Open: The gates (lint, Opengrep, tests, CDK assertions) are planned. Each part needs the tests listed in `docs/standards/observability.md`, section 11.
+- Open: The gates (lint, tests, CDK assertions) are planned. Each part needs the tests listed in `docs/standards/observability.md`, section 11.

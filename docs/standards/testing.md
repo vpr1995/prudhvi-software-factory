@@ -85,7 +85,7 @@ Do not add any of these items to a diff. The reviewer checks the diff for them:
 | `as any`, `as unknown as`                                                             | Hides a type error.                              |
 | A deleted test file, or fewer `it(` or `test(` calls than before                      | Removes tests.                                   |
 | A lower value in a coverage config, `--passWithNoTests`, `                            |                                                  | true` in a script | Lowers a threshold. |
-| `nosemgrep`, `nosec`, `gitleaks:allow`, `checkov:skip`                                | Hides a security finding.                        |
+| `nosec`, `gitleaks:allow`                                                             | Hides a security finding.                        |
 | An empty `catch {}` block                                                             | Hides an error.                                  |
 | A changed test with no assertion See the note below this table.                       | A test with no assertion passes without testing. |
 | Playwright: `test.skip`, `test.fixme`, `test.fail`, `test.describe.skip`, `test.only` | Skips or focuses e2e tests.                      |
@@ -133,7 +133,7 @@ The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secret
 
 `secrets.yml` runs gitleaks on the PR commits (merge base to head). A finding fails the job `gitleaks`.
 
-`warm-cache.yml` runs on each push to `main` and by hand. It runs `rush build` for all projects. Then it saves the pnpm store and the Rush build cache with the scope `main`. A pull request can read the caches of `main`.
+`warm-cache.yml` runs on each push to `main` and by hand. It runs `rush build` for all projects. Then it saves the pnpm store, the Rush build cache with the scope `main`, and the Playwright browsers (same key as `ci.yml`). A pull request can read the caches of `main`.
 
 Notes:
 

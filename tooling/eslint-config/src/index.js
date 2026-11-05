@@ -7,4 +7,4 @@ export { prettier } from './configs/prettier.js';
 export { reactConfig as react } from './configs/react.js';
 export { test } from './configs/test.js';
 export { localPlugin } from './plugin.js';
-export { createRootConfig, fsIoException, scope } from './monorepo.js';
+export { createRootConfig, fsIoException, logRedactionTestException, scope } from './monorepo.js';

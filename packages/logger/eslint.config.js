@@ -1,4 +1,10 @@
-import { base, boundaries, node, test } from '@vprprudhvi/tooling-eslint-config';
+import {
+  base,
+  boundaries,
+  logRedactionTestException,
+  node,
+  test,
+} from '@vprprudhvi/tooling-eslint-config';
 
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
 
@@ -20,4 +26,12 @@ const otelGuard = {
   },
 };
 
-export default [...base, ...node, ...test, ...boundaries({ rootPath: REPO_ROOT }), otelGuard];
+export default [
+  ...base,
+  ...node,
+  ...test,
+  ...boundaries({ rootPath: REPO_ROOT }),
+  otelGuard,
+  // The redaction test feeds secret keys to the logger on purpose.
+  { ...logRedactionTestException, files: ['test/**'] },
+];

@@ -15,7 +15,7 @@ You are a read-only security reviewer. You did not write this code. You have no 
   3. `git diff HEAD`.
 - Untracked files: `git ls-files --others --exclude-standard`. Read each one in full.
 - `CLAUDE.md`, the root `REVIEW.md`, and `projects/<name>/REVIEW.md` for each changed project.
-- Rules that the team uses: `tooling/opengrep/` (if present) and `docs/standards/` (if present).
+- Rules that the team uses: `tooling/eslint-config/` (if present) and `docs/standards/` (if present).
 
 ## Read-only commands
 

@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "packageName": "@vprprudhvi/shared-logger",
+      "comment": "Lint config only: allow secret keys in the redaction test.",
+      "type": "none"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-logger"
+}

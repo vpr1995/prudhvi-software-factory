@@ -1002,7 +1002,7 @@ logger.info({ orderId, durationMs }, 'order exported');
 console.log('order ' + orderId + ' exported for ' + email);
 ```
 
-**Enforcer:** `no-console`. The Opengrep custom rule for secret and PII fields is planned. The redact list in `@vprprudhvi/shared-logger` masks known fields at run time.
+**Enforcer:** `no-console` and `local/no-secret-in-log` (a secret or PII key in a logger call is a lint error). The redact list in `@vprprudhvi/shared-logger` masks known fields at run time.
 
 ### C.5 Tracing and trace ids
 

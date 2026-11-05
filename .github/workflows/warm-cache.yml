@@ -1,5 +1,5 @@
 # Warms the caches on main. Pull requests can read the caches of main, so the first run of a PR
-# restores the pnpm store and a Rush build cache that has every project.
+# restores the pnpm store, a Rush build cache that has every project, and the Playwright browsers.
 # The build cache scope is `main`. The restore-keys in .github/actions/repo-setup take this scope
 # when the PR has no entry of its own.
 name: warm-cache
@@ -40,6 +40,25 @@ jobs:
 
       - name: Rush build (all projects)
         run: node common/scripts/install-run-rush.js build
+
+      # Same path and key as the Playwright cache in ci.yml, so a PR e2e job restores the browsers.
+      # The browser version comes from the Playwright version, which the lockfile pins.
+      - name: Restore the Playwright browsers
+        id: cache-playwright
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('common/config/rush/pnpm-lock.yaml') }}
+
+      - name: Install Chromium and its system packages
+        run: projects/sample/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Save the Playwright browsers
+        if: ${{ !cancelled() && steps.cache-playwright.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.cache-playwright.outputs.cache-primary-key }}
 
       # Entries older than 7 days are removed, so the saved cache does not grow without limit.
       - name: Prune the Rush build cache
