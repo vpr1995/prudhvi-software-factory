@@ -23,6 +23,7 @@ node common/scripts/install-run-rush.js license-check
 node common/scripts/install-run-rush.js knip         # alias: rush knip (unused files, exports, dependencies; config: knip.jsonc)
 node tooling/tsconfig/scripts/check-tsconfigs.mjs     # tsconfig rules (CI runs it)
 node tooling/repo-checks/scripts/doc-lint.mjs         # doc lint: links, repo paths and Rush commands in *.md (CI runs it)
+node tooling/repo-checks/scripts/test-guard.mjs "$(git merge-base main HEAD)" # test guard: weakened tests or checks in the diff (CI runs it)
 node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>" # verify gate: let the main session stop without proof (logged)
 node scripts/security/install-tools.mjs              # pinned gitleaks, actionlint, zizmor, pinact (rush install runs it)
 bash scripts/security/workflow-lint.sh               # actionlint, zizmor, pinact on .github (hook and CI run it)
@@ -54,5 +55,14 @@ Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>` 
   - The hook records edits from the edit tools only. It does not see a file change from a Bash command (for example `sed`).
   - Off switch (owner only): set `FACTORY_STOP_GATE=off` in your shell or in your user settings. Do not put it in the repo settings.
 - Doc lint checks each tracked `*.md` file. It skips `docs/adr/`, `evals/reviewer/cases/`, `common/`, `CHANGELOG.md` files, and each design in `docs/designs/` without `status: implemented`. A design with no `status` is a finding. It fails when a relative link, a repo path in inline code, or a `rush <cmd>` names something that does not exist. It skips paths in fenced code blocks and paths with a placeholder (`<`, `>`, `*`, `{`, `}`, `$`, `...`, or a space). To skip one line, put `<!-- doc-lint-ignore-next-line -->` on the line above it.
+- The test guard checks the committed diff from the merge base to `HEAD`. It does not check uncommitted changes. It reads the base SHA from the first argument or from `BASE_SHA`, and the PR labels from `PR_LABELS` (a JSON array). It finds the repo root from its working directory, not from its own file path. CI runs the copy of `tooling/repo-checks` from the base commit, so a change to the guard takes effect only after merge. When the base commit has no guard, CI runs the copy of the PR. A finding is one of these:
+  - A deleted test file: `*.test.*`, `*.spec.*`, or a Bruno request. A rename to a test path is not a deletion. A move to a non-test name, to a `.md` path or into `test/fixtures/` is a finding.
+  - Fewer `it(` or `test(` calls in a test file. Calls with modifiers count too, for example `it.each`, `it.concurrent`, `it.fails`, `it.for` and `it.skipIf(x)`.
+  - An added `.skip`, `.skipIf`, `.only`, `.todo`, `.fixme`, `xit(` or `xdescribe(` in a test file, also after `.concurrent` or `.sequential`.
+  - An added `eslint-disable`, `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` in any file. A line that the diff only moves in the same file is not a finding.
+  - A lowered, removed or changed threshold in `tooling/vitest-config/src/config.ts` or `tooling/vitest-config/src/diff-coverage.ts`.
+  - A changed check config: `eslint.config.*`, `vitest.config.*`, `playwright.config.*`, project `tsconfig*.json` (a new file of these four kinds is not a finding), `knip.jsonc`, `.lintstagedrc.cjs`, `commitlint.config.cjs`, `audit-ci.jsonc`, `tooling/tsconfig/*.json`, `common/config/rush/command-line.json`, `.github/zizmor.yml`, `.github/CODEOWNERS`, and each file in `tooling/eslint-config/`, `tooling/vitest-config/`, `tooling/repo-checks/`, `.github/workflows/` and `.github/actions/`.
+  - A changed or removed script in the `scripts` of a `package.json`. A new script and a dependency change are not findings.
+- The content rules skip Markdown files, `test/fixtures/` folders and `tooling/repo-checks/`. With the `risk:high` label, each finding is a warning and the exit code is 0. Without it, a finding gives exit code 1. A usage error, a bad `PR_LABELS` value, or a git or patch parse error gives exit code 2.
 - Use the `verify` skill (`.claude/skills/verify/SKILL.md`) before any done claim. Use the `e2e-verify` skill (`.claude/skills/e2e-verify/SKILL.md`) for the running app.
 - Setup steps for a new machine are in [onboarding.md](../onboarding.md).

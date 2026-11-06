@@ -89,3 +89,11 @@ export function writeAtomic(file, text) {
   writeFileSync(temporary, text);
   renameSync(temporary, file);
 }
+
+/**
+ * @param {string} file - Absolute file path, for example $GITHUB_STEP_SUMMARY.
+ * @param {string} text - Text to add at the end of the file.
+ */
+export function appendToFile(file, text) {
+  appendFileSync(file, text, 'utf8');
+}
