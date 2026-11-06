@@ -1,6 +1,6 @@
 # Risk tiers
 
-Each pull request has one risk tier: `risk:low`, `risk:medium`, or `risk:high`. The tier tells the reviewer where to look. It does not change the number of approvals. The agent sets the label. Nothing automates it. The `main` ruleset does not read it.
+Each pull request has one risk tier: `risk:low`, `risk:medium`, or `risk:high`. The tier tells the reviewer where to look. It does not change the number of approvals. The agent sets the label. The `main` ruleset does not read it. The test guard in CI reads it: with `risk:high`, the test guard gives warnings, not errors. A new or removed label starts a new CI run. See [commands.md](../guides/commands.md).
 
 ## 1. Tiers
 

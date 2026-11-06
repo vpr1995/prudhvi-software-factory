@@ -8,6 +8,12 @@
       "Bash(git show:*)",
       "Bash(gh pr view:*)"
     ],
+    "ask": [
+      "Edit(/tooling/repo-checks/**)",
+      "Edit(/.github/workflows/**)",
+      "Edit(/.github/actions/**)",
+      "Edit(/.claude/settings.json)"
+    ],
     "deny": [
       "Read(**/.env)",
       "Read(**/.env.*)",
