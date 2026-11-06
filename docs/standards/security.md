@@ -108,5 +108,5 @@ Removing a secret from git history does not make it safe. Rotate it.
 - Encrypt each S3 bucket and each database.
 - Do not expose a stateful resource to the public internet.
 - cdk-nag checks these rules. A nag error fails `cdk synth`.
-- Deploy rules: see root `CLAUDE.md`, rule 4. Never run `cdk destroy`.
+- Deploy rules: see root `CLAUDE.md`, rule 4. Never run `cdk deploy` or `cdk destroy`.
 - Do not use long-lived AWS keys.
