@@ -16,8 +16,8 @@ Design source: [design.md](../../../docs/designs/software-factory/design.md) sec
 5. Spawn 8 agents in ONE message, with the Agent tool, `subagent_type: "lens-reviewer"`. One for each lens: YAGNI / contrarian, Cost and quota, UX and developer ergonomics, Migration and backward compatibility, Observability, Tech debt, Security and privacy, Testing and rollout. Security and privacy: `model: "opus"`. Other lenses: the default model.
    Prompt each with only: `Lens: <name>. Brief: <path>. Files: <paths the brief names>.` Send no hypothesis.
    If you cannot spawn agents (you run as a subagent), stop and give your caller the 8 prompts. The caller spawns the lenses and returns each report. Do not simulate a lens.
-6. Merge duplicate findings by topic. Each row lists the lens names (with how many raw findings it merges) and the architect's recommended decision. Show the owner each row. The owner decides each one: accept (change the brief), reject (give a reason), or open (add `[NEEDS CLARIFICATION]`).
-7. Update `brief.md`: fill the lens table. Decision: accept, reject, or open. Give the change or the reason. Write each accepted change into the brief section it changes. Keep Chosen direction at 3 sentences. Put each open sub-point of an accepted row into Open items.
+6. Merge duplicate findings by topic. Each row lists the lens names (with how many raw findings it merges) and the architect's recommended decision. Show the owner each row. The owner decides each one: accept (change the brief), reject (give a reason), open (add `[NEEDS CLARIFICATION]`), or defer (a later version, not this one).
+7. Update `brief.md`: fill the lens table. Decision: accept, reject, open, or defer. Give the change or the reason. A deferred row does not become a constraint. Write each accepted change into the brief section it changes. Keep Chosen direction at 3 sentences. Put each open sub-point of an accepted row into Open items.
 8. GATE 1: the owner agrees with the brief. Then set `status: approved`. The next stage is design. Do not start it here.
 
 ## Brief template
@@ -48,7 +48,7 @@ status: draft
 | #   | Lenses | Finding | Severity | Decision | Reason or change |
 | --- | ------ | ------- | -------- | -------- | ---------------- |
 
-<N> raw findings, <M> rows: <X> accept, <Y> reject, <Z> open.
+<N> raw findings, <M> rows: <X> accept, <Y> reject, <Z> open, <W> defer.
 
 ## Open items
 

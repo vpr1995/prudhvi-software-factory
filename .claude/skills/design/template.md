@@ -10,9 +10,14 @@ Brief: `docs/designs/<slug>/brief.md`
 
 <!-- State the problem in 2 sentences. List goals and non-goals. Take them from the brief. -->
 
+### Minimal version
+
+<!-- The smallest design that meets the success measure of the brief. 2 to 4 bullets. -->
+
 ## 2. Requirements
 
 <!-- One line each: R-<n>: WHEN <trigger> THE SYSTEM SHALL <response>. Each R-ID is testable. -->
+<!-- Each R-ID outside the minimal version ends with (scope: <owner decision>). -->
 
 ### Unchanged behavior
 
@@ -46,7 +51,9 @@ Brief: `docs/designs/<slug>/brief.md`
 
 ## 8. Implementation plan
 
-<!-- Each R-ID must appear in at least one row. No code. Verify: rush test --to <pkg>, rush e2e. -->
+<!-- Each R-ID must appear in at least one row. No code. -->
+<!-- R-IDs column: only the R-IDs that the task builds or tests. Do not add an R-ID only to pass the gate. -->
+<!-- Verify: one rush command (rush test --to <pkg>, rush e2e), or "manual: <who> <what>" when no command can verify the task (for example a real-device check). -->
 <!-- Each API route needs a Bruno request. Each web page needs a Playwright spec with an axe check. -->
 <!-- Risk tier for each task: per docs/standards/risk-tiers.md. -->
 
