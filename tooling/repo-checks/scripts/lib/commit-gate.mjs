@@ -150,6 +150,12 @@ export function commitGate(text, options) {
   if (ours.length === 0) {
     return;
   }
+  const before = ours.find((commit) => commit.before)?.before;
+  if (before) {
+    return deny(
+      `Commit gate: the command runs "${before}" before git commit. The gate checks the index before the command runs, so it cannot see what that command stages. Run git add in its own command, then git commit.`,
+    );
+  }
   const problems = ours.flatMap((commit) => (commit.problem ? [commit.problem] : []));
   if (problems.length > 0) {
     return deny(

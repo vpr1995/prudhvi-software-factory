@@ -229,6 +229,36 @@ test('a staged source file outside each Rush project denies', () => {
   assert.doesNotMatch(reason, /Run: node/);
 });
 
+test('a command that can stage files before the commit denies', () => {
+  const root = makeRepository();
+  write(root, 'projects/a/src/a.ts', 'export const a = 2;\n'); // Not staged: the hook runs first.
+  for (const command of [
+    "git add -A && cat > /tmp/align/msg.txt <<'EOF'\nfeat: x\nEOF\ngit commit -q -F /tmp/align/msg.txt",
+    'git add -A; git commit -m x',
+    'git add -A\ngit commit -m x',
+    'git rm -q x || git commit -m x',
+    'git stash && git commit -m x',
+    'node stage.mjs && git commit -m x',
+    'git commit -m a && git commit -m b',
+    'GIT_INDEX_FILE=/tmp/i git commit -m x',
+  ]) {
+    assert.match(
+      gate(root, command)?.permissionDecisionReason ?? '',
+      /Run git add in its own command, then git commit|variable "GIT_INDEX_FILE"/,
+      command,
+    );
+  }
+  for (const command of [
+    'cd projects/a && git commit -m x',
+    'git status && git diff --cached && git commit -m x',
+    "cat > /tmp/m.txt <<'EOF'\nx\nEOF\ngit commit -F /tmp/m.txt",
+    'echo x | git commit -F -',
+    'git commit -m x && git add -A',
+  ]) {
+    assert.equal(gate(root, command), undefined, command);
+  }
+});
+
 test('commit forms that commit work tree content deny', () => {
   const root = makeRepository();
   for (const command of [
@@ -294,7 +324,7 @@ test('findGitCommits reads the commit forms', () => {
   assert.deepEqual(problems('git status; git log'), []);
   const heredoc = `git commit -m "$(cat <<'EOF'\nfeat(a): x\n\nCo-Authored-By: A <a@a>\nEOF\n)"`;
   assert.deepEqual(findGitCommits(heredoc), {
-    commits: [{ directories: [], problem: undefined }],
+    commits: [{ directories: [], problem: undefined, before: undefined }],
     parsed: true,
   });
   assert.deepEqual(findGitCommits('git commit -m "$(date)"'), { commits: [], parsed: false });
@@ -304,7 +334,9 @@ test('findGitCommits reads the commit forms', () => {
   const script = `python3 - <<'EOF'\nprint("git commit (x)")\nEOF\n`;
   assert.deepEqual(findGitCommits(script), { commits: [], parsed: true });
   const fileMessage = `git commit -F - <<EOF\nfix(a): x\nEOF`;
-  assert.deepEqual(findGitCommits(fileMessage).commits, [{ directories: [], problem: undefined }]);
+  assert.deepEqual(findGitCommits(fileMessage).commits, [
+    { directories: [], problem: undefined, before: undefined },
+  ]);
   // An unparseable command with a git subcommand and the word commit-gate is no commit.
   assert.deepEqual(findGitCommits('ls $(git diff --name-only) commit-gate.mjs').parsed, true);
   assert.deepEqual(findGitCommits('cd $(mktemp -d) && git commit -m x').parsed, false);

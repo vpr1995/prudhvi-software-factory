@@ -49,10 +49,29 @@ const MESSAGE_PLACEHOLDER = '"(message)"';
 const HEREDOC_BODY = /<<-?[ \t]*(['"]?)(\w+)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g;
 // For a command that the gate cannot parse: git, then the word commit in the same simple command.
 const COMMIT_TEXT = /\bgit\s[^;&|\n]*?\bcommit(?=[\s;&|)"']|$)/;
+// The hook checks the index before the command runs. So a command before the commit in the same
+// Bash command must not change the index. Only these commands can come before it.
+const SAFE_BEFORE = new Set(['cd', 'echo', 'printf', 'cat', 'true', 'pwd', 'ls', 'mkdir']);
+const SAFE_GIT_BEFORE = new Set(['status', 'diff', 'log', 'show', 'rev-parse']);
 
 /**
- * @typedef {{ directories: string[], problem: string | undefined }} GitCommit
+ * @typedef {{ directories: string[], problem: string | undefined,
+ *   before: string | undefined }} GitCommit
  */
+
+/**
+ * @param {string[]} words - Words of one simple command.
+ * @returns {boolean} True when the command cannot change the index.
+ */
+function isSafeBefore(words) {
+  if (/^[A-Za-z_]\w*=/.test(words[0] ?? '')) {
+    return false;
+  }
+  if (words[0] === 'git') {
+    return SAFE_GIT_BEFORE.has(words[1] ?? '');
+  }
+  return SAFE_BEFORE.has(words[0] ?? '');
+}
 
 /**
  * @param {string[]} words - Words of one simple command.
@@ -61,7 +80,11 @@ const COMMIT_TEXT = /\bgit\s[^;&|\n]*?\bcommit(?=[\s;&|)"']|$)/;
  */
 function commitArguments(words) {
   let index = 0;
+  let problem;
   while (/^[A-Za-z_]\w*=/.test(words[index] ?? '')) {
+    if ((words[index] ?? '').startsWith('GIT_')) {
+      problem = `the variable "${(words[index] ?? '').split('=')[0] ?? ''}"`;
+    }
     index += 1;
   }
   const entry = words[index] ?? '';
@@ -71,7 +94,6 @@ function commitArguments(words) {
   /** @type {string[]} */
   const directories = [];
   index += 1;
-  let problem;
   while ((words[index] ?? '').startsWith('-')) {
     const word = words[index] ?? '';
     if (GLOBAL_OTHER_REPO.test(word)) {
@@ -178,6 +200,8 @@ export function findGitCommits(command) {
   const commits = [];
   /** @type {string[]} */
   let words = [];
+  /** @type {string | undefined} */
+  let before;
   for (const token of [...tokens, { type: 'op', value: ';' }]) {
     if (token.type === 'word') {
       words.push(token.value);
@@ -185,9 +209,13 @@ export function findGitCommits(command) {
     }
     const found = commitArguments(words);
     if (typeof found === 'string') {
-      commits.push({ directories: [], problem: found });
+      commits.push({ directories: [], problem: found, before });
     } else if (found) {
-      commits.push({ directories: found.directories, problem: commitProblem(found.rest) });
+      const problem = commitProblem(found.rest);
+      commits.push({ directories: found.directories, problem, before });
+    }
+    if (words.length > 0 && !before && (found || !isSafeBefore(words))) {
+      before = words.slice(0, 2).join(' ');
     }
     words = [];
   }
