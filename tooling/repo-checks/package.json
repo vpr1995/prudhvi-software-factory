@@ -1,0 +1,15 @@
+{
+  "name": "@vprprudhvi/tooling-repo-checks",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repo-wide CI checks. Node built-ins only.",
+  "type": "module",
+  "scripts": {
+    "_phase:test": "node --test \"test/**/*.test.js\"",
+    "doc-lint": "node scripts/doc-lint.mjs",
+    "test": "npm run _phase:test"
+  },
+  "engines": {
+    "node": ">=24.11.1"
+  }
+}

@@ -12,7 +12,7 @@ Contracts are optional. `rush new --project` and `rush add-part` do not make the
 ## Folder layout
 
 - `src/contracts/<resource>.ts`: one file per resource. Zod schemas and inferred types only. No runtime logic.
-- `scripts/emit-openapi.mjs`: build script that emits OpenAPI.
+- `projects/<name>/scripts/emit-openapi.mjs`: build script that emits OpenAPI.
 - Output: `dist/openapi.json`, written by `_phase:build`.
 
 ## Rules

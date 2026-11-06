@@ -11,7 +11,7 @@ Project files `projects/<name>/REVIEW.md` and `platform/REVIEW.md` add rules for
 - Start the summary with a count. Example: `3 findings: 1 Important, 1 Nit, 1 Pre-existing.`
 - If there are no findings, write exactly: `No issues found.` Then list the files you checked.
 - Tag each finding with one severity: `Important`, `Nit`, or `Pre-existing`.
-- Give each finding a file and a line. Example: `projects/sample/src/api/routes/order/create-order.ts:42`.
+- Give each finding a file and a line. Example: `projects/sample/src/api/routes/notes/notes-routes.ts:42`.
 - Quote the line or the expression that fails.
 - Name the bug class, not only the line. Example: "missing authorization check on a route that reads another user's data".
 - Say what fails and when. Say how to fix it in one sentence.
@@ -57,7 +57,7 @@ Check these failure types on each change.
 
 ### 6.1 Boundaries and structure
 
-- A project imports another project. Example: `projects/a/web` imports `projects/b/src/contracts`.
+- A project imports another project. Example: `projects/<a>/web` imports `projects/<b>/src/contracts`.
 - `web` imports `src/api`, or `src/api` imports `web`, inside one project.
 - `packages/*` imports from `projects/*`.
 - `src/contracts` imports from `web`, `src/api`, `bin`, or `lib`.
