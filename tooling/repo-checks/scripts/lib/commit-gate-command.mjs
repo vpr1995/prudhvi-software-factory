@@ -42,11 +42,31 @@ const LONG_FLAGS = new Set([
   '--status',
   '--no-status',
 ]);
-// The heredoc message form that Claude Code writes: -m "$(cat <<'EOF' ... EOF )".
-const HEREDOC_MESSAGE = /"\$\(cat\s*<<-?\s*(['"]?)(\w+)\1[ \t]*\n[\s\S]*?\n[ \t]*\2[ \t]*\n\s*\)"/g;
+// The heredoc message form that Claude Code writes: -m "$(cat <<'EOF' ... EOF )". Only a quoted
+// delimiter counts: with an unquoted one, the shell runs each $(...) in the body.
+const HEREDOC_MESSAGE = /"\$\(cat\s*<<-?\s*(['"])(\w+)\1[ \t]*\n[\s\S]*?\n[ \t]*\2[ \t]*\n\s*\)"/g;
 const MESSAGE_PLACEHOLDER = '"(message)"';
-// Any other heredoc: the body is data, not commands. The gate keeps only the `<<EOF` word.
-const HEREDOC_BODY = /<<-?[ \t]*(['"]?)(\w+)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g;
+// Any other heredoc with a quoted delimiter: the body is data. The gate keeps the `<<EOF` word.
+const HEREDOC_BODY = /<<-?[ \t]*(['"])(\w+)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g;
+// Words that can come before a command and run it: the gate skips them.
+const PREFIX_WORDS = new Set([
+  '!',
+  '{',
+  'if',
+  'elif',
+  'while',
+  'until',
+  'then',
+  'do',
+  'else',
+  'time',
+  'command',
+  'exec',
+  'nohup',
+  'env',
+]);
+// Commands that run their argument text as a command. A git commit in it denies.
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'eval', 'xargs']);
 // For a command that the gate cannot parse: git, then the word commit in the same simple command.
 const COMMIT_TEXT = /\bgit\s[^;&|\n]*?\bcommit(?=[\s;&|)"']|$)/;
 // The hook checks the index before the command runs. So a command before the commit in the same
@@ -61,39 +81,15 @@ const SAFE_GIT_BEFORE = new Set(['status', 'diff', 'log', 'show', 'rev-parse']);
 
 /**
  * @param {string[]} words - Words of one simple command.
- * @returns {boolean} True when the command cannot change the index.
+ * @param {number} start - Index of the word after `git`.
+ * @returns {{ index: number, directories: string[], problem: string | undefined }} The index of
+ *   the git subcommand, the `-C` folders, and a problem for `--git-dir` or `--work-tree`.
  */
-function isSafeBefore(words) {
-  if (/^[A-Za-z_]\w*=/.test(words[0] ?? '')) {
-    return false;
-  }
-  if (words[0] === 'git') {
-    return SAFE_GIT_BEFORE.has(words[1] ?? '');
-  }
-  return SAFE_BEFORE.has(words[0] ?? '');
-}
-
-/**
- * @param {string[]} words - Words of one simple command.
- * @returns {{ directories: string[], rest: string[] } | string | undefined} The `-C` folders
- *   and the words after `commit`; a problem text; or undefined when it is not a commit.
- */
-function commitArguments(words) {
-  let index = 0;
-  let problem;
-  while (/^[A-Za-z_]\w*=/.test(words[index] ?? '')) {
-    if ((words[index] ?? '').startsWith('GIT_')) {
-      problem = `the variable "${(words[index] ?? '').split('=')[0] ?? ''}"`;
-    }
-    index += 1;
-  }
-  const entry = words[index] ?? '';
-  if (entry !== 'git' && !entry.endsWith('/git')) {
-    return;
-  }
+function readGlobalOptions(words, start) {
   /** @type {string[]} */
   const directories = [];
-  index += 1;
+  let index = start;
+  let problem;
   while ((words[index] ?? '').startsWith('-')) {
     const word = words[index] ?? '';
     if (GLOBAL_OTHER_REPO.test(word)) {
@@ -109,8 +105,73 @@ function commitArguments(words) {
     }
     index += 1;
   }
+  return { index, directories, problem };
+}
+
+/**
+ * Skips variable assignments and prefix words such as `env`, `time` or `then`.
+ *
+ * @param {string[]} words - Words of one simple command.
+ * @returns {{ index: number, variables: string[] }} The index of the command name, and the names
+ *   of the variables set for it.
+ */
+function commandStart(words) {
+  let index = 0;
+  /** @type {string[]} */
+  const variables = [];
+  for (;;) {
+    const word = words[index] ?? '';
+    if (/^[A-Za-z_]\w*=/.test(word)) {
+      variables.push(word.split('=')[0] ?? '');
+    } else if (!PREFIX_WORDS.has(word) && !(index > 0 && word.startsWith('-'))) {
+      return { index, variables };
+    }
+    index += 1;
+  }
+}
+
+/**
+ * @param {string[]} words - Words of one simple command.
+ * @returns {boolean} True when the command cannot change the index.
+ */
+function isSafeBefore(words) {
+  const { index, variables } = commandStart(words);
+  const name = words[index] ?? '';
+  if (variables.length > 0) {
+    return false;
+  }
+  if (name === 'git') {
+    const global = readGlobalOptions(words, index + 1);
+    return SAFE_GIT_BEFORE.has(words[global.index] ?? '');
+  }
+  return SAFE_BEFORE.has(name);
+}
+
+/**
+ * @param {string[]} words - Words of one simple command.
+ * @returns {{ directories: string[], rest: string[] } | string | undefined} The `-C` folders
+ *   and the words after `commit`; a problem text; or undefined when it is not a commit.
+ */
+function commitArguments(words) {
+  const start = commandStart(words);
+  const entry = words[start.index] ?? '';
+  const name = entry.split('/').at(-1) ?? '';
+  if (SHELLS.has(name)) {
+    const text = words.slice(start.index + 1).join(' ');
+    return COMMIT_TEXT.test(text)
+      ? `a git commit inside "${name}": run git commit directly`
+      : undefined;
+  }
+  if (name !== 'git') {
+    return;
+  }
+  const { index, directories, problem } = readGlobalOptions(words, start.index + 1);
   if (words[index] !== 'commit') {
     return;
+  }
+  const variable = start.variables.find((item) => item.startsWith('GIT_'));
+  if (variable) {
+    return `the variable "${variable}"`;
   }
   return problem ?? { directories, rest: words.slice(index + 1) };
 }

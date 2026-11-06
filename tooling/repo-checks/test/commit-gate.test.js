@@ -8,6 +8,7 @@ import { after, test } from 'node:test';
 
 import { findGitCommits } from '../scripts/lib/commit-gate-command.mjs';
 import { commitGate } from '../scripts/lib/commit-gate.mjs';
+import { findRushRuns } from '../scripts/lib/stop-gate-command.mjs';
 import { handle } from '../scripts/lib/stop-gate-core.mjs';
 
 const RUSH = 'node common/scripts/install-run-rush.js';
@@ -333,11 +334,79 @@ test('findGitCommits reads the commit forms', () => {
   // A heredoc body is data: git commit text in it is no commit.
   const script = `python3 - <<'EOF'\nprint("git commit (x)")\nEOF\n`;
   assert.deepEqual(findGitCommits(script), { commits: [], parsed: true });
-  const fileMessage = `git commit -F - <<EOF\nfix(a): x\nEOF`;
+  const fileMessage = `git commit -F - <<'EOF'\nfix(a): x\nEOF`;
   assert.deepEqual(findGitCommits(fileMessage).commits, [
     { directories: [], problem: undefined, before: undefined },
   ]);
   // An unparseable command with a git subcommand and the word commit-gate is no commit.
   assert.deepEqual(findGitCommits('ls $(git diff --name-only) commit-gate.mjs').parsed, true);
   assert.deepEqual(findGitCommits('cd $(mktemp -d) && git commit -m x').parsed, false);
+});
+
+test('a backslash-newline joins the lines, as in POSIX sh', () => {
+  const first = (command) => findGitCommits(command).commits[0];
+  assert.equal(first('git add -A && \\\n  git commit -m x')?.before, 'git add');
+  assert.equal(findGitCommits('git \\\n  commit -m x').commits.length, 1);
+  assert.equal(first('git commit -m t \\\n  -m body')?.problem, undefined);
+  assert.deepEqual(findRushRuns(`${RUSH} typecheck \\\n  --only @x/a`, false, ['typecheck']).runs, [
+    { command: 'typecheck', selectors: [{ kind: 'only', value: '@x/a' }] },
+  ]);
+  assert.deepEqual(findRushRuns(`${RUSH} test --only "a\\\nb"`).runs[0]?.selectors, [
+    { kind: 'only', value: 'ab' },
+  ]);
+});
+
+test('a wrapped git commit is found or denies', () => {
+  const root = makeRepository();
+  write(root, 'projects/a/src/a.ts', 'export const a = 2;\n');
+  git(root, 'add', '-A');
+  for (const command of [
+    '! git commit -m x',
+    '{ git commit -m x; }',
+    'if true; then git commit -m x; fi',
+    'time git commit -m x',
+    'command git commit -m x',
+    'env A=1 git commit -m x',
+    'exec git commit -m x',
+    'nohup git commit -m x',
+  ]) {
+    assert.match(gate(root, command)?.permissionDecisionReason ?? '', /typecheck --only/, command);
+  }
+  for (const command of [
+    'sh -c "git commit -m x"',
+    'bash -lc "git add -A && git commit -m x"',
+    'eval "git commit -m x"',
+    'echo x | xargs git commit -m',
+  ]) {
+    assert.match(
+      gate(root, command)?.permissionDecisionReason ?? '',
+      /run git commit directly/,
+      command,
+    );
+  }
+  assert.equal(gate(root, 'bash -c "git status"'), undefined);
+});
+
+test('only a heredoc with a quoted delimiter is data', () => {
+  const unquoted = 'cat > m.txt <<EOF\n$(git add -A)\nEOF\ngit commit -F m.txt';
+  assert.equal(findGitCommits(unquoted).parsed, false);
+  const message = 'git commit -m "$(cat <<EOF\n$(git add -A)\nEOF\n)"';
+  assert.equal(findGitCommits(message).parsed, false);
+  const quoted = "cat > m.txt <<'EOF'\n$(git add -A)\nEOF\ngit commit -F m.txt";
+  assert.equal(findGitCommits(quoted).commits[0]?.before, undefined);
+});
+
+test('a folder whose name starts with two dots is in the repo', () => {
+  const root = makeRepository();
+  write(root, 'projects/a/src/a.ts', 'export const a = 2;\n');
+  write(root, '..cache/x.txt', 'x\n');
+  git(root, 'add', '-A');
+  assert.equal(gate(root, 'git -C ..cache commit -m x')?.permissionDecision, 'deny');
+});
+
+test('git global options before a read-only git command are safe before the commit', () => {
+  const before = (command) => findGitCommits(command).commits[0]?.before;
+  assert.equal(before('git --no-pager diff --cached && git commit -m x'), undefined);
+  assert.equal(before('git -c color.ui=never status; git commit -m x'), undefined);
+  assert.equal(before('git -c x=y add -A && git commit -m x'), 'git -c');
 });

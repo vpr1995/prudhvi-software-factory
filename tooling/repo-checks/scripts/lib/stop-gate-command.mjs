@@ -43,6 +43,11 @@ function readDoubleQuoted(text, start) {
   let value = '';
   let position = start + 1;
   while (position < text.length && text[position] !== '"') {
+    if (text.startsWith('\\\n', position)) {
+      // Line continuation: POSIX sh removes the backslash and the newline.
+      position += 2;
+      continue;
+    }
     if (text[position] === '\\' && '"\\$`'.includes(text[position + 1] ?? '')) {
       position += 1;
     }
@@ -136,7 +141,10 @@ export function tokenize(text) {
   while (position < text.length) {
     const operator = operatorAt(text, position);
     const character = text[position] ?? '';
-    if (!parts && character === '#') {
+    if (text.startsWith('\\\n', position)) {
+      // Line continuation: POSIX sh removes the backslash and the newline.
+      position += 2;
+    } else if (!parts && character === '#') {
       position = commentEnd(text, position);
     } else if (operator) {
       flush();

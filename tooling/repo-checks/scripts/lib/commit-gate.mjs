@@ -41,7 +41,7 @@ function deny(reason) {
 function inRepository(root, cwd, directories) {
   const folder = realPath(path.resolve(typeof cwd === 'string' ? cwd : root, ...directories));
   const relative = path.relative(root, folder);
-  return !relative.startsWith('..') && !path.isAbsolute(relative);
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 /**
