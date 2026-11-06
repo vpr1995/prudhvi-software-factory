@@ -39,6 +39,12 @@
       "tags": ["tooling"]
     },
     {
+      "packageName": "@vprprudhvi/tooling-repo-checks",
+      "projectFolder": "tooling/repo-checks",
+      "shouldPublish": false,
+      "tags": ["tooling"]
+    },
+    {
       "packageName": "@vprprudhvi/tooling-vitest-config",
       "projectFolder": "tooling/vitest-config",
       "shouldPublish": false,

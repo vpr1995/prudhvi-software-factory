@@ -15,7 +15,7 @@ This document sets the test rules for all projects and packages.
 | Source file                            | Unit test file                                   |
 | -------------------------------------- | ------------------------------------------------ |
 | `packages/<pkg>/src/a/b.ts`            | `packages/<pkg>/test/a/b.test.ts`                |
-| `platform/infra/lib/x.ts`              | `platform/infra/test/x.test.ts`                  |
+| `platform/infra/lib/platform-stack.ts` | `platform/infra/test/platform-stack.test.ts`     |
 | `projects/<name>/src/contracts/x.ts`   | `projects/<name>/test/contracts/x.test.ts`       |
 | `projects/<name>/src/api/routes/x.ts`  | `projects/<name>/test/api/routes/x.test.ts`      |
 | `projects/<name>/web/components/x.tsx` | `projects/<name>/test/web/components/x.test.tsx` |
@@ -138,7 +138,7 @@ The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secret
 
 | Job             | Commands                                                                                                                                                                                                              | Blocks when                                                                                              |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `plan`          | `rush check`, `node tooling/tsconfig/scripts/check-tsconfigs.mjs`, `rush audit`, `rush list --impacted-by git:<base> --json`                                                                                          | Versions are not consistent, a tsconfig rule fails, or `pnpm-lock.yaml` changed and an audit pass fails. |
+| `plan`          | `rush check`, `node tooling/tsconfig/scripts/check-tsconfigs.mjs`, `node tooling/repo-checks/scripts/doc-lint.mjs`, `rush audit`, `rush list --impacted-by git:<base> --json`                                         | Versions are not consistent, a tsconfig rule fails, or `pnpm-lock.yaml` changed and an audit pass fails. |
 | `project`       | One job for each impacted project: `rush build --to <project>`, then `rush lint`, `rush typecheck`, `rush test`, `rush e2e`, each with `--only <project>`. After `rush test`: coverage on changed lines (section 2.1) | A build, lint rule, type, test, coverage threshold, coverage on changed lines, or e2e test fails.        |
 | `knip`          | `rush build --to @vprprudhvi/tooling-vitest-config`, then `rush knip` (default and `github-actions` reporters)                                                                                                        | Knip finds an unused file, export, type or dependency, an unlisted dependency, or an unresolved import.  |
 | `ci-result`     | Reads the results of `plan`, `project`, `knip` and `workflow-lint`                                                                                                                                                    | `plan`, `knip` or `workflow-lint` did not pass, or `project` did not pass or skip.                       |
@@ -151,6 +151,7 @@ The required checks are `ci-result` (from `ci.yml`) and `gitleaks` (from `secret
 Notes:
 
 - When no project is impacted, `project` skips and `ci-result` passes.
+- In `plan`, doc lint fails when a doc names a missing path or Rush command. See [commands.md](../guides/commands.md).
 - `project` restores the Rush build cache (`common/temp/build-cache`), so unchanged dependencies do not build again. It takes the newest entry of the same project in the PR. If there is none, it takes the newest entry of `main`. If there is none, it takes the newest entry of any scope.
 - `project` installs Chromium only for a project that has `playwright.config.ts`.
 - CI does not run `cdk synth`. cdk-nag runs inside the infra unit tests (`Template.fromStack` with validations).

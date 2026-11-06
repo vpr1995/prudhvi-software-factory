@@ -33,7 +33,7 @@ Rules: `packages/*` never import from `projects/*`. Shared packages publish (`sh
 ## B. New project
 
 1. Ask which parts the project needs: `node` (Fastify server), `web` (Next.js), `infra` (CDK). A project can have no part, one part, or all parts.
-2. Run `rush new --project <name>`. It makes a bare `projects/<name>` (`@vprprudhvi/<name>`, tag `project/<name>`, `shouldPublish: false`, no change file). The bare project has the five `_phase:*` scripts, `scripts/phase.mjs`, ESLint, Vitest (`createAppVitestConfig`), `tsconfig.json`, `config/rush-project.json`, `README.md`, `REVIEW.md` and one test. It has no contracts and no parts.
+2. Run `rush new --project <name>`. It makes a bare `projects/<name>` (`@vprprudhvi/<name>`, tag `project/<name>`, `shouldPublish: false`, no change file). The bare project has the five `_phase:*` scripts, `projects/<name>/scripts/phase.mjs`, ESLint, Vitest (`createAppVitestConfig`), `tsconfig.json`, `config/rush-project.json`, `README.md`, `REVIEW.md` and one test. It has no contracts and no parts.
 3. Run section C once for each part.
 4. Edit the description in `package.json` and `README.md`.
 
@@ -41,11 +41,11 @@ Rules: `packages/*` never import from `projects/*`. Shared packages publish (`sh
 
 Run `rush add-part --project <name> --part <part>`. Add the parts in any order. The command fails when the part exists, when the project is not in `rush.json`, or when `rush new --project` did not make the project (for example `projects/sample`).
 
-The command writes the part files, adds the part scripts and dependencies to `package.json` (versions from `projects/sample/package.json`), adds the part section of `docs/templates/REVIEW.<part>.md` to `REVIEW.md`, and runs `rush update`. `scripts/phase.mjs` finds each part by its folder, so each phase runs the new part with no other change.
+The command writes the part files, adds the part scripts and dependencies to `package.json` (versions from `projects/sample/package.json`), adds the part section of `docs/templates/REVIEW.<part>.md` to `REVIEW.md`, and runs `rush update`. `projects/<name>/scripts/phase.mjs` finds each part by its folder, so each phase runs the new part with no other change.
 
 | Part    | Folders and files                                                                                                                            | Phases                                                  |
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `node`  | `src/api` (config, server, health route, run, main), `test/api`, `bruno/`, `scripts/e2e.mjs`, `tsconfig.build.json`                          | build: `tsc`. e2e: starts the server and runs `bru`.    |
+| `node`  | `src/api` (config, server, health route, run, main), `test/api`, `bruno/`, `projects/<name>/scripts/e2e.mjs`, `tsconfig.build.json`          | build: `tsc`. e2e: starts the server and runs `bru`.    |
 | `web`   | `web/` (layout, page, `next.config.ts`), `test/web`, `web/e2e/home.spec.ts`, `playwright.config.ts`. Sets `web: true` in `vitest.config.ts`. | build and typecheck: `next`. e2e: Playwright and axe.   |
 | `infra` | `bin/app.ts`, `lib/<name>-app.ts` (cdk-nag `AwsSolutionsChecks`), `lib/<name>-stack.ts`, `test/infra`, `cdk.json`, `tsconfig.cdk.json`       | typecheck and test. Check with `npx cdk synth --quiet`. |
 
