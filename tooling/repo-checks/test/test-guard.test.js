@@ -7,6 +7,8 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { fileAt } from '../scripts/lib/test-guard-diff.mjs';
+
 import { pathFromEnv } from './test-env.config.js';
 
 const GUARD = fileURLToPath(new URL('../scripts/test-guard.mjs', import.meta.url));
@@ -210,4 +212,74 @@ test('the guard package and Markdown are exempt from rules 1 to 5, not from rule
   assert.equal(result.status, 1, result.output);
   assert.doesNotMatch(result.output, /eslint-disable|focused/);
   assert.match(result.output, /tooling\/repo-checks\/test\/x\.test\.js:1: check config changed/);
+});
+
+test('a test file renamed to a non-test name fails', () => {
+  const result = guard(
+    repository(
+      { 'test/a.test.ts': SPEC(3) },
+      { 'test/a.test.ts': null, 'test/a.test.ts.bak': SPEC(3) },
+    ),
+  );
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /test\/a\.test\.ts\.bak:1: test file moved to a non-test path/);
+});
+
+test('a test file moved into test/fixtures/ or to a .md path fails', () => {
+  const result = guard(
+    repository(
+      { 'test/a.test.ts': SPEC(3), 'test/b.test.ts': SPEC(2) },
+      {
+        'test/a.test.ts': null,
+        'test/fixtures/a.test.ts': SPEC(3),
+        'test/b.test.ts': null,
+        'test/b.test.md': SPEC(2),
+      },
+    ),
+  );
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /test\/fixtures\/a\.test\.ts:1: test file moved to a non-test path/);
+  assert.match(result.output, /test\/b\.test\.md:1: test file moved to a non-test path/);
+});
+
+test('an eslint-disable in a path with a space fails', () => {
+  const result = guard(
+    repository(
+      { 'my dir/code.ts': 'const a = 1;\n' },
+      { 'my dir/code.ts': 'const a = 1;\n// eslint-disable-next-line\n' },
+    ),
+  );
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /my dir\/code\.ts:2: added an eslint-disable comment/);
+});
+
+test('a changed package.json script fails, a dependency change passes', () => {
+  const before = JSON.stringify({ scripts: { test: 'vitest run' }, dependencies: { a: '1' } });
+  const scripts = JSON.stringify({ scripts: { test: 'echo skip' }, dependencies: { a: '1' } });
+  const dependencies = JSON.stringify({
+    scripts: { test: 'vitest run' },
+    dependencies: { a: '2' },
+  });
+  const failed = guard(
+    repository({ 'packages/a/package.json': before }, { 'packages/a/package.json': scripts }),
+  );
+  assert.equal(failed.status, 1, failed.output);
+  assert.match(failed.output, /packages\/a\/package\.json:1: package\.json script "test" changed/);
+  const passed = guard(
+    repository({ 'packages/a/package.json': before }, { 'packages/a/package.json': dependencies }),
+  );
+  assert.equal(passed.status, 0, passed.output);
+});
+
+test('an added .only in a new test file fails', () => {
+  const result = guard(repository({}, { 'test/new.test.ts': "it.only('a', () => {});\n" }));
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /test\/new\.test\.ts:1: added a skipped, focused or todo test/);
+});
+
+test('fileAt returns empty text for a missing path and throws for a bad revision', () => {
+  const fixture = repository({ 'src/a.ts': 'x\n' }, {});
+  assert.equal(fileAt(fixture.root, 'HEAD', 'src/a.ts'), 'x\n');
+  assert.equal(fileAt(fixture.root, 'HEAD', 'src/missing.ts'), '');
+  assert.throws(() => fileAt(fixture.root, 'deadbeef', 'src/a.ts'));
 });

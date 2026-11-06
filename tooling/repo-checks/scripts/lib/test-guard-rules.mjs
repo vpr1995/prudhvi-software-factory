@@ -8,13 +8,30 @@ export const CHECK_CONFIG_MESSAGE = 'check config changed; needs risk:high';
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 // Bruno files that are not requests: collection and folder settings, environments.
 const BRUNO_SETTINGS = new Set(['collection.bru', 'folder.bru']);
-// it( test( it.each test.each. The look-behind keeps submit(, xit( and foo.it( out of the count.
-const TEST_CASE = /(?<![\w$.])(?:it|test)(?:\.each)?\s*[(`]/g;
-const BLOCK_COMMENT = /\/\*[\s\S]*?\*\//g;
-const LINE_COMMENT = /^\s*\/\/.*$/gm;
+// The start of a test call chain: it, test or describe. The look-behind keeps submit(, xit( and
+// foo.it( out.
+const CHAIN_ROOT = /(?<![\w$.])(?:it|test|describe)\b/g;
+const WORD = /\w+/y;
+const SPACE = /\s*/y;
+// Chain segments of one test case: it.each(...)(...), it.concurrent(...), it.skipIf(x)(...).
+const CASE_SEGMENTS = new Set([
+  'each',
+  'concurrent',
+  'sequential',
+  'fails',
+  'for',
+  'skipIf',
+  'runIf',
+  'skip',
+  'only',
+  'todo',
+  'fixme',
+]);
+// Chain segments that take arguments before the test call: it.skipIf(x)('name', ...).
+const CONDITION_SEGMENTS = new Set(['skipIf', 'runIf']);
+const SKIP_SEGMENTS = new Set(['skip', 'skipIf', 'only', 'todo', 'fixme']);
+// A line that starts a comment or continues a block comment. Its code does not count.
 const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
-// describe.skip, it.only, test.todo, test.describe.only, test.fixme.
-const FOCUS_OR_SKIP = /(?<![\w$.])(?:it|test|describe)(?:\.describe)?\.(?:skip|only|todo|fixme)\b/;
 const X_PREFIXED = /(?<![\w$.])x(?:it|test|describe)\s*\(/;
 const LINT_DISABLE = /eslint-disable/;
 const TS_DIRECTIVE = /@ts-(?:ignore|expect-error|nocheck)\b/;
@@ -45,6 +62,14 @@ const CHECK_CONFIG_FOLDERS = [
   '.github/actions/',
 ];
 const TSCONFIG_PRESET = /^tooling\/tsconfig\/[^/]+\.json$/;
+// A change to a project tsconfig is a finding. An added file is normal in a new project.
+const PROJECT_TSCONFIG = /^tsconfig[\w.-]*\.json$/;
+// A change to these exact paths is a finding.
+const CHECK_CONFIG_PATHS = new Set([
+  'common/config/rush/command-line.json',
+  '.github/zizmor.yml',
+  '.github/CODEOWNERS',
+]);
 
 /** True for a test file: *.test.*, *.spec.* (Playwright e2e included) and Bruno requests. */
 export function isTestFile(file) {
@@ -72,32 +97,98 @@ export function isExempt(file) {
 export function isCheckConfig(file, status) {
   if (file.endsWith('.md')) return false;
   const name = posix.basename(file);
-  if (PROJECT_CHECK_CONFIG.test(name)) return status !== 'A';
+  if (PROJECT_CHECK_CONFIG.test(name) || PROJECT_TSCONFIG.test(name)) {
+    return status !== 'A' || TSCONFIG_PRESET.test(file);
+  }
   return (
+    CHECK_CONFIG_PATHS.has(file) ||
     REPO_CHECK_CONFIG.has(name) ||
     TSCONFIG_PRESET.test(file) ||
     CHECK_CONFIG_FOLDERS.some((folder) => file.startsWith(folder))
   );
 }
 
-/** Count the test cases in a test file: it(, test(, it.each and test.each. Comments do not count. */
+// Return the index after the "(...)" that opens at `open`, or -1 when it does not close.
+function afterParentheses(code, open) {
+  let depth = 0;
+  for (let index = open; index < code.length; index += 1) {
+    if (code[index] === '(') depth += 1;
+    if (code[index] === ')') depth -= 1;
+    if (depth === 0) return index + 1;
+  }
+  return -1;
+}
+
+// Read the chain after a root at `index`: ".concurrent.skipIf(x)". Return { segments, called }.
+// `called` is true when a call "(" or a tagged template "`" follows the chain.
+function readChain(code, index) {
+  const segments = [];
+  let position = index;
+  while (code[position] === '.') {
+    WORD.lastIndex = position + 1;
+    const word = WORD.exec(code);
+    if (word === null) return { segments, called: false };
+    segments.push(word[0]);
+    position = WORD.lastIndex;
+    if (CONDITION_SEGMENTS.has(word[0])) {
+      position = afterParentheses(code, position);
+      if (position === -1) return { segments, called: false };
+    }
+  }
+  SPACE.lastIndex = position;
+  SPACE.exec(code);
+  return { segments, called: code[SPACE.lastIndex] === '(' || code[SPACE.lastIndex] === '`' };
+}
+
+// Each it, test or describe chain in the code: { root, segments, called }.
+function testChains(code) {
+  return [...code.matchAll(CHAIN_ROOT)].map((match) => ({
+    root: match[0],
+    ...readChain(code, match.index + match[0].length),
+  }));
+}
+
+function isTestCase({ root, segments, called }) {
+  return called && root !== 'describe' && segments.every((segment) => CASE_SEGMENTS.has(segment));
+}
+
+/**
+ * Count the test cases in a test file: it( and test( calls, with modifiers such as .each,
+ * .concurrent and .skipIf(x). A describe block is not a test case. Comment lines do not count.
+ */
 export function countTestCases(text) {
-  const code = text.replaceAll(BLOCK_COMMENT, '').replaceAll(LINE_COMMENT, '');
-  return [...code.matchAll(TEST_CASE)].length;
+  const code = text
+    .split('\n')
+    .filter((line) => !COMMENT_LINE.test(line))
+    .join('\n');
+  return testChains(code).filter((chain) => isTestCase(chain)).length;
+}
+
+function isSkipped(text) {
+  const chains = testChains(text);
+  return (
+    X_PREFIXED.test(text) ||
+    chains.some(
+      ({ segments, called }) => called && segments.some((segment) => SKIP_SEGMENTS.has(segment)),
+    )
+  );
 }
 
 /** Findings for the added lines of one test file: skipped, focused or todo tests. */
 export function skipFindings(added) {
   return added
-    .filter(({ text }) => !COMMENT_LINE.test(text))
-    .filter(({ text }) => FOCUS_OR_SKIP.test(text) || X_PREFIXED.test(text))
+    .filter(({ text }) => !COMMENT_LINE.test(text) && isSkipped(text))
     .map(({ line }) => ({ line, message: 'added a skipped, focused or todo test' }));
 }
 
-/** Findings for the added lines of any file: eslint-disable and TypeScript ignore comments. */
-export function suppressionFindings(added) {
+/**
+ * Findings for the added lines of any file: eslint-disable and TypeScript ignore comments.
+ * A line that the same diff also removes (same trimmed text) only moved. It is not a finding.
+ */
+export function suppressionFindings(added, removed = []) {
+  const moved = new Set(removed.map(({ text }) => text.trim()));
   const findings = [];
-  for (const { line, text } of added) {
+  for (const { line, text } of added.filter((entry) => !moved.has(entry.text.trim()))) {
     if (LINT_DISABLE.test(text))
       findings.push({ line, message: 'added an eslint-disable comment' });
     const directive = TS_DIRECTIVE.exec(text);
@@ -144,6 +235,36 @@ export function thresholdFindings({ added, removed }) {
     const now = after.get(key);
     const message = thresholdChange(key, old.value, now?.value);
     if (message !== '') findings.push({ line: now?.line ?? FIRST_LINE, message });
+  }
+  return findings;
+}
+
+// The "scripts" object of a package.json text. Missing text or scripts give an empty Map.
+function scriptsOf(text) {
+  if (text === '') return new Map();
+  const scripts = JSON.parse(text).scripts ?? {};
+  return new Map(Object.entries(scripts));
+}
+
+/**
+ * Findings for a package.json: a changed or removed script. An added script and a dependency
+ * change pass (rush add edits the dependencies).
+ */
+export function scriptFindings(beforeText, afterText) {
+  const after = scriptsOf(afterText);
+  const findings = [];
+  for (const [name, command] of scriptsOf(beforeText)) {
+    if (!after.has(name)) {
+      findings.push({
+        line: FIRST_LINE,
+        message: `package.json script "${name}" removed; needs ${RISK_HIGH_LABEL}`,
+      });
+    } else if (after.get(name) !== command) {
+      findings.push({
+        line: FIRST_LINE,
+        message: `package.json script "${name}" changed; needs ${RISK_HIGH_LABEL}`,
+      });
+    }
   }
   return findings;
 }

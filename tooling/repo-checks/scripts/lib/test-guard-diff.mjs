@@ -40,8 +40,10 @@ export function parseNameStatus(text) {
   return entries;
 }
 
+// git ends a header path that holds a space with a tab. Remove it, then remove the a/ or b/ prefix.
 function stripPrefix(name, prefix) {
-  return name.startsWith(prefix) ? name.slice(prefix.length) : name;
+  const bare = name.endsWith('\t') ? name.slice(0, -1) : name;
+  return bare.startsWith(prefix) ? bare.slice(prefix.length) : bare;
 }
 
 // "-12,3" or "+12" to { start, count }. A missing count is 1.
@@ -120,13 +122,14 @@ function readPatchLine(line, state, files) {
   if (!files.has(key)) files.set(key, { added, removed });
 }
 
-/** Return the text of `path` at `commit`, or '' when it does not exist there. */
+/**
+ * Return the text of `path` at `commit`, or '' when the path does not exist there.
+ * Any other git error (for example a bad revision) throws.
+ */
 export function fileAt(root, commit, path) {
-  try {
-    return git(root, ['show', `${commit}:${path}`]);
-  } catch {
-    return '';
-  }
+  const listed = git(root, ['ls-tree', '--name-only', commit, '--', path]);
+  if (listed === '') return '';
+  return git(root, ['show', `${commit}:${path}`]);
 }
 
 /**
@@ -141,5 +144,10 @@ export function readDiff(root, base) {
   const patch = parsePatch(
     git(root, [...common, '-U0', '--src-prefix=a/', '--dst-prefix=b/', ...range]),
   );
+  // Each patch key must name a changed path. If not, the patch parser lost lines: fail loudly.
+  const paths = new Set(entries.flatMap((entry) => [entry.path, entry.oldPath]));
+  const unknown = [...patch.keys()].filter((key) => !paths.has(key));
+  if (unknown.length > 0)
+    throw new Error(`cannot match the patch to a changed path: ${unknown.join(', ')}`);
   return { mergeBase, entries, patch };
 }

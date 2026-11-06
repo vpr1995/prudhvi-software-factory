@@ -16,6 +16,7 @@
 // With the risk:high label, each finding is a warning and the exit code is 0.
 // Run from the repo root: node tooling/repo-checks/scripts/test-guard.mjs "$(git merge-base main HEAD)"
 import { execFileSync } from 'node:child_process';
+import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { isGithubActions } from './lib/doc-lint.config.mjs';
@@ -30,6 +31,7 @@ import {
   isTestFile,
   parseLabels,
   RISK_HIGH_LABEL,
+  scriptFindings,
   skipFindings,
   suppressionFindings,
   THRESHOLD_FILES,
@@ -53,14 +55,21 @@ function countFindings({ root, mergeBase }, entry) {
   return [{ line: FIRST_LINE, message }];
 }
 
-// Rules 1 to 5 for one changed file.
-function contentFindings(diff, entry, lines) {
-  if (entry.status === 'D') {
-    return isTestFile(entry.path) ? [{ line: FIRST_LINE, message: 'test file deleted' }] : [];
+// Rule 1: a test file that is deleted, or moved to a non-test or exempt path. Return '' when not.
+function removedTestMessage(entry) {
+  if (!isTestFile(entry.oldPath) || isExempt(entry.oldPath)) return '';
+  if (entry.status === 'D') return 'test file deleted';
+  const stillTest = isTestFile(entry.path) && !isExempt(entry.path);
+  if (entry.status === 'R' && !stillTest) {
+    return `test file moved to a non-test path (from ${entry.oldPath})`;
   }
-  const findings = [...suppressionFindings(lines.added)];
-  // A test file renamed to a non-test name still counts as a test file.
-  if (isTestFile(entry.path) || isTestFile(entry.oldPath)) {
+  return '';
+}
+
+// Rules 2 to 5 for one changed file that is not deleted.
+function contentFindings(diff, entry, lines) {
+  const findings = [...suppressionFindings(lines.added, lines.removed)];
+  if (isTestFile(entry.path)) {
     findings.push(...skipFindings(lines.added));
     if (entry.status !== 'A') findings.push(...countFindings(diff, entry));
   }
@@ -68,25 +77,36 @@ function contentFindings(diff, entry, lines) {
   return findings;
 }
 
+// Rule 6 for one changed file: check config paths and package.json scripts.
+function configFindings(diff, entry) {
+  const changed =
+    isCheckConfig(entry.path, entry.status) ||
+    (entry.oldPath !== entry.path && isCheckConfig(entry.oldPath, 'M'));
+  if (changed) return [{ line: FIRST_LINE, message: CHECK_CONFIG_MESSAGE }];
+  if (posix.basename(entry.oldPath) !== 'package.json' || entry.status === 'A') return [];
+  const before = fileAt(diff.root, diff.mergeBase, entry.oldPath);
+  const after = entry.status === 'D' ? '' : fileAt(diff.root, 'HEAD', entry.path);
+  return scriptFindings(before, after);
+}
+
+// All findings for one changed file.
+function entryFindings(diff, entry) {
+  const findings = configFindings(diff, entry);
+  const removed = removedTestMessage(entry);
+  if (removed !== '') findings.push({ line: FIRST_LINE, message: removed });
+  if (entry.status !== 'D' && !isExempt(entry.path)) {
+    findings.push(...contentFindings(diff, entry, diff.patch.get(entry.path) ?? NO_LINES));
+  }
+  return findings;
+}
+
 /** Check the diff from the merge base of `base` and HEAD. Return findings { file, line, message }. */
 export function guardRepository(root, base) {
   const { mergeBase, entries, patch } = readDiff(root, base);
-  const findings = [];
-  for (const entry of entries) {
-    const configChanged =
-      isCheckConfig(entry.path, entry.status) ||
-      (entry.oldPath !== entry.path && isCheckConfig(entry.oldPath, 'M'));
-    if (configChanged) {
-      findings.push({ file: entry.path, line: FIRST_LINE, message: CHECK_CONFIG_MESSAGE });
-    }
-    if (!isExempt(entry.path)) {
-      const lines = patch.get(entry.path) ?? NO_LINES;
-      for (const finding of contentFindings({ root, mergeBase }, entry, lines)) {
-        findings.push({ file: entry.path, ...finding });
-      }
-    }
-  }
-  return findings;
+  const diff = { root, mergeBase, patch };
+  return entries.flatMap((entry) =>
+    entryFindings(diff, entry).map((finding) => ({ file: entry.path, ...finding })),
+  );
 }
 
 /** Format one finding. GitHub Actions gets an annotation of the given level (error or warning). */

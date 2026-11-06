@@ -9,6 +9,7 @@ import {
   isExempt,
   isTestFile,
   parseLabels,
+  scriptFindings,
   skipFindings,
   suppressionFindings,
   thresholdFindings,
@@ -84,7 +85,7 @@ test('isCheckConfig flags changed config, not an added project config', () => {
   assert.ok(isCheckConfig('tooling/repo-checks/scripts/test-guard.mjs', 'M'));
   assert.ok(isCheckConfig('.github/workflows/ci.yml', 'M'));
   assert.ok(isCheckConfig('.github/actions/repo-setup/action.yml', 'A'));
-  assert.ok(!isCheckConfig('.github/CODEOWNERS', 'M'));
+  assert.ok(!isCheckConfig('.github/ISSUE_TEMPLATE/bug.yml', 'M'));
   assert.ok(!isCheckConfig('tooling/eslint-config/README.md', 'M'));
   assert.ok(!isCheckConfig('tooling/tsconfig/scripts/check-tsconfigs.mjs', 'M'));
   assert.ok(!isCheckConfig('projects/s/src/config.ts', 'M'));
@@ -175,4 +176,100 @@ test('parseLabels reads a JSON array and fails on bad input', () => {
   assert.deepEqual(parseLabels('["risk:high","x"]'), ['risk:high', 'x']);
   assert.throws(() => parseLabels('risk:high'));
   assert.throws(() => parseLabels('{"a":1}'));
+});
+
+test('parsePatch strips the tab that git adds after a path with a space', () => {
+  const patch = [
+    'diff --git a/my dir/code.ts b/my dir/code.ts',
+    '--- a/my dir/code.ts\t',
+    '+++ b/my dir/code.ts\t',
+    '@@ -0,0 +1 @@',
+    '+x',
+    '',
+  ].join('\n');
+  assert.deepEqual([...parsePatch(patch).keys()], ['my dir/code.ts']);
+});
+
+test('isCheckConfig flags project tsconfig changes, Rush commands and GitHub controls', () => {
+  assert.ok(isCheckConfig('projects/s/tsconfig.json', 'M'));
+  assert.ok(isCheckConfig('projects/s/web/tsconfig.json', 'D'));
+  assert.ok(isCheckConfig('packages/a/tsconfig.build.json', 'M'));
+  assert.ok(!isCheckConfig('projects/new/tsconfig.json', 'A'));
+  assert.ok(isCheckConfig('common/config/rush/command-line.json', 'M'));
+  assert.ok(isCheckConfig('.github/zizmor.yml', 'M'));
+  assert.ok(isCheckConfig('.github/CODEOWNERS', 'M'));
+  assert.ok(!isCheckConfig('.github/pull_request_template.md', 'M'));
+});
+
+test('scriptFindings flags a changed or removed script, not an added script or a dependency', () => {
+  const before = JSON.stringify({
+    scripts: { test: 'vitest run', lint: 'eslint .' },
+    dependencies: { a: '1.0.0' },
+  });
+  const changed = JSON.stringify({
+    scripts: { test: 'vitest run --passWithNoTests', build: 'tsc' },
+    dependencies: { a: '2.0.0', b: '1.0.0' },
+  });
+  assert.deepEqual(
+    scriptFindings(before, changed).map((finding) => finding.message),
+    [
+      'package.json script "test" changed; needs risk:high',
+      'package.json script "lint" removed; needs risk:high',
+    ],
+  );
+  const added = JSON.stringify({
+    scripts: { test: 'vitest run', lint: 'eslint .', e2e: 'x' },
+    dependencies: { c: '1.0.0' },
+  });
+  assert.deepEqual(scriptFindings(before, added), []);
+  assert.deepEqual(scriptFindings('', added), []);
+});
+
+test('countTestCases does not treat globs in strings as a block comment', () => {
+  const text = [
+    "const a = 'packages/*/src';",
+    "it('a', () => {});",
+    "const b = '**/*.ts';",
+    "test('b', () => {});",
+  ].join('\n');
+  assert.equal(countTestCases(text), 2);
+});
+
+test('countTestCases counts concurrent, sequential, fails, for, skipIf and runIf forms', () => {
+  const text = [
+    "it.concurrent('a', () => {});",
+    "test.concurrent.each([1])('b', () => {});",
+    "it.sequential('c', () => {});",
+    "it.fails('d', () => {});",
+    "it.for([1])('e', () => {});",
+    "it.skipIf(process.env.CI)('f', () => {});",
+    "test.runIf(isLinux())('g', () => {});",
+    "test.describe('group', () => {});",
+    "test.step('step', async () => {});",
+  ].join('\n');
+  assert.equal(countTestCases(text), 7);
+});
+
+test('skipFindings flags skipIf and skips behind concurrent or sequential, not runIf', () => {
+  const added = lines(
+    "it.skipIf(process.env.CI)('a', () => {});",
+    "it.concurrent.skip('b', () => {});",
+    "describe.sequential.only('c', () => {});",
+    "test.concurrent.todo('d');",
+    "it.runIf(isLinux())('e', () => {});",
+    'RuleTester.itOnly = it.only;',
+  );
+  assert.deepEqual(
+    skipFindings(added).map((finding) => finding.line),
+    [1, 2, 3, 4],
+  );
+});
+
+test('suppressionFindings ignores a suppression line that only moved', () => {
+  const added = lines('  // eslint-disable-next-line no-console', '// @ts-ignore');
+  const removed = lines('// eslint-disable-next-line no-console');
+  assert.deepEqual(
+    suppressionFindings(added, removed).map((finding) => finding.line),
+    [2],
+  );
 });
