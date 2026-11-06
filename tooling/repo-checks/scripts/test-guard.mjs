@@ -17,7 +17,6 @@
 // Run from the repo root: node tooling/repo-checks/scripts/test-guard.mjs "$(git merge-base main HEAD)"
 import { execFileSync } from 'node:child_process';
 import { posix } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import { isGithubActions } from './lib/doc-lint.config.mjs';
 import { appendToFile } from './lib/fs-io.mjs';
@@ -173,6 +172,8 @@ export function main(argv = process.argv) {
   return allowed ? EXIT_PASS : EXIT_FAIL;
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// import.meta.main is true when node runs this file. A URL compare with process.argv[1] fails when
+// the path holds a symbolic link (macOS /var is /private/var), and then the guard exits 0 silently.
+if (import.meta.main) {
   process.exitCode = main();
 }

@@ -1,7 +1,7 @@
 // End-to-end tests for scripts/test-guard.mjs: temp git repos with a base and a head commit.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -282,4 +282,18 @@ test('fileAt returns empty text for a missing path and throws for a bad revision
   assert.equal(fileAt(fixture.root, 'HEAD', 'src/a.ts'), 'x\n');
   assert.equal(fileAt(fixture.root, 'HEAD', 'src/missing.ts'), '');
   assert.throws(() => fileAt(fixture.root, 'deadbeef', 'src/a.ts'));
+});
+
+test('the guard runs when its path holds a symbolic link (CI runs a copy from a temp folder)', () => {
+  const fixture = repository({ 'test/a.test.ts': SPEC(2) }, { 'test/a.test.ts': null });
+  const link = path.join(fixture.root, '..', `${path.basename(fixture.root)}-link`);
+  roots.push(link);
+  symlinkSync(path.dirname(GUARD), link);
+  const result = spawnSync('node', [path.join(link, 'test-guard.mjs')], {
+    cwd: fixture.root,
+    env: { ...GIT_ENV, BASE_SHA: fixture.sha },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 1, `${result.stdout}${result.stderr}`);
+  assert.match(result.stderr, /test file deleted/);
 });

@@ -3,6 +3,7 @@
 # - plan: repo-wide checks (rush check, tsconfig check, doc lint, test guard, audit), then the list
 #   of Rush projects that the diff impacts. The test guard reads the PR labels: with risk:high its
 #   findings are warnings. The labeled and unlabeled events re-run CI, so a new label takes effect.
+#   The test guard runs from the base commit, so a change to the guard takes effect after merge.
 # - project: one job for each impacted project (build, lint, typecheck, test, e2e).
 # - knip: Knip on the whole repo (unused files, exports, types and dependencies).
 # - ci-result: a required check. It passes only when plan, project, knip and workflow-lint pass.
@@ -77,10 +78,23 @@ jobs:
 
       # Fails when the diff weakens tests or checks (root CLAUDE.md rule 2). BASE_SHA comes from
       # GITHUB_ENV. With the risk:high label, each finding is a warning.
+      # The guard runs from the base commit, so a PR cannot weaken the guard that checks it. A guard
+      # change takes effect after merge. The guard reads the repo root from its working directory.
+      # Bootstrap: when the base has no guard, the PR copy runs.
       - name: Test guard
         env:
           PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: node tooling/repo-checks/scripts/test-guard.mjs
+          GUARD: tooling/repo-checks/scripts/test-guard.mjs
+        run: |
+          if git cat-file -e "${BASE_SHA}:${GUARD}" 2>/dev/null; then
+            mkdir -p "${RUNNER_TEMP}/guard-base"
+            git archive "${BASE_SHA}" tooling/repo-checks | tar -x -C "${RUNNER_TEMP}/guard-base"
+            echo "test guard from the base commit ${BASE_SHA}"
+            node "${RUNNER_TEMP}/guard-base/${GUARD}"
+          else
+            echo "::notice::The base commit has no test guard. The guard of this PR runs (bootstrap)."
+            node "${GUARD}"
+          fi
 
       - name: Rush audit (pnpm lockfile changed)
         run: |
