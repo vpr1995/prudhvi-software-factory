@@ -1,9 +1,12 @@
 // Verify gate for Claude Code (design 6.6.1). .claude/settings.json runs this script as a hook on
-// PostToolUse (edit tools and Bash), Stop and SubagentStop. See lib/stop-gate-core.mjs.
+// PreToolUse (Bash), PostToolUse (edit tools and Bash), PostToolUseFailure (Bash), Stop and
+// SubagentStop. See lib/stop-gate-core.mjs.
 //
 // Hook mode (no arguments): reads the hook input from stdin. It writes one JSON object or nothing.
 // It always exits 0. An error gives `decision: "block"` with the error text, so a crash blocks.
 // The import of the core is inside the try block, so a load error blocks too.
+// Snapshot mode (argument "snapshot", for PreToolUse on Bash): the same, but an error never writes
+// a block, because a block on PreToolUse denies the command. The stop blocks instead.
 //
 // Deferral (main session only): node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>"
 // This prints the reason. The PostToolUse hook on Bash records the deferral.
@@ -58,7 +61,7 @@ if (import.meta.main) {
         env: gateEnvironment(),
       });
     } catch (error) {
-      output = blockOnError(error);
+      output = mode === 'snapshot' ? undefined : blockOnError(error);
     }
     if (output) {
       process.stdout.write(`${output}\n`);

@@ -132,13 +132,13 @@ The owner picks the findings to fix. Then a design PR with `risk:low`. The owner
 
 ### 6.6 Gates (deterministic)
 
-| Gate          | Where                                                             | Catches                                                                                                                                                |
-| ------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Doc lint      | CI                                                                | Doc names a missing path, script, Rush command, skill, or agent. Broken links.                                                                         |
-| Test guard    | CI                                                                | Deleted test files, deleted `it`/`test` blocks, lowered thresholds, new `eslint-disable`, changed lint or Vitest config without the `risk:high` label. |
-| Verify gate   | Stop and SubagentStop hooks (`command`, `onFailure: "block"`) [P] | Stop with source changes that no passing `rush test` covers. See 6.6.1.                                                                                |
-| Commit gate   | PreToolUse hook, `if: "Bash(git commit *)"` [P]                   | Commit before lint and typecheck pass on staged files.                                                                                                 |
-| Mutation test | CI, Stryker incremental on changed files [P]                      | Weak assertions that coverage cannot see. Later stage (effort M).                                                                                      |
+| Gate          | Where                                           | Catches                                                                                                                                                |
+| ------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Doc lint      | CI                                              | Doc names a missing path, script, Rush command, skill, or agent. Broken links.                                                                         |
+| Test guard    | CI                                              | Deleted test files, deleted `it`/`test` blocks, lowered thresholds, new `eslint-disable`, changed lint or Vitest config without the `risk:high` label. |
+| Verify gate   | Stop and SubagentStop hooks (`command`) [P]     | Stop with source changes that no passing `rush test` covers. See 6.6.1.                                                                                |
+| Commit gate   | PreToolUse hook, `if: "Bash(git commit *)"` [P] | Commit before lint and typecheck pass on staged files.                                                                                                 |
+| Mutation test | CI, Stryker incremental on changed files [P]    | Weak assertions that coverage cannot see. Later stage (effort M).                                                                                      |
 
 #### 6.6.1 Verify gate (Stop and SubagentStop hooks)
 
@@ -170,7 +170,7 @@ Lesson from the old `stop-gate` (removed in PR #43): it ran lint, typecheck, and
 - shows the owner a system message: `Verify deferred: <reason> (projects: …)`;
 - appends a line to `.claude/state/deferrals.log`. The drift report counts deferrals.
 
-**Crash.** Any hook error blocks the stop (`onFailure: "block"`) and names the error. The owner can turn the gate off with `FACTORY_STOP_GATE=off` in user settings or the shell. This variable is not in repo settings, so an agent PR cannot turn the gate off. The gate script has unit tests in `tooling/`. Note: Claude Code releases a Stop hook after 8 blocks in a row with no tool call between them [P].
+**Crash.** Any hook error blocks the stop and names the error. `onFailure: "block"` does not do this. The hooks doc says: "The field has no effect on these hooks: `Stop`, `SubagentStop`, `TaskCompleted`, and `TeammateIdle` hooks". The gate does it in two steps. The script catches each error and writes `decision: "block"` with the error text. The shell wrapper in `.claude/settings.json` exits 2 when `node` fails, for example when the script does not load. A hook timeout still lets the stop go on. No hook setting changes this. The owner can turn the gate off with `FACTORY_STOP_GATE=off` in user settings or the shell. This variable is not in repo settings, so an agent PR cannot turn the gate off. The gate script has unit tests in `tooling/`. Note: Claude Code releases a Stop hook after 8 blocks in a row with no tool call between them [P].
 
 **Scale.** Proof costs grow with the changed projects, not with their dependents:
 
@@ -269,7 +269,7 @@ One PR per step. Each step is checked before the next.
 - Too much ceremony. Mitigation: size tiers, one `design.md`, lens prompts that skip style.
 - Token cost: lens and review fan-outs multiply tokens [P] (Anthropic multi-agent post). Mitigation: Haiku for lint-type checks, Sonnet for lenses, Opus for critic and security; metrics line per run.
 - Prompt injection through issue text. Mitigation: only owner-authored issues run; no secrets beyond what the task needs; read-only reviewers.
-- Hook gates fail open on timeout. Mitigation: `onFailure: "block"` [P].
+- Hook gates fail open on timeout. `onFailure: "block"` has no effect on Stop and SubagentStop hooks [P]. Mitigation: the gate script catches each error and blocks, the shell wrapper exits 2 when `node` fails, and the gate runs in about 0.1 s against a 10 s timeout. A timeout still lets the stop go on.
 - A crashing gate locks the session (the PR #43 lesson). Mitigation: unit tests for the gate script, and the owner-only `FACTORY_STOP_GATE=off` switch.
 - Deferral abuse. Mitigation: each deferral shows a system message to the owner and goes to a log that the drift report counts.
 - Cloudflare token leak. Mitigation: token scoped to Workers Scripts and one DNS zone; only the `prod` environment on `main` can read it.
@@ -281,4 +281,5 @@ One PR per step. Each step is checked before the next.
 - 2026-11-05: designs live in `docs/designs/<slug>/`. CI deploys on merge. 8 lenses. Small fixes skip design. Reviewers run locally. No bot account. Tickets start by hand.
 - 2026-11-05: `docs/designs/` exempt from the implemented-only rule. CI is the only prod deployer (reverses the test-deploy permission in rule 4). Git worktrees and CI checkouts do not break rule 13. Spec-compliance judge runs locally in `pre-pr`.
 - 2026-11-05: verify gate (6.6.1). Writers run one at a time; only read-only subagents run in parallel. Proof is `rush test --only` on the owning projects; CI covers dependents. Hard block, with a visible and logged deferral for the main session. A gate crash blocks; the owner-only `FACTORY_STOP_GATE=off` turns the gate off.
+- 2026-11-05: verify gate crash handling (6.6.1). `onFailure` has no effect on Stop and SubagentStop hooks. The gate script catches each error and blocks. The shell wrapper exits 2 when `node` fails. A hook timeout still lets the stop go on.
 - 2026-11-05: deploy targets (6.7). Static web goes to Cloudflare Workers static assets at `<project>.vprprudhvi.dev`. APIs go to AWS at `<project>-api.vprprudhvi.dev`. The root domain serves no page. One `deploy.yml` reads the `factory.deploy` field; no workflow for each project. `national-parks-tracker` moves to Cloudflare as the first feature in build step 7.

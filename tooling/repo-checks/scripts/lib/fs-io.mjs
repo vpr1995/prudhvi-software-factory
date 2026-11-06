@@ -8,6 +8,7 @@ import {
   readFileSync,
   realpathSync,
   renameSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -96,4 +97,13 @@ export function writeAtomic(file, text) {
  */
 export function appendToFile(file, text) {
   appendFileSync(file, text, 'utf8');
+}
+
+/**
+ * Deletes a file. No error when it does not exist.
+ *
+ * @param {string} file - Absolute path.
+ */
+export function removeFile(file) {
+  rmSync(file, { force: true });
 }

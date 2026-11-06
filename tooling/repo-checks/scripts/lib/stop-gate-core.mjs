@@ -1,5 +1,8 @@
 // Verify gate (design 6.6.1). One handler for four Claude Code hook events:
 // - PostToolUse on Edit, Write, MultiEdit, NotebookEdit: record the edited file for the agent.
+// - PreToolUse on Bash: store the hash of each changed source file. PostToolUse and
+//   PostToolUseFailure on Bash: record each source file whose hash changed for the agent. Writers
+//   run one at a time, so the time window of the command tells which agent changed the file.
 // - PostToolUse on Bash: after a passing `rush test` or `rush verify`, store the hash of each
 //   changed source file in the covered projects. Also record a deferral of the main session.
 // - Stop and SubagentStop: block while an edited source file has no stored hash that matches.
@@ -16,6 +19,7 @@ import {
   readOptional,
   readRepositoryFile,
   realPath,
+  removeFile,
   writeAtomic,
 } from './fs-io.mjs';
 import { parseJsonc } from './jsonc.mjs';
@@ -303,9 +307,77 @@ function recordEdit(input, options) {
   }
   const relative = toRepositoryPath(options.root, file, input.cwd);
   if (relative) {
-    const list = path.join(sessionFolder(options.root, session), 'agents', `${agent}.jsonl`);
-    appendText(list, `${JSON.stringify(relative)}\n`);
+    addEdits({ root: options.root, session, agent }, [relative]);
   }
+}
+
+/**
+ * @param {{ root: string, session: string, agent: string }} owner - Repo root, session id, and
+ *   agent id or "main".
+ * @param {string[]} files - Repo-relative paths to add to the edit list of the agent.
+ */
+function addEdits({ root, session, agent }, files) {
+  if (files.length > 0) {
+    const list = path.join(sessionFolder(root, session), 'agents', `${agent}.jsonl`);
+    appendText(list, files.map((file) => `${JSON.stringify(file)}\n`).join(''));
+  }
+}
+
+/**
+ * @param {string} root - Repo root.
+ * @returns {Record<string, string>} Hash of each changed source file that exists.
+ */
+export function snapshot(root) {
+  return Object.fromEntries(
+    [...changedFiles(root)]
+      .filter((file) => isSourceFile(file) && exists(path.join(root, file)))
+      .map((file) => [file, hashFile(root, file)]),
+  );
+}
+
+/**
+ * @param {HookInput} input - Bash hook input.
+ * @param {string} root - Repo root.
+ * @returns {string} Path of the snapshot file for this tool call.
+ */
+function snapshotFile(input, root) {
+  const session = safeId(input.session_id, 'session_id');
+  const call = safeId(input.tool_use_id, 'tool_use_id');
+  return path.join(sessionFolder(root, session), 'bash', `${call}.json`);
+}
+
+/**
+ * PreToolUse on Bash: store the hashes before the command runs.
+ *
+ * @param {HookInput} input - PreToolUse input.
+ * @param {Options} options - Options.
+ */
+function snapshotBefore(input, options) {
+  writeAtomic(snapshotFile(input, options.root), JSON.stringify(snapshot(options.root)));
+}
+
+/**
+ * PostToolUse or PostToolUseFailure on Bash: add each source file that the command changed or
+ * made to the edit list of the agent. A failed command can also change files.
+ *
+ * @param {HookInput} input - Hook input.
+ * @param {Options} options - Options.
+ */
+function recordBashEdits(input, options) {
+  const file = snapshotFile(input, options.root);
+  const text = readOptional(file);
+  if (text === undefined) {
+    return; // No PreToolUse snapshot, for example when the gate was off at the start.
+  }
+  /** @type {Record<string, string>} */
+  const before = JSON.parse(text);
+  const changed = Object.entries(snapshot(options.root))
+    .filter(([changedFile, digest]) => before[changedFile] !== digest)
+    .map(([changedFile]) => changedFile);
+  const session = safeId(input.session_id, 'session_id');
+  const agent = input.agent_id === undefined ? 'main' : safeId(input.agent_id, 'agent_id');
+  addEdits({ root: options.root, session, agent }, changed);
+  removeFile(file);
 }
 
 /**
@@ -470,26 +542,42 @@ export function handle(text, options) {
   if (event === 'Stop' || event === 'SubagentStop') {
     return gate(input, resolved);
   }
-  if (event !== 'PostToolUse') {
-    return;
-  }
   try {
-    if (EDIT_TOOLS.has(String(input.tool_name))) {
-      recordEdit(input, resolved);
-      return;
-    }
-    if (input.tool_name === 'Bash') {
-      return recordProof(input, resolved);
-    }
+    return dispatchToolEvent(input, resolved);
   } catch (error) {
     // A state hook that fails would let the gate allow a stop with missing state. Mark it.
     if (typeof input.session_id === 'string' && SAFE_ID.test(input.session_id)) {
       appendText(
         path.join(sessionFolder(root, input.session_id), 'errors.log'),
-        `${String(input.tool_name)}: ${String(error)}\n`,
+        `${event} ${String(input.tool_name)}: ${String(error)}\n`,
       );
     }
+    if (event === 'PreToolUse') {
+      return; // Never block a command. The stop blocks on errors.log.
+    }
     throw error;
+  }
+}
+
+/**
+ * @param {HookInput} input - Tool hook input.
+ * @param {Options} options - Options with the real repo root.
+ * @returns {string | undefined} Hook output.
+ */
+function dispatchToolEvent(input, options) {
+  const event = input.hook_event_name;
+  if (input.tool_name === 'Bash') {
+    if (event === 'PreToolUse') {
+      snapshotBefore(input, options);
+      return;
+    }
+    if (event === 'PostToolUse' || event === 'PostToolUseFailure') {
+      recordBashEdits(input, options);
+    }
+    return event === 'PostToolUse' ? recordProof(input, options) : undefined;
+  }
+  if (event === 'PostToolUse' && EDIT_TOOLS.has(String(input.tool_name))) {
+    recordEdit(input, options);
   }
   return;
 }

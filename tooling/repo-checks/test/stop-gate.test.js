@@ -1,7 +1,15 @@
 // Tests for scripts/stop-gate.mjs and its lib: record, proof, gate and deferral, in temp git repos.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -66,6 +74,7 @@ function write(root, file, text) {
 
 function makeSession(root, env = {}) {
   const base = { sessionId: 's1', cwd: root };
+  let callCount = 0;
   const call = (input) => {
     const output = handle(hookJson({ ...base, ...input }), { root, env });
     return output === undefined ? undefined : JSON.parse(output);
@@ -80,11 +89,23 @@ function makeSession(root, env = {}) {
         toolInput: { filePath: path.join(root, file), content: text },
       });
     },
-    bash(command, agent, stdout = '') {
+    // Runs the Bash hooks around `effect`, which stands for the command and can change files.
+    bash(command, { agent, stdout = '', effect = () => {}, failed = false } = {}) {
+      callCount += 1;
+      const shared = { toolName: 'Bash', agentId: agent, toolUseId: `toolu_${String(callCount)}` };
+      call({ ...shared, hookEventName: 'PreToolUse', toolInput: { command } });
+      effect();
+      if (failed) {
+        return call({
+          ...shared,
+          hookEventName: 'PostToolUseFailure',
+          toolInput: { command },
+          error: 'Exit code 1',
+        });
+      }
       return call({
+        ...shared,
         hookEventName: 'PostToolUse',
-        toolName: 'Bash',
-        agentId: agent,
         toolInput: { command },
         toolResponse: { stdout, stderr: '' },
       });
@@ -128,20 +149,8 @@ test('a failed run never reaches PostToolUse, so the stop stays blocked', () => 
   const root = makeRepository();
   const s = makeSession(root);
   s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
-  // No bash() call: Claude Code fires PostToolUseFailure, which the gate does not handle.
-  assert.equal(
-    handle(
-      hookJson({
-        sessionId: 's1',
-        hookEventName: 'PostToolUseFailure',
-        toolName: 'Bash',
-        toolInput: { command: `${RUSH} test --only @x/a` },
-        error: 'Exit code 1',
-      }),
-      { root, env: {} },
-    ),
-    undefined,
-  );
+  // Claude Code fires PostToolUseFailure, not PostToolUse, so no proof is recorded.
+  assert.equal(s.bash(`${RUSH} test --only @x/a`, { failed: true }), undefined);
   assert.equal(s.stop().decision, 'block');
 });
 
@@ -150,7 +159,7 @@ test('SubagentStop checks only its own files; main Stop checks all files', () =>
   const s = makeSession(root);
   s.edit('projects/a/src/a.ts', 'export const a = 2;\n', 'agent1');
   s.edit('packages/b/src/b.ts', 'export const b = 2;\n', 'agent2');
-  s.bash(`${RUSH} test --only @x/b`, 'agent2');
+  s.bash(`${RUSH} test --only @x/b`, { agent: 'agent2' });
   assert.equal(s.subagentStop('agent2'), undefined);
   const first = s.subagentStop('agent1');
   assert.equal(first.decision, 'block');
@@ -171,6 +180,7 @@ test('a background or interrupted Rush run gives no proof', () => {
       sessionId: 's1',
       hookEventName: 'PostToolUse',
       toolName: 'Bash',
+      toolUseId: 'toolu_direct',
       toolInput: { command: `${RUSH} test --only @x/a`, runInBackground: true },
       toolResponse: { stdout: '' },
     }),
@@ -182,6 +192,7 @@ test('a background or interrupted Rush run gives no proof', () => {
       sessionId: 's1',
       hookEventName: 'PostToolUse',
       toolName: 'Bash',
+      toolUseId: 'toolu_direct',
       toolInput: { command: `${RUSH} test --only @x/a` },
       toolResponse: { stdout: '', interrupted: true },
     }),
@@ -202,6 +213,41 @@ test('SubagentStop with no agent_id (an internal agent) allows', () => {
     },
   );
   assert.equal(output, undefined);
+});
+
+test('a file that a Bash command changes is recorded and blocks the stop', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.bash("sed -i '' 's/1/2/' projects/a/src/a.ts", {
+    effect: () => write(root, 'projects/a/src/a.ts', 'export const a = 2;\n'),
+  });
+  s.bash('cat <<EOF > packages/b/src/new.ts', {
+    agent: 'agent1',
+    effect: () => write(root, 'packages/b/src/new.ts', 'export const n = 1;\n'),
+  });
+  assert.match(s.stop().reason, /projects\/a\/src\/a\.ts/);
+  assert.doesNotMatch(s.subagentStop('agent1').reason, /projects\/a/);
+  assert.match(s.subagentStop('agent1').reason, /packages\/b\/src\/new\.ts/);
+  assert.equal(readdirSync(path.join(root, '.claude/state/gate/s1/bash')).length, 0);
+});
+
+test('a failed Bash command that wrote a file is recorded', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.bash('node gen.mjs && false', {
+    effect: () => write(root, 'projects/a/src/gen.ts', 'export const g = 1;\n'),
+    failed: true,
+  });
+  assert.match(s.stop().reason, /projects\/a\/src\/gen\.ts/);
+});
+
+test('a read-only Bash command records nothing', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  write(root, 'projects/a/src/a.ts', 'export const a = 9;\n'); // Changed before the session.
+  s.bash('cat projects/a/src/a.ts && git status');
+  assert.equal(s.stop(), undefined);
+  assert.equal(existsSync(path.join(root, '.claude/state/gate/s1/agents/main.jsonl')), false);
 });
 
 test('doc-only edits and files outside the repo allow', () => {
@@ -263,7 +309,7 @@ test('deferral from main allows with a system message and logs; a new edit block
   const s = makeSession(root);
   s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
   const command = 'node tooling/repo-checks/scripts/stop-gate.mjs defer "ask owner"';
-  s.bash(command, undefined, defer(['ask owner']).text);
+  s.bash(command, { stdout: defer(['ask owner']).text });
   assert.deepEqual(s.stop(), { systemMessage: 'Verify deferred: ask owner (projects: @x/a)' });
   const log = readFileSync(path.join(root, '.claude/state/deferrals.log'), 'utf8');
   assert.match(log, /\ts1\task owner\t@x\/a\n$/);
@@ -276,7 +322,7 @@ test('deferral from a subagent records nothing', () => {
   const s = makeSession(root);
   s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
   const command = 'node tooling/repo-checks/scripts/stop-gate.mjs defer "x"';
-  const output = s.bash(command, 'agent1', defer(['x']).text);
+  const output = s.bash(command, { agent: 'agent1', stdout: defer(['x']).text });
   assert.match(output.hookSpecificOutput.additionalContext, /main session only/);
   assert.equal(s.stop().decision, 'block');
 });
@@ -320,6 +366,12 @@ test('the script blocks with the error on malformed input', () => {
   const output = JSON.parse(result.stdout);
   assert.equal(output.decision, 'block');
   assert.match(output.reason, /Verify gate error: .*JSON/);
+});
+
+test('snapshot mode never blocks, also on malformed input', () => {
+  const result = spawnSync('node', [SCRIPT, 'snapshot'], { input: 'not json', encoding: 'utf8' });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, '');
 });
 
 test('the defer command prints the reason and needs one', () => {
