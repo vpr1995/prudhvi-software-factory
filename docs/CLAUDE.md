@@ -28,7 +28,7 @@ Put detail here. Keep the root `CLAUDE.md` and the nested `CLAUDE.md` files shor
 
 ## Designs
 
-Each file in `docs/designs/` starts with front matter `status: draft | approved | implemented | superseded`. A design can describe work that is not built yet. All other docs describe only what the code implements.
+Each file in `docs/designs/` starts with front matter `status: draft | approved | implemented | superseded`. The `brief.md` file comes first and holds the agreed idea. A design can describe work that is not built yet. All other docs describe only what the code implements.
 
 ## ADR format
 
