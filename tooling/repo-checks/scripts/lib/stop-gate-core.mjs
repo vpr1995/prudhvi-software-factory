@@ -1,59 +1,51 @@
-// Verify gate (design 6.6.1). One handler for four Claude Code hook events:
+// Verify gate (design 6.6.1). One handler for the Claude Code hook events:
 // - PostToolUse on Edit, Write, MultiEdit, NotebookEdit: record the edited file for the agent.
 // - PreToolUse on Bash: store the hash of each changed source file. PostToolUse and
 //   PostToolUseFailure on Bash: record each source file whose hash changed for the agent. Writers
 //   run one at a time, so the time window of the command tells which agent changed the file.
 // - PostToolUse on Bash: after a passing `rush test` or `rush verify`, store the hash of each
-//   changed source file in the covered projects. Also record a deferral of the main session.
+//   covered source file that the command did not change. Also record a deferral of the main session.
+// - PostToolUseFailure on Bash: record a failed `rush test` or `rush verify` for the agent.
 // - Stop and SubagentStop: block while an edited source file has no stored hash that matches.
-// The handler runs no tests and no Rush command. It reads state, runs `git status` and hashes files.
-import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+// "Changed" means: different from the commit at the first hook call of the session (the session
+// base), or untracked. So a commit or a stash does not hide an edit.
+// The handler runs no tests and no Rush command. It reads state, runs git and hashes files.
 import path from 'node:path';
 
 import {
   appendText,
   exists,
   listFolder,
-  readBytes,
   readOptional,
-  readRepositoryFile,
   realPath,
   removeFile,
   writeAtomic,
 } from './fs-io.mjs';
-import { parseJsonc } from './jsonc.mjs';
 import { coveredProjects, findRushRuns } from './stop-gate-command.mjs';
+import { blockReason, byProject } from './stop-gate-messages.mjs';
+import {
+  candidateFiles,
+  changedFromBase,
+  git,
+  hashFile,
+  isSourceFile,
+  loadProjects,
+  owningProject,
+} from './stop-gate-repo.mjs';
 
-export const GATE_SCRIPT = 'tooling/repo-checks/scripts/stop-gate.mjs';
-export const DEFER_MARKER = 'stop-gate: deferral requested: ';
+const DEFER_MARKER = 'stop-gate: deferral requested: ';
 const STATE = '.claude/state';
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
-const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs']);
-const SOURCE_ROOTS = new Set(['projects', 'packages', 'platform', 'tooling']);
-const SKIPPED_FOLDERS = new Set(['node_modules', 'dist', '.next', 'coverage', 'cdk.out']);
 const SAFE_ID = /^[\w-]{1,128}$/;
-const MAX_FILES_SHOWN = 10;
+const MAX_COMMAND_SHOWN = 300;
 
 /**
  * @typedef {import('./stop-gate-command.mjs').Project} Project
  * @typedef {{ root: string, env: Record<string, string | undefined>, now?: () => Date }} Options
- * @typedef {{ path: string, project: Project, hash: string }} FileState
+ * @typedef {{ path: string, project: Project | undefined, hash: string }} FileState
  * @typedef {Record<string, unknown>} HookInput
+ * @typedef {Record<string, string>} Hashes
  */
-
-/**
- * @param {string} file - Repo-relative path.
- * @returns {boolean} True for a source file that the gate checks.
- */
-export function isSourceFile(file) {
-  const parts = file.split('/');
-  return (
-    SOURCE_ROOTS.has(parts[0] ?? '') &&
-    SOURCE_EXTENSIONS.has(path.extname(file)) &&
-    !parts.some((part) => SKIPPED_FOLDERS.has(part))
-  );
-}
 
 /**
  * @param {unknown} value - Id from the hook input.
@@ -68,77 +60,11 @@ function safeId(value, name) {
 }
 
 /**
- * @param {string} root - Repo root.
- * @returns {Project[]} Rush projects with their workspace dependencies.
+ * @param {HookInput} input - Hook input.
+ * @returns {string} The agent id, or "main" for the main session.
  */
-export function loadProjects(root) {
-  /** @type {{ projects?: { packageName: string, projectFolder: string }[] }} */
-  const rush = parseJsonc(readRepositoryFile(root, 'rush.json'));
-  const entries = rush.projects ?? [];
-  const names = new Set(entries.map((entry) => entry.packageName));
-  return entries.map(({ packageName, projectFolder }) => {
-    const manifestText = readOptional(path.join(root, projectFolder, 'package.json'));
-    /** @type {Record<string, Record<string, string> | undefined>} */
-    const manifest = manifestText ? JSON.parse(manifestText) : {};
-    const dependencies = [manifest.dependencies, manifest.devDependencies]
-      .flatMap((group) => Object.keys(group ?? {}))
-      .filter((name) => names.has(name));
-    return { packageName, projectFolder, dependencies };
-  });
-}
-
-/**
- * @param {Project[]} projects - Rush projects.
- * @param {string} file - Repo-relative path.
- * @returns {Project | undefined} The project with the longest folder that holds the file.
- */
-export function owningProject(projects, file) {
-  return projects
-    .filter((project) => file.startsWith(`${project.projectFolder}/`))
-    .toSorted((a, b) => b.projectFolder.length - a.projectFolder.length)[0];
-}
-
-/**
- * @param {string} root - Repo root.
- * @returns {Set<string>} Repo-relative paths that git shows as changed: modified, added, renamed
- *   or untracked, and not ignored. Deleted files are not in the set.
- */
-export function changedFiles(root) {
-  const result = spawnSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (result.error || result.status !== 0) {
-    throw new Error(`git status failed: ${String(result.error ?? result.stderr)}`);
-  }
-  const entries = result.stdout.split('\0');
-  const changed = new Set();
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index] ?? '';
-    if (entry.length < 4) {
-      continue;
-    }
-    const status = entry.slice(0, 2);
-    if (status[0] === 'R' || status[0] === 'C') {
-      index += 1; // The next entry is the old path.
-    }
-    if (!status.includes('D')) {
-      changed.add(entry.slice(3));
-    }
-  }
-  return changed;
-}
-
-/**
- * @param {string} root - Repo root.
- * @param {string} file - Repo-relative path.
- * @returns {string} sha256 of the content, hex.
- */
-function hashFile(root, file) {
-  return createHash('sha256')
-    .update(readBytes(path.join(root, file)))
-    .digest('hex');
+function agentOf(input) {
+  return input.agent_id === undefined ? 'main' : safeId(input.agent_id, 'agent_id');
 }
 
 /**
@@ -157,6 +83,26 @@ function readRecord(file) {
  */
 function sessionFolder(root, session) {
   return path.join(root, STATE, 'gate', session);
+}
+
+/**
+ * Reads the session base. With `create`, stores HEAD as the base when the session has none.
+ *
+ * @param {string} root - Repo root.
+ * @param {string} session - Session id.
+ * @param {boolean} create - True to store HEAD when there is no base.
+ * @returns {string | undefined} The base commit, or undefined (no base, or no commit yet).
+ */
+function sessionBase(root, session, create) {
+  const file = path.join(sessionFolder(root, session), 'base');
+  const stored = readOptional(file);
+  if (stored !== undefined || !create) {
+    return stored?.trim() || undefined;
+  }
+  const head = git(root, ['rev-parse', '--verify', '-q', 'HEAD']);
+  const base = head.ok ? head.stdout.trim() : '';
+  writeAtomic(file, `${base}\n`);
+  return base || undefined;
 }
 
 /**
@@ -185,97 +131,54 @@ function sessionAgents(root, session) {
 }
 
 /**
- * The edited source files that still differ from git and have no matching verified hash.
+ * The edited source files that differ from the session base and have no matching verified hash.
+ * A file outside each Rush project is unverified with `project: undefined`.
  *
  * @param {string} root - Repo root.
+ * @param {string} session - Session id.
  * @param {string[]} edits - Repo-relative paths.
  * @returns {FileState[]} Unverified files, each with its project and current hash.
  */
-function unverifiedFiles(root, edits) {
+function unverifiedFiles(root, session, edits) {
   const sources = [...new Set(edits)].filter((file) => isSourceFile(file));
   if (sources.length === 0) {
     return [];
   }
-  const changed = changedFiles(root);
+  const changed = changedFromBase(root, sessionBase(root, session, false));
   const projects = loadProjects(root);
   const verified = readRecord(path.join(root, STATE, 'gate', 'verified.json'));
   /** @type {FileState[]} */
   const result = [];
   for (const file of sources) {
-    const project = owningProject(projects, file);
-    // A reverted, committed or deleted file is not in `changed`. A file outside each Rush
-    // project has no test command. The gate skips both.
-    if (!changed.has(file) || !project || !exists(path.join(root, file))) {
+    // A reverted or deleted file has nothing to test.
+    if (!changed.has(file) || !exists(path.join(root, file))) {
       continue;
     }
     const digest = hashFile(root, file);
     if (verified[file] !== digest) {
-      result.push({ path: file, project, hash: digest });
+      result.push({ path: file, project: owningProject(projects, file), hash: digest });
     }
   }
   return result;
 }
 
 /**
- * @param {FileState[]} files - Unverified files.
- * @returns {Map<string, string[]>} Package name to its files.
- */
-function byProject(files) {
-  const groups = new Map();
-  for (const file of files) {
-    const list = groups.get(file.project.packageName) ?? [];
-    list.push(file.path);
-    groups.set(file.project.packageName, list);
-  }
-  return groups;
-}
-
-/**
- * @param {FileState[]} files - Unverified files.
- * @param {boolean} subagent - True for SubagentStop.
- * @returns {string} The block reason.
- */
-export function blockReason(files, subagent) {
-  const groups = byProject(files);
-  const lines = ['Verify gate: these source files have no passing test run.'];
-  for (const [name, list] of groups) {
-    const shown = list.slice(0, MAX_FILES_SHOWN);
-    const more =
-      list.length > shown.length ? `, and ${String(list.length - shown.length)} more` : '';
-    lines.push(`- ${name}: ${shown.join(', ')}${more}`);
-  }
-  const only = [...groups.keys()].map((name) => `--only ${name}`).join(' ');
-  lines.push(
-    `Run: node common/scripts/install-run-rush.js test ${only}`,
-    'Run it with no pipe, "||" or ";" after it. The hook gives credit only when Rush exits 0.',
-  );
-  if (subagent) {
-    lines.push(
-      'If a check fails and you cannot fix it, report the failing check to the orchestrator in your final message.',
-      'Deferral is for the main session only.',
-    );
-  } else {
-    lines.push(`To stop and ask the owner first, run: node ${GATE_SCRIPT} defer "<reason>"`);
-  }
-  lines.push(
-    'This is a hard block. Claude Code ends the turn after 8 blocks in a row with no tool call.',
-  );
-  return lines.join('\n');
-}
-
-/**
  * @param {HookInput} input - Hook input.
- * @returns {boolean} True when a subagent of the main session is still running.
+ * @returns {string[]} Ids of the subagents of the main session that still run.
  */
-function hasRunningSubagent(input) {
+function runningSubagents(input) {
   const tasks = Array.isArray(input.background_tasks) ? input.background_tasks : [];
-  return tasks.some(
-    (task) =>
-      typeof task === 'object' &&
-      task !== null &&
-      task.type === 'subagent' &&
-      task.status === 'running',
-  );
+  return tasks
+    .filter(
+      (task) =>
+        typeof task === 'object' &&
+        task !== null &&
+        task.type === 'subagent' &&
+        task.status === 'running' &&
+        typeof task.id === 'string' &&
+        SAFE_ID.test(task.id),
+    )
+    .map((task) => task.id);
 }
 
 /**
@@ -294,24 +197,6 @@ function toRepositoryPath(root, file, cwd) {
 }
 
 /**
- * @param {HookInput} input - PostToolUse input for an edit tool.
- * @param {Options} options - Options.
- */
-function recordEdit(input, options) {
-  const session = safeId(input.session_id, 'session_id');
-  const agent = input.agent_id === undefined ? 'main' : safeId(input.agent_id, 'agent_id');
-  const toolInput = /** @type {Record<string, unknown>} */ (input.tool_input ?? {});
-  const file = toolInput.file_path ?? toolInput.notebook_path;
-  if (typeof file !== 'string') {
-    throw new Error('edit hook input has no tool_input.file_path or notebook_path');
-  }
-  const relative = toRepositoryPath(options.root, file, input.cwd);
-  if (relative) {
-    addEdits({ root: options.root, session, agent }, [relative]);
-  }
-}
-
-/**
  * @param {{ root: string, session: string, agent: string }} owner - Repo root, session id, and
  *   agent id or "main".
  * @param {string[]} files - Repo-relative paths to add to the edit list of the agent.
@@ -324,12 +209,32 @@ function addEdits({ root, session, agent }, files) {
 }
 
 /**
- * @param {string} root - Repo root.
- * @returns {Record<string, string>} Hash of each changed source file that exists.
+ * @param {HookInput} input - PostToolUse input for an edit tool.
+ * @param {Options} options - Options.
  */
-export function snapshot(root) {
+function recordEdit(input, options) {
+  const session = safeId(input.session_id, 'session_id');
+  const agent = agentOf(input);
+  const toolInput = /** @type {Record<string, unknown>} */ (input.tool_input ?? {});
+  const file = toolInput.file_path ?? toolInput.notebook_path;
+  if (typeof file !== 'string') {
+    throw new Error('edit hook input has no tool_input.file_path or notebook_path');
+  }
+  const relative = toRepositoryPath(options.root, file, input.cwd);
+  if (relative) {
+    sessionBase(options.root, session, true);
+    addEdits({ root: options.root, session, agent }, [relative]);
+  }
+}
+
+/**
+ * @param {string} root - Repo root.
+ * @param {string | undefined} base - Session base commit, or undefined.
+ * @returns {Hashes} Hash of each candidate source file that exists.
+ */
+function snapshot(root, base) {
   return Object.fromEntries(
-    [...changedFiles(root)]
+    [...candidateFiles(root, base)]
       .filter((file) => isSourceFile(file) && exists(path.join(root, file)))
       .map((file) => [file, hashFile(root, file)]),
   );
@@ -347,40 +252,6 @@ function snapshotFile(input, root) {
 }
 
 /**
- * PreToolUse on Bash: store the hashes before the command runs.
- *
- * @param {HookInput} input - PreToolUse input.
- * @param {Options} options - Options.
- */
-function snapshotBefore(input, options) {
-  writeAtomic(snapshotFile(input, options.root), JSON.stringify(snapshot(options.root)));
-}
-
-/**
- * PostToolUse or PostToolUseFailure on Bash: add each source file that the command changed or
- * made to the edit list of the agent. A failed command can also change files.
- *
- * @param {HookInput} input - Hook input.
- * @param {Options} options - Options.
- */
-function recordBashEdits(input, options) {
-  const file = snapshotFile(input, options.root);
-  const text = readOptional(file);
-  if (text === undefined) {
-    return; // No PreToolUse snapshot, for example when the gate was off at the start.
-  }
-  /** @type {Record<string, string>} */
-  const before = JSON.parse(text);
-  const changed = Object.entries(snapshot(options.root))
-    .filter(([changedFile, digest]) => before[changedFile] !== digest)
-    .map(([changedFile]) => changedFile);
-  const session = safeId(input.session_id, 'session_id');
-  const agent = input.agent_id === undefined ? 'main' : safeId(input.agent_id, 'agent_id');
-  addEdits({ root: options.root, session, agent }, changed);
-  removeFile(file);
-}
-
-/**
  * @param {string} text - Hook output for the agent.
  * @returns {string} PostToolUse output (JSON) that adds the text to the agent context.
  */
@@ -388,6 +259,29 @@ function context(text) {
   return JSON.stringify({
     hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: text },
   });
+}
+
+/**
+ * @param {HookInput} input - Bash hook input.
+ * @returns {string} The command text.
+ */
+function commandOf(input) {
+  const toolInput = /** @type {Record<string, unknown>} */ (input.tool_input ?? {});
+  return typeof toolInput.command === 'string' ? toolInput.command : '';
+}
+
+/**
+ * @param {HookInput} input - Bash hook input.
+ * @returns {boolean} True when the run is in the background or was interrupted.
+ */
+function isIncomplete(input) {
+  const toolInput = /** @type {Record<string, unknown>} */ (input.tool_input ?? {});
+  const response = /** @type {Record<string, unknown>} */ (input.tool_response ?? {});
+  return (
+    toolInput.run_in_background === true ||
+    response.interrupted === true ||
+    input.is_interrupt === true
+  );
 }
 
 /**
@@ -410,7 +304,7 @@ function recordDeferral(input, options) {
   const edits = sessionAgents(options.root, session).flatMap((agent) =>
     readEdits(options.root, session, agent),
   );
-  const files = unverifiedFiles(options.root, edits);
+  const files = unverifiedFiles(options.root, session, edits);
   const projects = [...byProject(files).keys()];
   const hashes = Object.fromEntries(files.map((file) => [file.path, file.hash]));
   const time = (options.now?.() ?? new Date()).toISOString();
@@ -428,13 +322,17 @@ function recordDeferral(input, options) {
 }
 
 /**
+ * PostToolUse on Bash: after a passing Rush run, store the hash of each covered source file that
+ * has the same content before and after the command. A file that the command changed or made
+ * gets no credit, because the tests can have run before the change.
+ *
  * @param {HookInput} input - PostToolUse input for Bash.
  * @param {Options} options - Options.
+ * @param {{ before: Hashes | undefined, after: Hashes }} hashes - Snapshots around the command.
  * @returns {string | undefined} Hook output.
  */
-function recordProof(input, options) {
-  const toolInput = /** @type {Record<string, unknown>} */ (input.tool_input ?? {});
-  const command = typeof toolInput.command === 'string' ? toolInput.command : '';
+function recordProof(input, options, { before, after }) {
+  const command = commandOf(input);
   if (/stop-gate\.mjs['"]?\s+defer\b/.test(command)) {
     return recordDeferral(input, options);
   }
@@ -444,27 +342,23 @@ function recordProof(input, options) {
       ? context(`stop-gate: no test proof recorded: ${rejected.join('; ')}.`)
       : undefined;
   }
-  const response = /** @type {Record<string, unknown>} */ (input.tool_response ?? {});
-  if (toolInput.run_in_background === true || response.interrupted === true) {
-    // A background run returns before the tests end, so its exit code proves nothing.
+  if (isIncomplete(input)) {
     return context(
       'stop-gate: no test proof recorded: the Rush run is in the background or was interrupted. Run it in the foreground.',
     );
+  }
+  if (!before) {
+    return context('stop-gate: no test proof recorded: no file hashes from before the command.');
   }
   const projects = loadProjects(options.root);
   const covered = new Set(runs.flatMap((run) => [...coveredProjects(projects, run.selectors)]));
   const file = path.join(options.root, STATE, 'gate', 'verified.json');
   const verified = readRecord(file);
   let count = 0;
-  for (const changed of changedFiles(options.root)) {
+  for (const [changed, digest] of Object.entries(after)) {
     const project = owningProject(projects, changed);
-    if (
-      project &&
-      covered.has(project.packageName) &&
-      isSourceFile(changed) &&
-      exists(path.join(options.root, changed))
-    ) {
-      verified[changed] = hashFile(options.root, changed);
+    if (project && covered.has(project.packageName) && before[changed] === digest) {
+      verified[changed] = digest;
       count += 1;
     }
   }
@@ -475,49 +369,160 @@ function recordProof(input, options) {
 }
 
 /**
+ * PostToolUseFailure on Bash: store a failed Rush run of the agent, with the hashes of its
+ * unverified files. A subagent can stop with this record (design 6.6.1, hard block).
+ *
+ * @param {HookInput} input - PostToolUseFailure input for Bash.
+ * @param {Options} options - Options.
+ */
+function recordFailure(input, options) {
+  const command = commandOf(input);
+  const { runs } = findRushRuns(command, true);
+  if (runs.length === 0 || isIncomplete(input)) {
+    return;
+  }
+  const session = safeId(input.session_id, 'session_id');
+  const agent = agentOf(input);
+  const projects = loadProjects(options.root);
+  const covered = [
+    ...new Set(runs.flatMap((run) => [...coveredProjects(projects, run.selectors)])),
+  ];
+  const files = unverifiedFiles(options.root, session, readEdits(options.root, session, agent));
+  const hashes = Object.fromEntries(files.map((file) => [file.path, file.hash]));
+  writeAtomic(
+    path.join(sessionFolder(options.root, session), 'failures', `${agent}.json`),
+    `${JSON.stringify({ command: command.slice(0, MAX_COMMAND_SHOWN), projects: covered, hashes }, undefined, 2)}\n`,
+  );
+}
+
+/**
+ * PostToolUse or PostToolUseFailure on Bash: add each source file that the command changed or
+ * made to the edit list of the agent (a failed command can also change files). Then record the
+ * proof or the failure. Then delete the snapshot.
+ *
+ * @param {HookInput} input - Hook input.
+ * @param {Options} options - Options.
+ * @returns {string | undefined} Hook output.
+ */
+function afterBash(input, options) {
+  const session = safeId(input.session_id, 'session_id');
+  const file = snapshotFile(input, options.root);
+  const text = readOptional(file);
+  /** @type {Hashes | undefined} */
+  const before = text === undefined ? undefined : JSON.parse(text);
+  const after = snapshot(options.root, sessionBase(options.root, session, true));
+  if (before) {
+    const changed = Object.keys(after).filter((name) => before[name] !== after[name]);
+    addEdits({ root: options.root, session, agent: agentOf(input) }, changed);
+  }
+  let output;
+  if (input.hook_event_name === 'PostToolUse') {
+    output = recordProof(input, options, { before, after });
+  } else {
+    recordFailure(input, options);
+  }
+  removeFile(file);
+  return output;
+}
+
+/**
+ * @param {string} session - Session id.
+ * @param {string} errors - Text of errors.log.
+ * @returns {string} Block output for a failed state hook.
+ */
+function errorBlock(session, errors) {
+  const file = path.join(STATE, 'gate', session, 'errors.log');
+  return JSON.stringify({
+    decision: 'block',
+    reason: `Verify gate: a state hook failed, so the edit list can be incomplete.\n${errors.trim()}\nDo not change ${file}. Stop and report this error to the owner in your final message. The owner fixes the cause or sets FACTORY_STOP_GATE=off.`,
+  });
+}
+
+/**
+ * @param {HookInput} input - SubagentStop input.
+ * @param {Options} options - Options.
+ * @param {string} session - Session id.
+ * @returns {string | undefined} Hook output.
+ */
+function subagentGate(input, options, session) {
+  if (input.agent_id === undefined || input.agent_id === '') {
+    // Internal agents of Claude Code (prompt suggestions, /btw) can stop with no agent_id.
+    // They have no edit list.
+    return;
+  }
+  const agent = safeId(input.agent_id, 'agent_id');
+  const files = unverifiedFiles(options.root, session, readEdits(options.root, session, agent));
+  if (files.length === 0) {
+    return;
+  }
+  /** @type {{ command?: string, projects?: string[], hashes?: Hashes }} */
+  const failure = readRecord(
+    path.join(sessionFolder(options.root, session), 'failures', `${agent}.json`),
+  );
+  const failed = failure.projects ?? [];
+  const hashes = failure.hashes ?? {};
+  const reported = files.every(
+    (file) =>
+      file.project !== undefined &&
+      failed.includes(file.project.packageName) &&
+      hashes[file.path] === file.hash,
+  );
+  if (failure.command && reported) {
+    const projects = [...byProject(files).keys()].join(', ');
+    return JSON.stringify({
+      systemMessage: `Subagent stopped with failing check: ${failure.command} (projects: ${projects})`,
+    });
+  }
+  return JSON.stringify({ decision: 'block', reason: blockReason(files, true) });
+}
+
+/**
+ * @param {HookInput} input - Stop input.
+ * @param {Options} options - Options.
+ * @param {string} session - Session id.
+ * @returns {string | undefined} Hook output.
+ */
+function mainGate(input, options, session) {
+  const edits = sessionAgents(options.root, session).flatMap((agent) =>
+    readEdits(options.root, session, agent),
+  );
+  const files = unverifiedFiles(options.root, session, edits);
+  if (files.length === 0) {
+    return;
+  }
+  // The orchestrator waits for writers: allow when a running subagent owns each unverified file.
+  const owned = new Set(
+    runningSubagents(input).flatMap((agent) => readEdits(options.root, session, agent)),
+  );
+  if (files.every((file) => owned.has(file.path))) {
+    return;
+  }
+  /** @type {{ reason?: string, hashes?: Hashes }} */
+  const deferral = readRecord(path.join(sessionFolder(options.root, session), 'deferral.json'));
+  const hashes = deferral.hashes ?? {};
+  if (deferral.reason && files.every((file) => hashes[file.path] === file.hash)) {
+    const projects = [...byProject(files).keys()].join(', ');
+    return JSON.stringify({
+      systemMessage: `Verify deferred: ${deferral.reason} (projects: ${projects})`,
+    });
+  }
+  return JSON.stringify({ decision: 'block', reason: blockReason(files, false) });
+}
+
+/**
  * @param {HookInput} input - Stop or SubagentStop input.
  * @param {Options} options - Options.
  * @returns {string | undefined} Hook output, or undefined to allow the stop with no message.
  */
 function gate(input, options) {
   const session = safeId(input.session_id, 'session_id');
-  const subagent = input.hook_event_name === 'SubagentStop';
   const errors = readOptional(path.join(sessionFolder(options.root, session), 'errors.log'));
   if (errors) {
-    const file = path.join(STATE, 'gate', session, 'errors.log');
-    return JSON.stringify({
-      decision: 'block',
-      reason: `Verify gate: a state hook failed, so the edit list can be incomplete.\n${errors.trim()}\nFix the cause, then delete ${file}. The owner can set FACTORY_STOP_GATE=off.`,
-    });
+    return errorBlock(session, errors);
   }
-  if (subagent && (input.agent_id === undefined || input.agent_id === '')) {
-    // Internal agents of Claude Code (prompt suggestions, /btw) can stop with no agent_id.
-    // They have no edit list.
-    return;
-  }
-  const agents = subagent
-    ? [safeId(input.agent_id, 'agent_id')]
-    : sessionAgents(options.root, session);
-  const edits = agents.flatMap((agent) => readEdits(options.root, session, agent));
-  const files = unverifiedFiles(options.root, edits);
-  if (files.length === 0) {
-    return;
-  }
-  if (!subagent) {
-    if (hasRunningSubagent(input)) {
-      return;
-    }
-    /** @type {{ reason?: string, hashes?: Record<string, string> }} */
-    const deferral = readRecord(path.join(sessionFolder(options.root, session), 'deferral.json'));
-    const hashes = deferral.hashes ?? {};
-    if (deferral.reason && files.every((file) => hashes[file.path] === file.hash)) {
-      const projects = [...byProject(files).keys()].join(', ');
-      return JSON.stringify({
-        systemMessage: `Verify deferred: ${deferral.reason} (projects: ${projects})`,
-      });
-    }
-  }
-  return JSON.stringify({ decision: 'block', reason: blockReason(files, subagent) });
+  return input.hook_event_name === 'SubagentStop'
+    ? subagentGate(input, options, session)
+    : mainGate(input, options, session);
 }
 
 /**
@@ -568,13 +573,15 @@ function dispatchToolEvent(input, options) {
   const event = input.hook_event_name;
   if (input.tool_name === 'Bash') {
     if (event === 'PreToolUse') {
-      snapshotBefore(input, options);
+      const session = safeId(input.session_id, 'session_id');
+      const base = sessionBase(options.root, session, true);
+      writeAtomic(snapshotFile(input, options.root), JSON.stringify(snapshot(options.root, base)));
       return;
     }
     if (event === 'PostToolUse' || event === 'PostToolUseFailure') {
-      recordBashEdits(input, options);
+      return afterBash(input, options);
     }
-    return event === 'PostToolUse' ? recordProof(input, options) : undefined;
+    return;
   }
   if (event === 'PostToolUse' && EDIT_TOOLS.has(String(input.tool_name))) {
     recordEdit(input, options);

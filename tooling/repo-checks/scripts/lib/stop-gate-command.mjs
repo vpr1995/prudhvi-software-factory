@@ -2,8 +2,10 @@
 // and work out the Rush projects that its selectors cover.
 //
 // The PostToolUse hook fires only when the whole command exits 0. The hook credits a Rush run only
-// when that exit code proves the Rush run passed: the Rush part must run, and only `&&` can follow
-// it. A pipe (`| tail`), `||`, `;` or `&` after it hides the Rush exit code, so it gets no credit.
+// when that exit code proves the Rush run passed: the Rush part must run, and it must be the last
+// command. A pipe (`| tail`), `||`, `;`, `&` or `&&` after it gets no credit.
+// For a failed command (PostToolUseFailure), the Rush part must run for sure: only `;` can come
+// before it, because a failed `cd x &&` also fails the command.
 
 const OPERATORS = ['&&', '||', ';;', '|', ';', '&', '\n'];
 const RUSH_COMMANDS = new Set(['test', 'verify']);
@@ -21,6 +23,9 @@ const SELECTORS = new Map([
   ['--impacted-by-except', 'impacted-by-except'],
   ['-I', 'impacted-by-except'],
 ]);
+// A word that starts like a selector but is not one of SELECTORS (for example `-t=x`, `-tx` or
+// `--to-version-policy`) makes the run cover nothing.
+const SELECTOR_LIKE = /^(-[tofiTI]|--(to|from|only|impacted))/;
 
 /**
  * @typedef {{ type: 'word', value: string } | { type: 'op', value: string }} Token
@@ -100,6 +105,16 @@ function readWordPart(text, position) {
 }
 
 /**
+ * @param {string} text - Command text.
+ * @param {number} position - Index of a "#" at the start of a word.
+ * @returns {number} The index of the end of the line: a comment runs to there.
+ */
+function commentEnd(text, position) {
+  const end = text.indexOf('\n', position);
+  return end === -1 ? text.length : end;
+}
+
+/**
  * Splits a shell command into words and operators. Quotes and backslashes follow POSIX sh.
  * Command substitution and subshells are not parsed: the function throws for them.
  *
@@ -109,30 +124,34 @@ function readWordPart(text, position) {
 export function tokenize(text) {
   /** @type {Token[]} */
   const tokens = [];
-  /** @type {string | undefined} */
-  let word;
+  /** @type {string[] | undefined} */
+  let parts;
+  const flush = () => {
+    if (parts) {
+      tokens.push({ type: 'word', value: parts.join('') });
+      parts = undefined;
+    }
+  };
   let position = 0;
   while (position < text.length) {
     const operator = operatorAt(text, position);
     const character = text[position] ?? '';
-    if (operator || character === ' ' || character === '\t') {
-      if (word !== undefined) {
-        tokens.push({ type: 'word', value: word });
-        word = undefined;
-      }
-      if (operator) {
-        tokens.push({ type: 'op', value: operator === '\n' || operator === ';;' ? ';' : operator });
-      }
-      position += operator?.length ?? 1;
+    if (!parts && character === '#') {
+      position = commentEnd(text, position);
+    } else if (operator) {
+      flush();
+      tokens.push({ type: 'op', value: operator === '\n' || operator === ';;' ? ';' : operator });
+      position += operator.length;
+    } else if (character === ' ' || character === '\t') {
+      flush();
+      position += 1;
     } else {
       const part = readWordPart(text, position);
-      word = (word ?? '') + part.value;
+      parts = [...(parts ?? []), part.value];
       position = part.end;
     }
   }
-  if (word !== undefined) {
-    tokens.push({ type: 'word', value: word });
-  }
+  flush();
   return tokens;
 }
 
@@ -181,7 +200,7 @@ function rushArguments(words) {
 
 /**
  * @param {string[]} parameters - Words after the Rush command name.
- * @returns {Selector[] | undefined} The selectors, or undefined for `--help`.
+ * @returns {Selector[] | string} The selectors, or the reason that the run gets no credit.
  */
 function readSelectors(parameters) {
   /** @type {Selector[]} */
@@ -189,10 +208,13 @@ function readSelectors(parameters) {
   for (let index = 0; index < parameters.length; index += 1) {
     const word = parameters[index] ?? '';
     if (word === '--help' || word === '-h') {
-      return;
+      return 'the command shows help only';
     }
     const [flag = '', inline] = word.startsWith('--') ? word.split(/=(.*)/s) : [word];
     const kind = SELECTORS.get(flag);
+    if (!kind && SELECTOR_LIKE.test(word)) {
+      return `unknown selector "${word}"`;
+    }
     if (kind) {
       const value = inline ?? parameters[index + 1] ?? '';
       if (inline === undefined) {
@@ -205,13 +227,14 @@ function readSelectors(parameters) {
 }
 
 /**
- * Finds the Rush `test` and `verify` runs whose success the command exit code proves.
+ * Finds the Rush `test` and `verify` runs whose result the command exit code proves.
  *
  * @param {string} command - Bash command.
+ * @param {boolean} [failed] - True when the command failed (PostToolUseFailure).
  * @returns {{ runs: RushRun[], rejected: string[] }} Proven runs, and the reasons for Rush runs
  *   that got no credit.
  */
-export function findRushRuns(command) {
+export function findRushRuns(command, failed = false) {
   let tokens;
   try {
     tokens = tokenize(command);
@@ -234,17 +257,18 @@ export function findRushRuns(command) {
       continue;
     }
     const before = parts.slice(0, index + 1).map((segment) => segment.before);
-    const after = parts.slice(index).map((segment) => segment.after);
-    const runsForSure = before.every((op) => op === undefined || op === '&&' || op === ';');
-    const exitProven = after.every((op) => op === undefined || op === '&&');
-    if (!runsForSure || !exitProven) {
+    const allowedBefore = failed ? [undefined, ';'] : [undefined, '&&', ';'];
+    const runsForSure = before.every((op) => allowedBefore.includes(op));
+    if (!runsForSure || part.after !== undefined) {
       rejected.push(
-        `the exit code of "rush ${name}" is hidden by a pipe, "||", ";" or "&" in the command`,
+        `"rush ${name}" must be the last command, with no pipe, "||", ";", "&" or "&&" after it`,
       );
       continue;
     }
     const selectors = readSelectors(parameters.slice(1));
-    if (selectors) {
+    if (typeof selectors === 'string') {
+      rejected.push(selectors);
+    } else {
       runs.push({ command: name, selectors });
     }
   }

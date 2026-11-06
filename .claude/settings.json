@@ -12,7 +12,8 @@
       "Edit(/tooling/repo-checks/**)",
       "Edit(/.github/workflows/**)",
       "Edit(/.github/actions/**)",
-      "Edit(/.claude/settings.json)"
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/settings.local.json)"
     ],
     "deny": [
       "Read(**/.env)",
@@ -37,7 +38,9 @@
       "Bash(pnpm i *)",
       "Bash(pnpm add*)",
       "Bash(yarn add*)",
-      "Edit(/.claude/state/**)"
+      "Edit(/.claude/state/**)",
+      "Bash(* .claude/state*)",
+      "Bash(*.claude/state*)"
     ]
   },
   "hooks": {

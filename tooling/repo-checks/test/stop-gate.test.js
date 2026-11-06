@@ -15,7 +15,8 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 
 import { coveredProjects, findRushRuns } from '../scripts/lib/stop-gate-command.mjs';
-import { handle, isSourceFile } from '../scripts/lib/stop-gate-core.mjs';
+import { handle } from '../scripts/lib/stop-gate-core.mjs';
+import { isSourceFile } from '../scripts/lib/stop-gate-repo.mjs';
 import { defer } from '../scripts/stop-gate.mjs';
 
 const RUSH = 'node common/scripts/install-run-rush.js';
@@ -65,6 +66,14 @@ function hookJson(fields) {
     );
   };
   return JSON.stringify(convert(fields));
+}
+
+function commit(root) {
+  execFileSync('git', ['add', '-A'], { cwd: root, stdio: 'ignore' });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x'], {
+    cwd: root,
+    stdio: 'ignore',
+  });
 }
 
 function write(root, file, text) {
@@ -163,7 +172,7 @@ test('SubagentStop checks only its own files; main Stop checks all files', () =>
   assert.equal(s.subagentStop('agent2'), undefined);
   const first = s.subagentStop('agent1');
   assert.equal(first.decision, 'block');
-  assert.match(first.reason, /report the failing check to the orchestrator/);
+  assert.match(first.reason, /stop and report the failing check in your final message/);
   assert.match(first.reason, /Deferral is for the main session only/);
   assert.doesNotMatch(first.reason, /packages\/b/);
   const main = s.stop();
@@ -250,6 +259,110 @@ test('a read-only Bash command records nothing', () => {
   assert.equal(existsSync(path.join(root, '.claude/state/gate/s1/agents/main.jsonl')), false);
 });
 
+test('a committed edit still blocks; a test run after the commit allows', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
+  commit(root);
+  assert.equal(s.stop().decision, 'block');
+  s.bash(`${RUSH} test --only @x/a`);
+  assert.equal(s.stop(), undefined);
+});
+
+test('a stashed edit (content back to the session base) allows', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
+  execFileSync('git', ['stash', '-q'], { cwd: root, stdio: 'ignore' });
+  assert.equal(s.stop(), undefined);
+});
+
+test('an unknown selector form gives no credit', () => {
+  for (const selector of [
+    '-t=@x/a',
+    '-t@x/a',
+    '--to-version-policy x',
+    '--from-version-policy x',
+  ]) {
+    const { runs, rejected } = findRushRuns(`${RUSH} test ${selector}`);
+    assert.deepEqual(runs, [], selector);
+    assert.match(rejected.join(), /unknown selector/);
+  }
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
+  s.bash(`${RUSH} test -t=@x/a`);
+  assert.equal(s.stop().decision, 'block');
+});
+
+test('a file that changes during the test command gets no credit', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
+  s.bash(`${RUSH} test --only @x/a && echo x > projects/a/src/a.ts`, {
+    effect: () => write(root, 'projects/a/src/a.ts', 'x\n'),
+  });
+  assert.equal(s.stop().decision, 'block');
+  s.bash(`${RUSH} test --only @x/a`, {
+    effect: () => {
+      write(root, 'projects/a/src/a.ts', 'export const a = 4;\n');
+      write(root, 'projects/a/src/new.ts', 'export const n = 1;\n');
+    },
+  });
+  const reason = s.stop().reason;
+  assert.match(reason, /projects\/a\/src\/a\.ts/);
+  assert.match(reason, /projects\/a\/src\/new\.ts/);
+});
+
+test('a comment hides the rest of the line', () => {
+  assert.deepEqual(findRushRuns(`true # ; ${RUSH} test`).runs, []);
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
+  s.bash(`true # ; ${RUSH} test`);
+  assert.equal(s.stop().decision, 'block');
+  assert.deepEqual(findRushRuns(`${RUSH} test --only a#b`).runs, [
+    { command: 'test', selectors: [{ kind: 'only', value: 'a#b' }] },
+  ]);
+});
+
+test('a subagent can stop after a failed test run that covers its files', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.edit('projects/a/src/a.ts', 'export const a = 2;\n', 'agent1');
+  s.bash(`false && ${RUSH} test --only @x/a`, { agent: 'agent1', failed: true });
+  assert.equal(s.subagentStop('agent1').decision, 'block');
+  s.bash(`${RUSH} test --only @x/b`, { agent: 'agent1', failed: true });
+  assert.equal(s.subagentStop('agent1').decision, 'block');
+  s.bash(`${RUSH} test --only @x/a`, { agent: 'agent1', failed: true });
+  assert.deepEqual(s.subagentStop('agent1'), {
+    systemMessage: `Subagent stopped with failing check: ${RUSH} test --only @x/a (projects: @x/a)`,
+  });
+  assert.equal(s.subagentStop('agent2'), undefined);
+  assert.equal(s.stop().decision, 'block');
+  s.edit('projects/a/src/a.ts', 'export const a = 3;\n', 'agent1');
+  assert.equal(s.subagentStop('agent1').decision, 'block');
+});
+
+test('a source file outside each Rush project blocks', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.edit('tooling/loose/x.ts', 'export const x = 1;\n');
+  const reason = s.stop().reason;
+  assert.match(
+    reason,
+    /No Rush project: tooling\/loose\/x\.ts\. Register the project in rush\.json/,
+  );
+  assert.doesNotMatch(reason, /Run: node/);
+});
+
+test('.mts, .cts and .jsx files are source files', () => {
+  const root = makeRepository();
+  const s = makeSession(root);
+  s.edit('projects/a/src/a.mts', 'export const a = 1;\n');
+  assert.match(s.stop().reason, /projects\/a\/src\/a\.mts/);
+});
+
 test('doc-only edits and files outside the repo allow', () => {
   const root = makeRepository();
   const s = makeSession(root);
@@ -327,14 +440,19 @@ test('deferral from a subagent records nothing', () => {
   assert.equal(s.stop().decision, 'block');
 });
 
-test('a running background subagent allows the main Stop only', () => {
+test('a running subagent allows the main Stop only for the files it edited', () => {
   const root = makeRepository();
   const s = makeSession(root);
-  s.edit('projects/a/src/a.ts', 'export const a = 2;\n');
+  s.edit('projects/a/src/a.ts', 'export const a = 2;\n', 'w1');
   const running = [{ id: 'w1', type: 'subagent', status: 'running' }];
   assert.equal(s.stop({ backgroundTasks: running }), undefined);
-  const shell = [{ id: 'w2', type: 'shell', status: 'running' }];
+  const shell = [{ id: 'w1', type: 'shell', status: 'running' }];
   assert.equal(s.stop({ backgroundTasks: shell }).decision, 'block');
+  const other = [{ id: 'w2', type: 'subagent', status: 'running' }];
+  assert.equal(s.stop({ backgroundTasks: other }).decision, 'block');
+  s.edit('packages/b/src/b.ts', 'export const b = 2;\n');
+  const reason = s.stop({ backgroundTasks: running }).reason;
+  assert.match(reason, /packages\/b\/src\/b\.ts/);
 });
 
 test('FACTORY_STOP_GATE=off allows', () => {
@@ -357,7 +475,10 @@ test('a failed state hook makes the gate block', () => {
       { root, env: {} },
     ),
   );
-  assert.match(s.stop().reason, /state hook failed/);
+  const reason = s.stop().reason;
+  assert.match(reason, /state hook failed/);
+  assert.match(reason, /report this error to the owner/);
+  assert.doesNotMatch(reason, /delete/);
 });
 
 test('the script blocks with the error on malformed input', () => {
@@ -390,7 +511,8 @@ test('findRushRuns reads the command forms', () => {
       { kind: 'to-except', value: '@x/c' },
     ],
   ]);
-  assert.deepEqual(kinds(`FOO=1 rush verify && echo ok`), [[]]);
+  assert.deepEqual(kinds(`FOO=1 rush verify`), [[]]);
+  assert.deepEqual(kinds(`FOO=1 rush verify && echo ok`), []);
   assert.deepEqual(kinds(`${RUSH} build --only @x/a`), []);
   assert.deepEqual(kinds(`${RUSH} test --help`), []);
   assert.deepEqual(kinds(`echo "rush test"`), []);
@@ -425,4 +547,7 @@ test('isSourceFile', () => {
   assert.ok(!isSourceFile('docs/a.ts'));
   assert.ok(!isSourceFile('projects/a/README.md'));
   assert.ok(!isSourceFile('projects/a/dist/a.js'));
+  assert.ok(isSourceFile('projects/a/src/a.mts'));
+  assert.ok(isSourceFile('projects/a/src/a.cts'));
+  assert.ok(isSourceFile('projects/a/src/a.jsx'));
 });

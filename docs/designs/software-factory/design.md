@@ -146,23 +146,26 @@ Lesson from the old `stop-gate` (removed in PR #43): it ran lint, typecheck, and
 
 **Writers.** Parallel subagents must be read-only (reviewers, lenses, research). Writer subagents run one at a time in the shared working tree. Reasons: Rush runs one command at a time, and the research says to keep writers single-threaded. Worktrees for parallel writers are out of scope.
 
-**State.** The hooks write state under `.claude/state/` (gitignored):
+**State.** The hooks write state under `.claude/state/` (gitignored). The live probe (2026-11-05) showed: subagent events have `agent_id`, main session events do not; a Bash command that exits 0 fires PostToolUse, and a non-zero exit fires PostToolUseFailure.
 
-- PostToolUse on Edit and Write: add `file_path` to `agents/<agent_id>.json`. The main session uses the id `main`.
-- PostToolUse on Bash: when `install-run-rush.js test` or `verify` exits 0, store a hash of the current content of each covered project's changed files. The key is the project. A hook writes this state. The agent does not.
-- Unverified: the hook input has `agent_id` for subagents, and the Bash PostToolUse input has the exit code. Probe both live before the build. Plan B: the implementer writes its own `agents/<name>.json`, and the hook parses the Rush summary line.
+- PostToolUse on Edit, Write, MultiEdit and NotebookEdit: add the path to `agents/<agent_id>.jsonl`. The main session uses the id `main`.
+- Session base: the first hook call of a session stores `HEAD`. A file is changed when it differs from the session base or is untracked. A commit does not hide an edit.
+- PreToolUse on Bash: store the hash of each changed source file. PostToolUse and PostToolUseFailure on Bash: add each source file with a new or different hash to the list of the agent. Writers run one at a time, so the time window of the command tells which agent changed the file.
+- PostToolUse on Bash: when `install-run-rush.js test` or `verify` is the last command and exits 0, store the hash of each covered changed file that the command did not change (`verified.json`, key: the path).
+- PostToolUseFailure on Bash: store a failed `rush test` or `verify` of the agent, with the hashes of its unverified files.
+- Permission rules deny the edit tools and Bash commands that name `.claude/state`. A script can still write the state.
 
 **Logic at each stop:**
 
-1. The agent edited no source files (`*.ts`, `*.tsx`, `*.js`, `*.mjs` under `projects/`, `packages/`, `platform/`, `tooling/`): allow. Q&A turns and doc-only turns pass.
+1. The agent edited no source files (`*.ts`, `*.tsx`, `*.mts`, `*.cts`, `*.js`, `*.jsx`, `*.mjs`, `*.cjs` under `projects/`, `packages/`, `platform/`, `tooling/`): allow. Q&A turns and doc-only turns pass.
 2. Group the edited files by project (`rush.json`). For each project, compare the current hash with the stored "verified" hash.
 3. All projects match: allow.
-4. Else block. The message names each unverified project and its files, and gives the command: `rush test --only <project> …`.
+4. Else block. The message names each unverified project and its files, and gives the command: `rush test --only <project> …`. A source file outside each Rush project blocks: register the project in `rush.json`.
 
 - SubagentStop checks only the files of that subagent. Another agent's files never block it.
-- The main Stop checks all files that the session edited. The orchestrator owns the integration.
+- The main Stop checks all files that the session edited. The orchestrator owns the integration. It can stop when each unverified file belongs to a subagent that still runs in the background.
 
-**Hard block.** A subagent cannot stop until its projects are verified, or it reports the failing check to the orchestrator in its final message. The main session cannot stop either, with one exception: a deferral.
+**Hard block.** A subagent cannot stop until its projects are verified, or until it ran the test and the test failed. For the second case, the gate needs a failed `rush test` or `verify` of that subagent that covers all its unverified projects, with no file change after it. The owner then sees `Subagent stopped with failing check: <command> (projects: …)`, and the subagent reports the failing check to the orchestrator in its final message. The main session cannot stop either, with one exception: a deferral.
 
 **Deferral (main session only).** The agent runs `stop-gate defer "<reason>"`, for example to ask the owner a question. The deferral:
 
@@ -282,4 +285,5 @@ One PR per step. Each step is checked before the next.
 - 2026-11-05: `docs/designs/` exempt from the implemented-only rule. CI is the only prod deployer (reverses the test-deploy permission in rule 4). Git worktrees and CI checkouts do not break rule 13. Spec-compliance judge runs locally in `pre-pr`.
 - 2026-11-05: verify gate (6.6.1). Writers run one at a time; only read-only subagents run in parallel. Proof is `rush test --only` on the owning projects; CI covers dependents. Hard block, with a visible and logged deferral for the main session. A gate crash blocks; the owner-only `FACTORY_STOP_GATE=off` turns the gate off.
 - 2026-11-05: verify gate crash handling (6.6.1). `onFailure` has no effect on Stop and SubagentStop hooks. The gate script catches each error and blocks. The shell wrapper exits 2 when `node` fails. A hook timeout still lets the stop go on.
+- 2026-11-05: verify gate fixes (6.6.1). The gate records Bash edits, uses a session base commit, gives credit only to files that the test command did not change, lets a subagent stop after a failed test run that covers its files, and blocks for a source file outside each Rush project.
 - 2026-11-05: deploy targets (6.7). Static web goes to Cloudflare Workers static assets at `<project>.vprprudhvi.dev`. APIs go to AWS at `<project>-api.vprprudhvi.dev`. The root domain serves no page. One `deploy.yml` reads the `factory.deploy` field; no workflow for each project. `national-parks-tracker` moves to Cloudflare as the first feature in build step 7.
