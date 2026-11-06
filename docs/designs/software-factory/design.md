@@ -126,8 +126,8 @@ The owner picks the findings to fix. Then a design PR with `risk:low`. The owner
 
 - Phase 1 (local): the owner runs `/work-ticket <n>`. It claims the ticket (`agent:in-progress`), branches, runs `implement-feature`, and stops at the caps.
 - Caps: 3 review rounds (rule 12), 2 CI fix rounds. At a cap: label `needs-human`, comment the blocker, stop.
-- `pre-pr` gets a first pass: spec compliance against the R-IDs (fresh agent with the issue, diff, and tests; it flags hard-coded or special-cased logic). The existing quality pass runs second.
-- Each run appends one JSON line to `metrics/runs.jsonl`: issue, PR, cost, turns, review rounds, CI rounds, outcome.
+- `pre-pr` gets a first pass: spec compliance against the R-IDs (the `spec-reviewer` agent, Opus, with the issue, diff, and tests; it flags hard-coded or special-cased logic). The existing quality pass runs second.
+- Each run posts one `factory-metrics` comment on the PR (on the issue if no PR): issue, PR, cost, turns, review rounds, CI rounds, outcome. Cost and turns are null until Phase 2.
 - Phase 2 (later, opt-in): `claude-code-action` on `issues: labeled` (`agent:ready`), concurrency 1, `--max-turns`, `--max-budget-usd`, `timeout-minutes`. Needs a GitHub App token, because commits made with `GITHUB_TOKEN` do not trigger CI [P]. Only issues by the owner run. No `--bare` mode: it disables hooks [P].
 
 ### 6.6 Gates (deterministic)
@@ -288,3 +288,5 @@ One PR per step. Each step is checked before the next.
 - 2026-11-05: verify gate fixes (6.6.1). The gate records Bash edits, uses a session base commit, gives credit only to files that the test command did not change, lets a subagent stop after a failed test run that covers its files, and blocks for a source file outside each Rush project.
 - 2026-11-05: commit gate (6.6). Proof is a passing `rush typecheck` or `rush verify` (typecheck proof by file hash, stored apart from test proof). The gate hashes the index blob, so a partly staged file needs its own typecheck. It allows only commit options that commit the index. The hook has no `if` filter: `if` does not see `env git commit`, and the script takes about 0.04 s for other commands. A gate error denies the commit only. Lint stays in the pre-commit git hook. The hook runs before the Bash command, so only read-only commands can come before `git commit` in the same command (live test: `git add -A && … git commit` got past the gate).
 - 2026-11-05: deploy targets (6.7). Static web goes to Cloudflare Workers static assets at `<project>.vprprudhvi.dev`. APIs go to AWS at `<project>-api.vprprudhvi.dev`. The root domain serves no page. One `deploy.yml` reads the `factory.deploy` field; no workflow for each project. `national-parks-tracker` moves to Cloudflare as the first feature in build step 7.
+- 2026-11-06: tickets (6.4). The agent drafts the issues; the owner approves all text before creation. Native sub-issues and blocked-by links. Fixed size rubric. A task above 5 can stay whole when each split puts 2 tasks on one file; the owner gives the reason.
+- 2026-11-06: work-ticket (6.5). The metrics line is a PR comment, not a committed file: a commit after CI starts CI again, and appends from 2 PRs conflict. Cost and turns are null until Phase 2. The spec reviewer runs on Opus.
