@@ -7,7 +7,7 @@ Agent entry point for this Rush monorepo (TypeScript, AWS CDK). This file is a t
 1. Show the real command output before you say a task is done. Never say "done" without output from `verify` or the named command.
 2. Never skip, delete, or weaken a test, a lint rule, or a threshold. If a check fails, fix the cause.
 3. Run Rush only through the wrapper. `rush <cmd>` in the docs is an alias of the wrapper command. Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>` from the project folder.
-4. Never use `--no-verify`, `git push --force`, or `cdk destroy`. `.claude/settings.json` denies them. You can run `cdk deploy` for a project stack (`projects/<name>`) to test a change, for example before a Bruno run. Never deploy `platform/infra`. A human deploys it.
+4. Never use `--no-verify`, `git push --force`, `cdk deploy`, or `cdk destroy`. `.claude/settings.json` denies them. Agents do not deploy. Test locally: Fastify `inject`, the Next.js dev server, Bruno against localhost. The owner deploys.
 5. One change for each PR. Keep the diff small. Each bug fix adds a test that fails before the fix.
 6. Put each new user-visible behavior behind a flag from `packages/flags`.
 7. Contracts (Zod, in `src/contracts` of each project) are the single source of the API shape.
@@ -16,7 +16,7 @@ Agent entry point for this Rush monorepo (TypeScript, AWS CDK). This file is a t
 10. Each API route has a Bruno request with docs and assertions. Each web page has a Playwright spec with an axe check.
 11. `platform/**`, `packages/**`, `tooling/**` and `.github/**` are high risk. The owner reviews them (see CODEOWNERS). `projects/*/bin/**` and `projects/*/lib/**` are medium risk: the infra reviewer agent checks them locally, cdk-nag runs in the infra unit tests, and the PR review covers them.
 12. After 3 failed review rounds, stop and ask the human about the approach.
-13. Work only in this repository. Do not clone it, copy it, or build in a scratch copy and bring the result back.
+13. Work only in this repository and its git worktrees. Do not clone it, copy it outside git, or build in a scratch folder and bring the result back. CI checkouts are fine.
 
 ## Agent roles
 

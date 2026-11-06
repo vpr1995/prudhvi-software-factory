@@ -22,7 +22,7 @@ A revert PR passes the same checks as any other PR. A revert does not skip a che
 
 ## 3. Stop rules
 
-- Deploy rules: see root `CLAUDE.md`, rule 4. Never run `cdk destroy`.
+- Deploy rules: see root `CLAUDE.md`, rule 4. Never run `cdk deploy` or `cdk destroy`.
 - Do not change a branch ruleset to unblock a merge.
 - Do not add `--no-verify` or a skip to a rollback PR.
 - If a rollback fails, stop. Call the platform owners (`@vpr1995`).
