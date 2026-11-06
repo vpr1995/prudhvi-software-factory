@@ -44,6 +44,48 @@
             "timeout": 90
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }

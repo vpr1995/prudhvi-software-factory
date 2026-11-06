@@ -23,6 +23,7 @@ node common/scripts/install-run-rush.js license-check
 node common/scripts/install-run-rush.js knip         # alias: rush knip (unused files, exports, dependencies; config: knip.jsonc)
 node tooling/tsconfig/scripts/check-tsconfigs.mjs     # tsconfig rules (CI runs it)
 node tooling/repo-checks/scripts/doc-lint.mjs         # doc lint: links, repo paths and Rush commands in *.md (CI runs it)
+node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>" # verify gate: let the main session stop without proof (logged)
 node scripts/security/install-tools.mjs              # pinned gitleaks, actionlint, zizmor, pinact (rush install runs it)
 bash scripts/security/workflow-lint.sh               # actionlint, zizmor, pinact on .github (hook and CI run it)
 node tooling/vitest-config/dist/diff-coverage.js <base-sha> <project-path> < <project-path>/coverage/lcov.info # coverage on changed lines (CI runs it)
@@ -42,6 +43,16 @@ Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>` 
 - `--only <pkg>` also selects no dependencies. Use it only when the dependencies are already built.
 - Coverage on changed lines: run the tests of the project with coverage first. Exit code 0 is pass, 1 is below 80% (the lines threshold), 2 is a usage or git error. See [testing.md](../standards/testing.md) (section 2.1).
 - Lint on edit (Claude Code): `.claude/settings.json` has a `PostToolUse` hook for `Edit`, `Write` and `MultiEdit`. It runs `tooling/eslint-config/scripts/lint-on-edit.mjs`. For a `.ts`, `.tsx`, `.js`, `.mjs` or `.cjs` file in a Rush project, the script runs ESLint on the file and `tsc --noEmit` on the nearest `tsconfig.json`. It skips `dist`, `.next`, `node_modules`, `coverage` and `cdk.out`. It never blocks the edit. It gives the findings to the agent as context. With no findings, it gives nothing. Each tool has a 30 s limit.
+- Verify gate (Claude Code): `.claude/settings.json` runs `tooling/repo-checks/scripts/stop-gate.mjs` as a hook on `PostToolUse` (edit tools and `Bash`), `Stop` and `SubagentStop`. Design: section 6.6.1 of [design.md](../designs/software-factory/design.md).
+  - Each edit adds the file to the list of its agent. The main session uses the id `main`. The state is in `.claude/state/gate/` (gitignored).
+  - A `rush test` or `rush verify` that exits 0 stores the sha256 of each changed source file in the projects that its selectors cover (`--only`, `--to`, `--to-except`, `--from`, `--impacted-by`, `--impacted-by-except`). With no selector, it covers all projects. A selector with a tag, a git ref or `.` covers nothing. A pipe, `||`, `;` or `&` after the Rush command hides its exit code, so the hook gives no credit for it.
+  - At a stop, the hook blocks while an edited source file (`*.ts`, `*.tsx`, `*.js`, `*.mjs`, `*.cjs` in a Rush project under `projects/`, `packages/`, `platform/` or `tooling/`) has changes and no matching hash. The message gives the command: `rush test --only <pkg>`. `SubagentStop` checks only the files of that subagent. `Stop` checks all files of the session. It skips files that git shows as unchanged or deleted.
+  - The main `Stop` allows while a subagent of the session runs in the background.
+  - Deferral (main session only): run `node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>"`. The stop then shows `Verify deferred: <reason> (projects: …)` to the owner, and the hook adds a line to the deferral log in `.claude/state/`. The deferral covers only the current file content. The next change blocks again. A subagent cannot defer.
+  - A hook error blocks the stop and shows the error. A hook timeout (10 s) does not block: Claude Code lets the stop go on. Claude Code ends the turn after 8 blocks in a row with no tool call.
+  - A `rush test` that runs in the background or that the user interrupts gives no credit.
+  - The hook records edits from the edit tools only. It does not see a file change from a Bash command (for example `sed`).
+  - Off switch (owner only): set `FACTORY_STOP_GATE=off` in your shell or in your user settings. Do not put it in the repo settings.
 - Doc lint checks each tracked `*.md` file. It skips `docs/adr/`, `evals/reviewer/cases/`, `common/`, `CHANGELOG.md` files, and each design in `docs/designs/` without `status: implemented`. A design with no `status` is a finding. It fails when a relative link, a repo path in inline code, or a `rush <cmd>` names something that does not exist. It skips paths in fenced code blocks and paths with a placeholder (`<`, `>`, `*`, `{`, `}`, `$`, `...`, or a space). To skip one line, put `<!-- doc-lint-ignore-next-line -->` on the line above it.
 - Use the `verify` skill (`.claude/skills/verify/SKILL.md`) before any done claim. Use the `e2e-verify` skill (`.claude/skills/e2e-verify/SKILL.md`) for the running app.
 - Setup steps for a new machine are in [onboarding.md](../onboarding.md).
