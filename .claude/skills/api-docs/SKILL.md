@@ -82,5 +82,5 @@ For a path parameter, use `:name` in the URL and a `params:path` block. Keep the
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
 - Run `npm install` or `pnpm install`.
-- Run `cdk deploy` only as root CLAUDE.md rule 4 allows. Never run `cdk destroy`.
+- Never run `cdk deploy` or `cdk destroy` (root CLAUDE.md rule 4).
 - Use `--no-verify`.

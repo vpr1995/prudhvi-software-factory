@@ -7,7 +7,7 @@ description: Run the end-to-end checks for changed web and api parts with rush e
 
 Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-toplevel)/common/scripts/install-run-rush.js" "$@"; }`
 
-Rules: use localhost by default. Use a deployed URL only for a project stack that you deployed in step 7. Never call a production URL. The checks run through `rush e2e`, so CI runs the same commands.
+Rules: use localhost by default. Never call a deployed or production URL. Agents do not deploy. The checks run through `rush e2e`, so CI runs the same commands.
 
 ## Steps
 
@@ -27,8 +27,7 @@ Rules: use localhost by default. Use a deployed URL only for a project stack tha
    - `(cd <folder> && npx cdk diff <StackName>)`. This is read-only.
    - If AWS credentials are missing, write "cdk diff not available: <error>" and skip the diff.
    - Report every `Replacement` and every `destroy` line. A platform diff needs human review.
-7. Optional: when the change needs a real API (for example a new route behind the authorizer), deploy the project stack as root CLAUDE.md rule 4 allows: `(cd projects/<name> && npx cdk deploy <StackName>)`. Never deploy `platform/infra`. Run the Bruno collection with `--env-var baseUrl=<stack output ApiUrl>` and a token from an env var. Paste the summary lines.
-8. Report. Paste the exit codes, the rush e2e summary, the Bruno summary, the trace findings, the cdk diff summary, and the deploy result if you deployed.
+7. Report. Paste the exit codes, the rush e2e summary, the Bruno summary, the trace findings, and the cdk diff summary.
 
 ## Done when
 
@@ -39,8 +38,8 @@ Rules: use localhost by default. Use a deployed URL only for a project stack tha
 
 ## Do not
 
-- Run `cdk deploy` only as root CLAUDE.md rule 4 allows. Never run `cdk destroy`.
-- Call a production URL, or a deployed URL of a stack that you did not deploy.
+- Never run `cdk deploy` or `cdk destroy` (root CLAUDE.md rule 4).
+- Call a deployed or production URL.
 - Skip a failing Playwright test, or mark it `test.skip` or `test.fixme`.
 - Run a Bruno request with no assertion, or put a secret value in a command or an env file. Read secrets from env vars.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
