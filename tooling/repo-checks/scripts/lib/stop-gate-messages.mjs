@@ -28,7 +28,7 @@ export function byProject(files) {
  * @param {string[]} list - Paths.
  * @returns {string} At most MAX_FILES_SHOWN paths, with a count of the paths left out.
  */
-function showFiles(list) {
+export function showFiles(list) {
   const shown = list.slice(0, MAX_FILES_SHOWN);
   const more = list.length > shown.length ? `, and ${String(list.length - shown.length)} more` : '';
   return `${shown.join(', ')}${more}`;

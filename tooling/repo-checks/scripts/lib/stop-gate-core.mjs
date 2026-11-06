@@ -4,7 +4,9 @@
 //   PostToolUseFailure on Bash: record each source file whose hash changed for the agent. Writers
 //   run one at a time, so the time window of the command tells which agent changed the file.
 // - PostToolUse on Bash: after a passing `rush test` or `rush verify`, store the hash of each
-//   covered source file that the command did not change. Also record a deferral of the main session.
+//   covered source file that the command did not change (test proof). After a passing
+//   `rush typecheck` or `rush verify`, store it as typecheck proof for the commit gate
+//   (lib/commit-gate.mjs). Also record a deferral of the main session.
 // - PostToolUseFailure on Bash: record a failed `rush test` or `rush verify` for the agent.
 // - Stop and SubagentStop: block while an edited source file has no stored hash that matches.
 // "Changed" means: different from the commit at the first hook call of the session (the session
@@ -336,36 +338,66 @@ function recordProof(input, options, { before, after }) {
   if (/stop-gate\.mjs['"]?\s+defer\b/.test(command)) {
     return recordDeferral(input, options);
   }
-  const { runs, rejected } = findRushRuns(command);
-  if (runs.length === 0) {
-    return rejected.length > 0
-      ? context(`stop-gate: no test proof recorded: ${rejected.join('; ')}.`)
-      : undefined;
+  const tests = findRushRuns(command);
+  const typechecks = findRushRuns(command, false, ['typecheck']);
+  // `rush verify` runs the typecheck phase too (common/config/rush/command-line.json).
+  const kinds = [
+    { kind: 'test', file: 'verified.json', ...tests },
+    {
+      kind: 'typecheck',
+      file: 'typechecked.json',
+      runs: [...typechecks.runs, ...tests.runs.filter((run) => run.command === 'verify')],
+      rejected: typechecks.rejected,
+    },
+  ];
+  /** @type {string[]} */
+  const lines = [];
+  for (const { kind, file, runs, rejected } of kinds) {
+    if (runs.length > 0) {
+      lines.push(
+        storeProof({ kind, file, runs, incomplete: isIncomplete(input) }, options, {
+          before,
+          after,
+        }),
+      );
+    } else if (rejected.length > 0) {
+      lines.push(`stop-gate: no ${kind} proof recorded: ${rejected.join('; ')}.`);
+    }
   }
-  if (isIncomplete(input)) {
-    return context(
-      'stop-gate: no test proof recorded: the Rush run is in the background or was interrupted. Run it in the foreground.',
-    );
+  return lines.length > 0 ? context(lines.join('\n')) : undefined;
+}
+
+/**
+ * Stores the hash of each covered source file that the command did not change.
+ *
+ * @param {{ kind: string, file: string, runs: import('./stop-gate-command.mjs').RushRun[],
+ *   incomplete: boolean }} proof - Proof kind, store file name in the gate state folder, the
+ *   proven Rush runs, and true when the run is in the background or was interrupted.
+ * @param {Options} options - Options.
+ * @param {{ before: Hashes | undefined, after: Hashes }} hashes - Snapshots around the command.
+ * @returns {string} One line for the agent.
+ */
+function storeProof({ kind, file, runs, incomplete }, options, { before, after }) {
+  if (incomplete) {
+    return `stop-gate: no ${kind} proof recorded: the Rush run is in the background or was interrupted. Run it in the foreground.`;
   }
   if (!before) {
-    return context('stop-gate: no test proof recorded: no file hashes from before the command.');
+    return `stop-gate: no ${kind} proof recorded: no file hashes from before the command.`;
   }
   const projects = loadProjects(options.root);
   const covered = new Set(runs.flatMap((run) => [...coveredProjects(projects, run.selectors)]));
-  const file = path.join(options.root, STATE, 'gate', 'verified.json');
-  const verified = readRecord(file);
+  const store = path.join(options.root, STATE, 'gate', file);
+  const proven = readRecord(store);
   let count = 0;
   for (const [changed, digest] of Object.entries(after)) {
     const project = owningProject(projects, changed);
     if (project && covered.has(project.packageName) && before[changed] === digest) {
-      verified[changed] = digest;
+      proven[changed] = digest;
       count += 1;
     }
   }
-  writeAtomic(file, `${JSON.stringify(verified, undefined, 2)}\n`);
-  return context(
-    `stop-gate: test proof recorded for ${String(count)} changed files in ${[...covered].join(', ') || 'no project'}.`,
-  );
+  writeAtomic(store, `${JSON.stringify(proven, undefined, 2)}\n`);
+  return `stop-gate: ${kind} proof recorded for ${String(count)} changed files in ${[...covered].join(', ') || 'no project'}.`;
 }
 
 /**

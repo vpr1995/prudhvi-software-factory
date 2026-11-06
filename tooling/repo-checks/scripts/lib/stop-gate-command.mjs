@@ -1,5 +1,5 @@
-// Shell command parsing for the stop gate: find a Rush `test` or `verify` run in a Bash command,
-// and work out the Rush projects that its selectors cover.
+// Shell command parsing for the stop gate: find a Rush `test`, `typecheck` or `verify` run in a
+// Bash command, and work out the Rush projects that its selectors cover.
 //
 // The PostToolUse hook fires only when the whole command exits 0. The hook credits a Rush run only
 // when that exit code proves the Rush run passed: the Rush part must run, and it must be the last
@@ -8,7 +8,7 @@
 // before it, because a failed `cd x &&` also fails the command.
 
 const OPERATORS = ['&&', '||', ';;', '|', ';', '&', '\n'];
-const RUSH_COMMANDS = new Set(['test', 'verify']);
+const TEST_COMMANDS = ['test', 'verify'];
 const SELECTORS = new Map([
   ['--only', 'only'],
   ['-o', 'only'],
@@ -227,19 +227,22 @@ function readSelectors(parameters) {
 }
 
 /**
- * Finds the Rush `test` and `verify` runs whose result the command exit code proves.
+ * Finds the Rush runs whose result the command exit code proves.
  *
  * @param {string} command - Bash command.
  * @param {boolean} [failed] - True when the command failed (PostToolUseFailure).
+ * @param {string[]} [names] - Rush command names to find. Default: `test` and `verify`.
  * @returns {{ runs: RushRun[], rejected: string[] }} Proven runs, and the reasons for Rush runs
  *   that got no credit.
  */
-export function findRushRuns(command, failed = false) {
+export function findRushRuns(command, failed = false, names = TEST_COMMANDS) {
   let tokens;
   try {
     tokens = tokenize(command);
   } catch (error) {
-    const mentionsRush = /\b(rush|install-run-rush\.js)\s+(test|verify)\b/.test(command);
+    const mentionsRush = [...command.matchAll(/\b(?:rush|install-run-rush\.js)\s+(\w+)\b/g)].some(
+      (match) => names.includes(match[1] ?? ''),
+    );
     return {
       runs: [],
       rejected: mentionsRush ? [`cannot parse the command (${String(error)})`] : [],
@@ -253,7 +256,7 @@ export function findRushRuns(command, failed = false) {
   for (const [index, part] of parts.entries()) {
     const parameters = rushArguments(part.words);
     const name = parameters?.[0];
-    if (!parameters || !name || !RUSH_COMMANDS.has(name)) {
+    if (!parameters || !name || !names.includes(name)) {
       continue;
     }
     const before = parts.slice(0, index + 1).map((segment) => segment.before);

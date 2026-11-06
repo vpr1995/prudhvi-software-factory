@@ -106,6 +106,12 @@
             "type": "command",
             "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs snapshot || true",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs commit || { echo \"commit gate did not run. The commit is not checked. Fix the cause.\" >&2; exit 1; }",
+            "timeout": 10
           }
         ]
       }

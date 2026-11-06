@@ -148,6 +148,68 @@ export function candidateFiles(root, base) {
 
 /**
  * @param {string} root - Repo root.
+ * @param {string[]} args - git arguments for a diff with `--name-only -z`.
+ * @returns {string[]} Repo-relative paths.
+ */
+export function gitNames(root, args) {
+  const result = git(root, args);
+  if (!result.ok) {
+    throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
+  }
+  return result.stdout.split('\0').filter((file) => file !== '');
+}
+
+/**
+ * The sha256 of the staged content (the index blob) of each file. One `git cat-file` call.
+ *
+ * @param {string} root - Repo root.
+ * @param {string[]} files - Repo-relative paths in the index.
+ * @returns {Map<string, string>} Path to sha256 of the staged content, hex.
+ */
+export function stagedHashes(root, files) {
+  const result = new Map();
+  if (files.length === 0) {
+    return result;
+  }
+  const listed = git(root, ['ls-files', '-s', '-z', '--', ...files]);
+  if (!listed.ok) {
+    throw new Error(`git ls-files failed: ${listed.stderr}`);
+  }
+  // Each entry: "<mode> <blob> <stage>\t<path>".
+  const entries = listed.stdout
+    .split('\0')
+    .filter((entry) => entry !== '')
+    .map((entry) => {
+      const tab = entry.indexOf('\t');
+      return { blob: entry.split(' ')[1] ?? '', path: entry.slice(tab + 1) };
+    });
+  const batch = spawnSync('git', ['cat-file', '--batch'], {
+    cwd: root,
+    input: entries.map((entry) => `${entry.blob}\n`).join(''),
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (batch.error || batch.status !== 0) {
+    throw new Error(`git cat-file failed: ${String(batch.error ?? batch.stderr)}`);
+  }
+  // Output for each blob: "<blob> blob <size>\n<content>\n".
+  const output = batch.stdout;
+  let offset = 0;
+  for (const entry of entries) {
+    const headerEnd = output.indexOf(10, offset);
+    const header = output.subarray(offset, headerEnd).toString('utf8').split(' ');
+    if (header[1] !== 'blob') {
+      throw new Error(`git cat-file: no blob for ${entry.path}`);
+    }
+    const size = Number(header[2]);
+    const content = output.subarray(headerEnd + 1, headerEnd + 1 + size);
+    result.set(entry.path, createHash('sha256').update(content).digest('hex'));
+    offset = headerEnd + 1 + size + 1;
+  }
+  return result;
+}
+
+/**
+ * @param {string} root - Repo root.
  * @param {string} file - Repo-relative path.
  * @returns {string} sha256 of the content, hex.
  */
