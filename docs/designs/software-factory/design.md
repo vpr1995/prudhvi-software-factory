@@ -65,7 +65,7 @@ M/L:
  4 /plan-tickets   parent issue + sub-issues, R-IDs, deps, size score    -> GitHub issues   GATE 3: owner adds agent:ready
  5 /work-ticket N  branch, failing test, code, verify, pre-pr, PR, caps   -> PR + metrics line
  6 CI              build, lint, typecheck, test, coverage, e2e, doc-lint, test-guard        GATE 4: owner merges
- 7 CI deploy       changed project stacks via OIDC, then Bruno smoke
+ 7 CI deploy       changed projects to their target (Cloudflare or AWS), then smoke test
  8 weekly          /drift-report -> drift issues
 ```
 
@@ -182,11 +182,56 @@ Lesson from the old `stop-gate` (removed in PR #43): it ran lint, typecheck, and
 
 ### 6.7 Deploy on merge
 
-- GitHub Actions on push to `main`. OIDC role that only assumes the CDK bootstrap roles. Trust policy pinned to the repo, `main`, and environment `prod`.
-- Deploys only the changed project stacks (`rush list --impacted-by`). Never `platform/infra`.
-- After deploy: run the Bruno collection against prod on safe routes. On failure: open a revert PR (one revert per commit, never revert a revert).
+#### Targets
+
+Each project names one target in its `package.json`:
+
+```json
+"factory": { "deploy": "cloudflare" }
+```
+
+| Target       | Use for                       | How CI deploys                                       | Smoke test         |
+| ------------ | ----------------------------- | ---------------------------------------------------- | ------------------ |
+| `cloudflare` | A static web part             | `wrangler deploy` (Cloudflare Workers static assets) | Playwright on prod |
+| `aws`        | An API or other AWS resources | `cdk deploy` of the project stack                    | Bruno on prod      |
+| `none`       | A library, or not ready yet   | No deploy                                            | None               |
+
+A project with web and API uses both targets: `["cloudflare", "aws"]`. A CI check fails when a project has no `factory.deploy` field. `rush new --project` and `add-part` set the field.
+
+#### Hostnames
+
+- Domain: `vprprudhvi.dev`. Cloudflare holds the DNS zone. The root domain serves no page.
+- Web: `<project>.vprprudhvi.dev`. Example: `national-parks.vprprudhvi.dev`.
+- API: `<project>-api.vprprudhvi.dev`. Example: `national-parks-api.vprprudhvi.dev`.
+- Each project writes its web hostname in `wrangler.jsonc` (`routes` with `custom_domain: true`). `wrangler deploy` creates the site, the DNS record and the certificate. No manual step for a new project.
+- A CI check fails when two projects use the same hostname.
+- API hostname: the project stack creates the ACM certificate and the API Gateway custom domain. CI adds the ACM validation record and the `CNAME` in Cloudflare DNS through the Cloudflare API. Build this with the first API project that ships, not in step 7.
+
+#### Workflow
+
+- `deploy.yml` runs on push to `main`. Job `plan` lists the changed projects (`rush list --impacted-by`) and reads each target.
+- Job `cloudflare`: one run per changed web project. It builds the static export, adds the `_headers` file (security headers, CSP), runs `wrangler deploy`, then the Playwright smoke test.
+- Job `aws`: one run per changed AWS project. OIDC role that only assumes the CDK bootstrap roles. Trust policy pinned to the repo, `main`, and environment `prod`. Never `platform/infra`. Then the Bruno collection on safe routes.
+- Secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` live in the GitHub environment `prod`. Token scope: Workers Scripts Edit and DNS Edit on the `vprprudhvi.dev` zone only.
+- Each project deploys alone. A failed build in one project does not block the others.
+- On a smoke test failure: open a revert PR (one revert per commit, never revert a revert).
 - `cdk diff` comment on infra PRs (read-only role).
 - Later: Lambda alias with CodeDeploy canary and alarm rollback, CloudWatch Synthetics canary.
+
+#### Owner setup (one time, before build step 7)
+
+1. Buy `vprprudhvi.dev` (Cloudflare Registrar), or move its nameservers to Cloudflare.
+2. Create the Cloudflare API token with the scope above.
+3. Add the two secrets to the GitHub environment `prod`.
+
+#### Cost
+
+- Cloudflare: free plan. Static asset requests are free. Limits: about 20,000 files per site, 25 MiB per file. Verify these limits and the `custom_domain` behavior in the Cloudflare docs in build step 7.
+- Domain: about USD 10 to 15 for each year.
+
+#### First migration
+
+`national-parks-tracker` is a static export on S3 and CloudFront today. It moves to `cloudflare` as the first feature through the new pipeline (build step 7). The design for it keeps the CloudFront security headers in `_headers`, then removes the S3 and CloudFront stack.
 
 ### 6.8 Drift (`/drift-report`)
 
@@ -206,18 +251,18 @@ Lesson from the old `stop-gate` (removed in PR #43): it ran lint, typecheck, and
 
 One PR per step. Each step is checked before the next.
 
-| #   | PR                                                                                                                                     | Effort |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 1   | Rule changes from section 7 + doc lint + test guard in CI                                                                              | M      |
-| 2   | Verify gate (6.6.1): Stop + SubagentStop hooks, state hooks, deferral, unit tests; commit gate. Probe hook fields live first.          | M      |
-| 3   | `/brainstorm` + 8 lens agents                                                                                                          | M      |
-| 4   | `/design` + template + `/design-review` (5 stages)                                                                                     | M      |
-| 5   | `/plan-tickets`                                                                                                                        | S      |
-| 6   | `/work-ticket` (local, caps, metrics line, spec-compliance pass in `pre-pr`)                                                           | M      |
-| 7   | Deploy on merge (OIDC role in `platform/infra`, owner deploys it once; workflow; Bruno smoke). First feature through the new pipeline. | L      |
-| 8   | `/drift-report` + weekly run                                                                                                           | S      |
-| 9   | Stryker incremental on changed files                                                                                                   | M      |
-| 10  | Phase 2 runner (`claude-code-action`, App token)                                                                                       | M      |
+| #   | PR                                                                                                                                                                                    | Effort |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | Rule changes from section 7 + doc lint + test guard in CI                                                                                                                             | M      |
+| 2   | Verify gate (6.6.1): Stop + SubagentStop hooks, state hooks, deferral, unit tests; commit gate. Probe hook fields live first.                                                         | M      |
+| 3   | `/brainstorm` + 8 lens agents                                                                                                                                                         | M      |
+| 4   | `/design` + template + `/design-review` (5 stages)                                                                                                                                    | M      |
+| 5   | `/plan-tickets`                                                                                                                                                                       | S      |
+| 6   | `/work-ticket` (local, caps, metrics line, spec-compliance pass in `pre-pr`)                                                                                                          | M      |
+| 7   | Deploy on merge (6.7): Cloudflare and AWS targets, hostname check, OIDC role in `platform/infra` (owner deploys it once). First feature: move `national-parks-tracker` to Cloudflare. | L      |
+| 8   | `/drift-report` + weekly run                                                                                                                                                          | S      |
+| 9   | Stryker incremental on changed files                                                                                                                                                  | M      |
+| 10  | Phase 2 runner (`claude-code-action`, App token)                                                                                                                                      | M      |
 
 ## 9. Risks
 
@@ -227,6 +272,8 @@ One PR per step. Each step is checked before the next.
 - Hook gates fail open on timeout. Mitigation: `onFailure: "block"` [P].
 - A crashing gate locks the session (the PR #43 lesson). Mitigation: unit tests for the gate script, and the owner-only `FACTORY_STOP_GATE=off` switch.
 - Deferral abuse. Mitigation: each deferral shows a system message to the owner and goes to a log that the drift report counts.
+- Cloudflare token leak. Mitigation: token scoped to Workers Scripts and one DNS zone; only the `prod` environment on `main` can read it.
+- Two providers (Cloudflare, AWS). Mitigation: one `deploy.yml`, one target field, API DNS in Cloudflare through code only.
 - A judge can be fooled. Mitigation: the judge is one gate of several. CI test guard and mutation tests stay.
 
 ## 10. Decision log
@@ -234,3 +281,4 @@ One PR per step. Each step is checked before the next.
 - 2026-11-05: designs live in `docs/designs/<slug>/`. CI deploys on merge. 8 lenses. Small fixes skip design. Reviewers run locally. No bot account. Tickets start by hand.
 - 2026-11-05: `docs/designs/` exempt from the implemented-only rule. CI is the only prod deployer (reverses the test-deploy permission in rule 4). Git worktrees and CI checkouts do not break rule 13. Spec-compliance judge runs locally in `pre-pr`.
 - 2026-11-05: verify gate (6.6.1). Writers run one at a time; only read-only subagents run in parallel. Proof is `rush test --only` on the owning projects; CI covers dependents. Hard block, with a visible and logged deferral for the main session. A gate crash blocks; the owner-only `FACTORY_STOP_GATE=off` turns the gate off.
+- 2026-11-05: deploy targets (6.7). Static web goes to Cloudflare Workers static assets at `<project>.vprprudhvi.dev`. APIs go to AWS at `<project>-api.vprprudhvi.dev`. The root domain serves no page. One `deploy.yml` reads the `factory.deploy` field; no workflow for each project. `national-parks-tracker` moves to Cloudflare as the first feature in build step 7.
