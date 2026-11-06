@@ -1,7 +1,8 @@
 # CI for pull requests only (no push trigger). The diff is the PR head against its merge base with
 # the target branch, for any target branch.
-# - plan: repo-wide checks (rush check, tsconfig check, doc lint, audit), then the list of Rush
-#   projects that the diff impacts.
+# - plan: repo-wide checks (rush check, tsconfig check, doc lint, test guard, audit), then the list
+#   of Rush projects that the diff impacts. The test guard reads the PR labels: with risk:high its
+#   findings are warnings. The labeled and unlabeled events re-run CI, so a new label takes effect.
 # - project: one job for each impacted project (build, lint, typecheck, test, e2e).
 # - knip: Knip on the whole repo (unused files, exports, types and dependencies).
 # - ci-result: a required check. It passes only when plan, project, knip and workflow-lint pass.
@@ -10,7 +11,7 @@ name: ci
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -73,6 +74,13 @@ jobs:
 
       - name: Doc lint
         run: node tooling/repo-checks/scripts/doc-lint.mjs
+
+      # Fails when the diff weakens tests or checks (root CLAUDE.md rule 2). BASE_SHA comes from
+      # GITHUB_ENV. With the risk:high label, each finding is a warning.
+      - name: Test guard
+        env:
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: node tooling/repo-checks/scripts/test-guard.mjs
 
       - name: Rush audit (pnpm lockfile changed)
         run: |

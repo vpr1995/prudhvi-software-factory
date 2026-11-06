@@ -7,7 +7,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## What lives here
 
-- `workflows/ci.yml`: runs on each pull request. Jobs: `plan` (repo-wide checks, doc lint included), `project` (one job for each impacted project), `knip`, `ci-result`, `workflow-lint`. `ci-result` is a required check. Details: [testing.md](../docs/standards/testing.md) section 6.
+- `workflows/ci.yml`: runs on each pull request. Jobs: `plan` (repo-wide checks, doc lint and test guard included), `project` (one job for each impacted project), `knip`, `ci-result`, `workflow-lint`. `ci-result` is a required check. Details: [testing.md](../docs/standards/testing.md) section 6.
 - `workflows/secrets.yml`: runs gitleaks on the commits of each pull request. Its job `gitleaks` is a required check.
 - `workflows/warm-cache.yml`: runs on each push to `main` and by hand. It builds all projects and saves the caches that pull requests restore.
 - `zizmor.yml`: zizmor config. A human adds each entry, with a reason.

@@ -23,6 +23,7 @@ node common/scripts/install-run-rush.js license-check
 node common/scripts/install-run-rush.js knip         # alias: rush knip (unused files, exports, dependencies; config: knip.jsonc)
 node tooling/tsconfig/scripts/check-tsconfigs.mjs     # tsconfig rules (CI runs it)
 node tooling/repo-checks/scripts/doc-lint.mjs         # doc lint: links, repo paths and Rush commands in *.md (CI runs it)
+node tooling/repo-checks/scripts/test-guard.mjs "$(git merge-base main HEAD)" # test guard: weakened tests or checks in the diff (CI runs it)
 node scripts/security/install-tools.mjs              # pinned gitleaks, actionlint, zizmor, pinact (rush install runs it)
 bash scripts/security/workflow-lint.sh               # actionlint, zizmor, pinact on .github (hook and CI run it)
 node tooling/vitest-config/dist/diff-coverage.js <base-sha> <project-path> < <project-path>/coverage/lcov.info # coverage on changed lines (CI runs it)
@@ -43,5 +44,13 @@ Never run `npm install`, `pnpm install`, or `pnpm add`. Use `rush add -p <pkg>` 
 - Coverage on changed lines: run the tests of the project with coverage first. Exit code 0 is pass, 1 is below 80% (the lines threshold), 2 is a usage or git error. See [testing.md](../standards/testing.md) (section 2.1).
 - Lint on edit (Claude Code): `.claude/settings.json` has a `PostToolUse` hook for `Edit`, `Write` and `MultiEdit`. It runs `tooling/eslint-config/scripts/lint-on-edit.mjs`. For a `.ts`, `.tsx`, `.js`, `.mjs` or `.cjs` file in a Rush project, the script runs ESLint on the file and `tsc --noEmit` on the nearest `tsconfig.json`. It skips `dist`, `.next`, `node_modules`, `coverage` and `cdk.out`. It never blocks the edit. It gives the findings to the agent as context. With no findings, it gives nothing. Each tool has a 30 s limit.
 - Doc lint checks each tracked `*.md` file. It skips `docs/adr/`, `evals/reviewer/cases/`, `common/`, `CHANGELOG.md` files, and each design in `docs/designs/` without `status: implemented`. A design with no `status` is a finding. It fails when a relative link, a repo path in inline code, or a `rush <cmd>` names something that does not exist. It skips paths in fenced code blocks and paths with a placeholder (`<`, `>`, `*`, `{`, `}`, `$`, `...`, or a space). To skip one line, put `<!-- doc-lint-ignore-next-line -->` on the line above it.
+- The test guard checks the committed diff from the merge base to `HEAD`. It does not check uncommitted changes. It reads the base SHA from the first argument or from `BASE_SHA`, and the PR labels from `PR_LABELS` (a JSON array). A finding is one of these:
+  - A deleted test file: `*.test.*`, `*.spec.*`, or a Bruno request. A rename is not a deletion.
+  - Fewer `it(`, `test(`, `it.each` or `test.each` calls in a test file.
+  - An added `.skip`, `.only`, `.todo`, `.fixme`, `xit(` or `xdescribe(` in a test file.
+  - An added `eslint-disable`, `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` in any file.
+  - A lowered, removed or changed threshold in `tooling/vitest-config/src/config.ts` or `tooling/vitest-config/src/diff-coverage.ts`.
+  - A changed check config: `eslint.config.*`, `vitest.config.*`, `playwright.config.*` (a new file is not a finding), `knip.jsonc`, `.lintstagedrc.cjs`, `commitlint.config.cjs`, `audit-ci.jsonc`, `tooling/tsconfig/*.json`, and each file in `tooling/eslint-config/`, `tooling/vitest-config/`, `tooling/repo-checks/`, `.github/workflows/` and `.github/actions/`.
+- The content rules skip Markdown files, `test/fixtures/` folders and `tooling/repo-checks/`. With the `risk:high` label, each finding is a warning and the exit code is 0. Without it, a finding gives exit code 1. A usage error or a bad `PR_LABELS` value gives exit code 2.
 - Use the `verify` skill (`.claude/skills/verify/SKILL.md`) before any done claim. Use the `e2e-verify` skill (`.claude/skills/e2e-verify/SKILL.md`) for the running app.
 - Setup steps for a new machine are in [onboarding.md](../onboarding.md).
