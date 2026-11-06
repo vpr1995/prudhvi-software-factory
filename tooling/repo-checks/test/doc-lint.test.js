@@ -1,5 +1,9 @@
 // Tests for scripts/doc-lint.mjs: scan policy, links, inline code paths and Rush commands.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import {
@@ -8,10 +12,13 @@ import {
   frontMatterStatus,
   ignoreQueries,
   isExcluded,
+  lintRepository,
   knownPaths,
   rushCommands,
   scanPolicy,
 } from '../scripts/doc-lint.mjs';
+
+import { withGlobalGitConfig } from './global-git.config.mjs';
 
 const COMMAND_LINE = `{
   // Custom commands.
@@ -242,4 +249,30 @@ test('Rush built-ins from rush --help pass', () => {
   const text =
     '`rush init-deploy` `rush alert` `rush bridge-package` `rush update-cloud-credentials`';
   assert.deepEqual(messages('docs/a.md', text), []);
+});
+
+test('the global excludes file of the user does not hide a missing path', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'doc-lint-'));
+  const files = {
+    '.claude/settings.json': '{}\n',
+    'common/config/rush/command-line.json': '{ "commands": [] }\n',
+    'docs/a.md': 'See `.claude/settings.local.json`.\n',
+    'global-ignore': 'settings.local.json\n',
+  };
+  for (const [file, text] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    writeFileSync(path.join(root, file), text);
+  }
+  const globalConfig = path.join(root, 'global-gitconfig');
+  writeFileSync(globalConfig, `[core]\n\texcludesFile = ${path.join(root, 'global-ignore')}\n`);
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['add', '.claude', 'common', 'docs'], { cwd: root });
+  try {
+    const messages = withGlobalGitConfig(globalConfig, () =>
+      lintRepository(root).map((finding) => finding.message),
+    );
+    assert.deepEqual(messages, ['path ".claude/settings.local.json" does not exist']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

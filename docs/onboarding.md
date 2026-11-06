@@ -68,13 +68,13 @@ A new dependency needs no human approval when `rush audit` passes. If the audit 
 
 Agents write most of the code. Agents follow these files:
 
-| File                    | What it sets                                                                                                                                                                                       |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CLAUDE.md`             | Repo conventions and a routing table to guides and skills. Read first. Nested `CLAUDE.md` files cover `projects/`, `platform/`, `packages/`, `tooling/`, `docs/`, and `.github/`.                  |
-| `docs/guides/*.md`      | How to work in one part: contracts, web, api, infra.                                                                                                                                               |
-| `REVIEW.md`             | Rules for the AI reviewer.                                                                                                                                                                         |
-| `docs/standards/*.md`   | Coding, testing, security, Git, and risk rules.                                                                                                                                                    |
-| `.claude/settings.json` | Agent permissions (allow, ask and deny rules) and the lint-on-edit hook. An edit to `tooling/repo-checks/`, `.github/workflows/`, `.github/actions/` or `.claude/settings.json` asks for approval. |
+| File                    | What it sets                                                                                                                                                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLAUDE.md`             | Repo conventions and a routing table to guides and skills. Read first. Nested `CLAUDE.md` files cover `projects/`, `platform/`, `packages/`, `tooling/`, `docs/`, and `.github/`.                                                                                 |
+| `docs/guides/*.md`      | How to work in one part: contracts, web, api, infra.                                                                                                                                                                                                              |
+| `REVIEW.md`             | Rules for the AI reviewer.                                                                                                                                                                                                                                        |
+| `docs/standards/*.md`   | Coding, testing, security, Git, and risk rules.                                                                                                                                                                                                                   |
+| `.claude/settings.json` | Agent permissions (allow, ask and deny rules), the lint-on-edit hook and the verify gate hooks (see [commands.md](guides/commands.md)). An edit to `tooling/repo-checks/`, `.github/workflows/`, `.github/actions/` or `.claude/settings.json` asks for approval. |
 
 The agent flow is:
 
@@ -85,7 +85,7 @@ The agent flow is:
 5. Run `pre-pr` for the review and security checks. Fix the findings.
 6. Open the PR with the template filled in.
 
-No hook forces `verify`. Run it by hand before you open a PR. The pre-push hook runs `rush audit` only when the lockfile changed.
+No hook forces `verify`. Run it by hand before you open a PR. The verify gate hook blocks a stop until `rush test` passes for the projects of the edited source files. The pre-push hook runs `rush audit` only when the lockfile changed.
 
 ## 7. Your role as a human
 

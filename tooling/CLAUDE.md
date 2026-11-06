@@ -23,7 +23,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - `tsconfig/`: presets `base`, `node`, `library` and `web`. They hold all strictness. `tooling/tsconfig/scripts/check-tsconfigs.mjs` checks each tsconfig in the repo. See [coding-conventions.md](../docs/standards/coding-conventions.md) (B.18).
 - `vitest-config/`: shared config and coverage thresholds (lines 80, branches 75, functions 80, statements 80). `createVitestConfig` is for packages. `createAppVitestConfig` is for CDK app projects (options: `web`, `testTimeout`, `alias`, `coverageExclude`).
 - `templates/`: file templates (`*.tmpl`) and the scaffolder behind `rush new` and `rush add-part`. `library/` is the template for `rush new --library`, `project/` for `rush new --project`, and `parts/<part>/` for `rush add-part`.
-- `repo-checks/`: repo-wide CI checks with Node built-ins only. `tooling/repo-checks/scripts/doc-lint.mjs` checks links, repo paths and Rush commands in each doc. `tooling/repo-checks/scripts/test-guard.mjs` fails a PR that weakens tests or checks, unless the PR has the `risk:high` label. See [commands.md](../docs/guides/commands.md).
+- `repo-checks/`: repo-wide CI checks with Node built-ins only. `tooling/repo-checks/scripts/doc-lint.mjs` checks links, repo paths and Rush commands in each doc. `tooling/repo-checks/scripts/test-guard.mjs` fails a PR that weakens tests or checks, unless the PR has the `risk:high` label. `tooling/repo-checks/scripts/stop-gate.mjs` is the verify gate hook for Claude Code (Stop, SubagentStop, PreToolUse, PostToolUse and PostToolUseFailure). See [commands.md](../docs/guides/commands.md).
 - `license-allowlist.json`: allowed licenses.
 
 ## Links

@@ -12,7 +12,8 @@
       "Edit(/tooling/repo-checks/**)",
       "Edit(/.github/workflows/**)",
       "Edit(/.github/actions/**)",
-      "Edit(/.claude/settings.json)"
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/settings.local.json)"
     ],
     "deny": [
       "Read(**/.env)",
@@ -36,7 +37,10 @@
       "Bash(pnpm i)",
       "Bash(pnpm i *)",
       "Bash(pnpm add*)",
-      "Bash(yarn add*)"
+      "Bash(yarn add*)",
+      "Edit(/.claude/state/**)",
+      "Bash(* .claude/state*)",
+      "Bash(*.claude/state*)"
     ]
   },
   "hooks": {
@@ -48,6 +52,72 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/tooling/eslint-config/scripts/lint-on-edit.mjs",
             "timeout": 90
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs snapshot || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$FACTORY_STOP_GATE\" = off ] || node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/stop-gate.mjs || { echo \"stop-gate did not run. Fix the cause. The owner can set FACTORY_STOP_GATE=off.\" >&2; exit 2; }",
+            "timeout": 10
           }
         ]
       }
