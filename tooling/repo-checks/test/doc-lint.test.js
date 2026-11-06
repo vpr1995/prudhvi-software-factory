@@ -6,6 +6,7 @@ import {
   checkDocument,
   formatFinding,
   frontMatterStatus,
+  ignoreQueries,
   isExcluded,
   knownPaths,
   rushCommands,
@@ -173,4 +174,72 @@ test('formatFinding writes plain lines or GitHub annotations', () => {
   const finding = { file: 'docs/a.md', line: 3, message: '100% wrong\nnext' };
   assert.equal(formatFinding(finding, false), 'docs/a.md:3: 100% wrong\nnext');
   assert.equal(formatFinding(finding, true), '::error file=docs/a.md,line=3::100%25 wrong%0Anext');
+});
+
+test('a Rush command after a path prefix is checked, inline and in a fence', () => {
+  assert.deepEqual(messages('docs/a.md', '`node common/scripts/install-run-rush.js verfy`'), [
+    '1: unknown Rush command "verfy"',
+  ]);
+  assert.deepEqual(
+    messages('docs/a.md', '```\nnode common/scripts/install-run-rush.js verfy\n```'),
+    ['2: unknown Rush command "verfy"'],
+  );
+});
+
+test('footnotes and prose with a colon are not reference links', () => {
+  assert.deepEqual(messages('docs/a.md', '[^1]: See the foo docs.\n[Note]: use the flag'), []);
+  assert.deepEqual(messages('docs/a.md', '[ref]: <gone.md> "Title"'), [
+    '1: broken link "gone.md": docs/gone.md does not exist',
+  ]);
+});
+
+test('links to the repo root folder pass', () => {
+  assert.deepEqual(messages('docs/a.md', '[root](../) [h](/) [r](../docs/../)'), []);
+  assert.deepEqual(messages('README.md', '[r](./)'), []);
+});
+
+test('ignoreQueries asks for the path and each parent folder with a trailing slash', () => {
+  assert.deepEqual(ignoreQueries('platform/infra/cdk.out'), [
+    'platform/infra/cdk.out',
+    'platform/',
+    'platform/infra/',
+    'platform/infra/cdk.out/',
+  ]);
+});
+
+test('a closing fence has no info string, and comment lines in fences are skipped', () => {
+  assert.deepEqual(messages('docs/a.md', '```\nx\n```js\n`docs/no.md`\n```'), []);
+  assert.deepEqual(messages('docs/a.md', '~~~\n```\n`docs/no.md`\n~~~'), []);
+  assert.deepEqual(messages('docs/a.md', '```bash\n# wait for rush to finish\n```'), []);
+});
+
+test('a trailing :line-line suffix is stripped', () => {
+  assert.deepEqual(messages('docs/a.md', '`docs/guides/api.md:12-20`'), []);
+});
+
+test('an empty status does not read the next line, and a BOM is allowed', () => {
+  assert.equal(frontMatterStatus('---\nstatus:\nowner: x\n---\n'), '');
+  assert.equal(frontMatterStatus('﻿---\nstatus: implemented\n---\n'), 'implemented');
+});
+
+test('an unknown design status is a finding', () => {
+  assert.deepEqual(scanPolicy('docs/designs/x/design.md', '---\nstatus: wip\n---\n'), {
+    scan: false,
+    finding: 'design has unknown status "wip". Use draft, approved, implemented or superseded',
+  });
+});
+
+test('link targets in <...> and with balanced parentheses resolve', () => {
+  assert.deepEqual(messages('docs/guides/a.md', '[a](<web.md> "t") [b](<no file.md>)'), [
+    '1: broken link "no file.md": docs/guides/no file.md does not exist',
+  ]);
+  assert.deepEqual(messages('docs/guides/a.md', '[c](foo(1).md)'), [
+    '1: broken link "foo(1).md": docs/guides/foo(1).md does not exist',
+  ]);
+});
+
+test('Rush built-ins from rush --help pass', () => {
+  const text =
+    '`rush init-deploy` `rush alert` `rush bridge-package` `rush update-cloud-credentials`';
+  assert.deepEqual(messages('docs/a.md', text), []);
 });

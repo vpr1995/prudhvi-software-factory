@@ -19,17 +19,24 @@ import { isGithubActions } from './lib/doc-lint.config.mjs';
 import { readRepositoryFile } from './lib/fs-io.mjs';
 import { parseJsonc } from './lib/jsonc.mjs';
 
+// Built-in commands from `rush --help` (Rush 5.181.0). build and rebuild are built-ins that
+// command-line.json can also redefine.
 export const RUSH_BUILT_INS = [
   'add',
+  'alert',
+  'bridge-package',
   'build',
   'change',
   'check',
   'deploy',
   'init',
   'init-autoinstaller',
+  'init-deploy',
+  'init-subspace',
   'install',
   'install-autoinstaller',
   'link',
+  'link-package',
   'list',
   'publish',
   'purge',
@@ -37,24 +44,32 @@ export const RUSH_BUILT_INS = [
   'remove',
   'scan',
   'setup',
+  'tab-complete',
   'unlink',
   'update',
   'update-autoinstaller',
+  'update-cloud-credentials',
   'upgrade-interactive',
   'version',
 ];
 
 export const COMMAND_LINE_FILE = 'common/config/rush/command-line.json';
 export const IGNORE_MARKER = '<!-- doc-lint-ignore-next-line -->';
+export const DESIGN_STATUSES = ['draft', 'approved', 'implemented', 'superseded'];
 
 // Characters and text that mark a placeholder or a pattern, not a real path.
 const PLACEHOLDER = /[<>*{}$\s]|\.\.\./;
 const FENCE = /^\s*(`{3,}|~{3,})/;
+// A closing fence holds only fence characters.
+const CLOSING_FENCE = /^\s*(`{3,}|~{3,})\s*$/;
 const CODE_SPAN = /(`+)(.+?)\1/g;
-const INLINE_LINK = /\[[^\]]*\]\(([^)]*)\)/g;
-const REFERENCE_LINK = /^ {0,3}\[[^\]]+\]:(.*)$/;
-const RUSH_COMMAND = /(?:^|[^\w./-])(?:rush|install-run-rush\.js)\s+([a-z][\w:-]*)/g;
+const REFERENCE_LINK = /^ {0,3}\[([^\]]+)\]:(.*)$/;
+const LINK_TITLE = /^(?:"[^"]*"|'[^']*'|\([^)]*\))$/;
+// `rush` alone, or install-run-rush.js with or without a path prefix.
+const RUSH_COMMAND = /(?:(?:^|[^\w./-])rush|install-run-rush\.js)\s+([a-z][\w:-]*)/g;
+// :12, :12:3 and :12-20. Two simple patterns, so the regex check stays safe.
 const LINE_SUFFIX = /:\d+$/;
+const LINE_RANGE = /:\d+-\d+$/;
 const URL_SCHEME = /^[a-z][\w+.-]*:/i;
 
 /** True when the file is history or tool output and doc lint never scans it. */
@@ -70,9 +85,9 @@ export function isExcluded(file) {
 
 /** Return the `status` value of the YAML front matter, or '' when there is none. */
 export function frontMatterStatus(text) {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text);
+  const match = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text);
   if (match === null) return '';
-  const status = /^status:\s*['"]?([\w-]+)/m.exec(match[1]);
+  const status = /^status:[ \t]*['"]?([\w-]+)/m.exec(match[1]);
   return status === null ? '' : status[1];
 }
 
@@ -102,9 +117,52 @@ function topLevelEntries(known) {
   return [...known].filter((entry) => !entry.includes('/'));
 }
 
-// Link text inside "(...)": the target, then an optional title. The target can sit in <...>.
-function linkDestination(inside) {
-  return (inside.trim().split(/\s/)[0] ?? '').replace(/^<(.*)>$/, '$1');
+// Split link text into the target and the rest. The target can sit in <...> and hold spaces.
+function splitDestination(text) {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('<')) {
+    const close = trimmed.indexOf('>');
+    if (close === -1) return { target: '', rest: '' };
+    return { target: trimmed.slice(1, close), rest: trimmed.slice(close + 1).trim() };
+  }
+  const space = trimmed.search(/\s/);
+  if (space === -1) return { target: trimmed, rest: '' };
+  return { target: trimmed.slice(0, space), rest: trimmed.slice(space).trim() };
+}
+
+// Return the end index of the "(...)" that opens at `open`, with one level of nested
+// parentheses. Return -1 when it does not close on this line.
+function closingParenthesis(text, open) {
+  let depth = 0;
+  for (let index = open; index < text.length; index += 1) {
+    if (text[index] === '(') depth += 1;
+    if (text[index] === ')') depth -= 1;
+    if (depth === 0) return index;
+    if (depth > 2) return -1;
+  }
+  return -1;
+}
+
+// Targets of the inline links "[text](target "title")" on one line.
+function inlineTargets(prose) {
+  const targets = [];
+  let open = prose.indexOf('](');
+  while (open !== -1) {
+    const close = closingParenthesis(prose, open + 1);
+    if (close === -1) break;
+    targets.push(splitDestination(prose.slice(open + 2, close)).target);
+    open = prose.indexOf('](', close);
+  }
+  return targets;
+}
+
+// Target of a reference definition "[label]: target "title"". A footnote ("[^1]: ...") and
+// prose ("[Note]: use the flag") are not definitions. Return '' for them.
+function referenceTarget(prose) {
+  const match = REFERENCE_LINK.exec(prose);
+  if (match === null || match[1].startsWith('^')) return '';
+  const { target, rest } = splitDestination(match[2]);
+  return rest === '' || LINK_TITLE.test(rest) ? target : '';
 }
 
 // The repo path of a link target, or '' when the link is external or an anchor only.
@@ -125,13 +183,12 @@ function linkTarget(raw, file) {
 }
 
 function linkFindings(prose, file, known) {
-  const targets = [...prose.matchAll(INLINE_LINK)].map((match) => linkDestination(match[1]));
-  const reference = REFERENCE_LINK.exec(prose);
-  if (reference !== null) targets.push(linkDestination(reference[1]));
+  const targets = [...inlineTargets(prose), referenceTarget(prose)];
   const findings = [];
   for (const raw of targets) {
     const target = linkTarget(raw, file);
-    if (target !== '' && !known.has(target)) {
+    // "." is the repo root folder, for example "../" from docs/.
+    if (target !== '' && target !== '.' && !known.has(target)) {
       findings.push({ message: `broken link "${raw}": ${target} does not exist` });
     }
   }
@@ -139,10 +196,14 @@ function linkFindings(prose, file, known) {
 }
 
 // The repo path that a code span names, or '' when the span is not a repo path.
-// A trailing ":line" or ":line:col" is not part of the path.
+// A trailing ":line", ":line:col" or ":line-line" is not part of the path.
 function codePath(span, topLevel) {
   if (PLACEHOLDER.test(span)) return '';
-  const bare = span.replace(LINE_SUFFIX, '').replace(LINE_SUFFIX, '').replace(/#.*$/, '');
+  const bare = span
+    .replace(LINE_RANGE, '')
+    .replace(LINE_SUFFIX, '')
+    .replace(LINE_SUFFIX, '')
+    .replace(/#.*$/, '');
   if (!topLevel.has(bare.split('/')[0])) return '';
   return posix.normalize(bare).replace(/\/$/, '');
 }
@@ -183,15 +244,15 @@ function lineFindings(line, state, context) {
     const prose = line.replaceAll(CODE_SPAN, ' ');
     return [...linkFindings(prose, context.file, context.known), ...spanFindings(spans, context)];
   }
+  const closing = CLOSING_FENCE.exec(line);
   const closes =
-    fenceMatch !== null &&
-    fenceMatch[1][0] === state.fence[0] &&
-    fenceMatch[1].length >= state.fence.length;
+    closing !== null && closing[1][0] === state.fence[0] && closing[1].length >= state.fence.length;
   if (closes) {
     state.fence = '';
     return [];
   }
-  return commandFindings(line, context.commands);
+  // A shell comment in a fence is prose, for example "# wait for rush to finish".
+  return /^\s*#/.test(line) ? [] : commandFindings(line, context.commands);
 }
 
 /**
@@ -221,6 +282,10 @@ export function scanPolicy(file, text) {
   if (!file.startsWith('docs/designs/')) return { scan: true };
   const status = frontMatterStatus(text);
   if (status === '') return { scan: false, finding: 'design has no status front matter' };
+  if (!DESIGN_STATUSES.includes(status)) {
+    const allowed = 'Use draft, approved, implemented or superseded';
+    return { scan: false, finding: `design has unknown status "${status}". ${allowed}` };
+  }
   return { scan: status === 'implemented' };
 }
 
@@ -237,15 +302,27 @@ function markdownFiles(root) {
     .map(([, file]) => file);
 }
 
+/**
+ * The queries for git check-ignore for one path: the path, then each parent folder and the path
+ * itself with a trailing "/". git matches a folder-only pattern such as "dist/" to a path that is
+ * not on disk only when the path ends with "/". So the answer does not depend on local files.
+ */
+export function ignoreQueries(path) {
+  const parts = path.split('/');
+  return [path, ...parts.map((_, index) => `${parts.slice(0, index + 1).join('/')}/`)];
+}
+
 // Paths that git ignores (local files such as .claude/settings.local.json).
 function ignoredPaths(root, paths) {
   if (paths.length === 0) return new Set();
+  const queries = paths.flatMap((path) => ignoreQueries(path));
   const result = spawnSync('git', ['check-ignore', '--no-index', '-z', '--stdin'], {
     cwd: root,
     encoding: 'utf8',
-    input: paths.join('\0'),
+    input: queries.join('\0'),
   });
-  return new Set(result.stdout.split('\0').filter((name) => name !== ''));
+  const matched = new Set(result.stdout.split('\0').filter((name) => name !== ''));
+  return new Set(paths.filter((path) => ignoreQueries(path).some((query) => matched.has(query))));
 }
 
 /** Format one finding. GitHub Actions gets an annotation. */
