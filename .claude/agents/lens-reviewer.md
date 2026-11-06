@@ -48,6 +48,7 @@ Read only these files. One exception: use Grep and Glob in the repo to answer "d
 - Each finding needs evidence: a file path or a named fact. Drop a finding without evidence. Do not invent findings.
 - 0 findings is a valid answer.
 - Report at most 5 findings. Keep the most important.
+- If a finding depends on a fact the brief does not state (for example the hosting target or the auth provider), report it as a Question. Do not assume the fact.
 
 ## Output format
 
@@ -61,6 +62,7 @@ Then one block per finding:
    Resolution: <proposed change to the brief>
 ```
 
+- If more than 5 findings exist, add a last line: `+<N> not shown`
 - Blocker: the brief cannot go on without a fix.
 - Change: the brief must change.
 - Question: the owner must answer before the design stage.
