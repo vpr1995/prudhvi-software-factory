@@ -289,8 +289,15 @@ export function scanPolicy(file, text) {
   return { scan: status === 'implemented' };
 }
 
+// Use only the ignore rules of the repo, never the global excludes file of the user, so the
+// result is the same on each machine and in CI.
+const REPO_IGNORE_ONLY = ['-c', 'core.excludesFile=/dev/null'];
+
 function gitList(root, args) {
-  const out = execFileSync('git', ['ls-files', '-z', ...args], { cwd: root, encoding: 'utf8' });
+  const out = execFileSync('git', [...REPO_IGNORE_ONLY, 'ls-files', '-z', ...args], {
+    cwd: root,
+    encoding: 'utf8',
+  });
   return out.split('\0').filter((name) => name !== '');
 }
 
@@ -312,15 +319,19 @@ export function ignoreQueries(path) {
   return [path, ...parts.map((_, index) => `${parts.slice(0, index + 1).join('/')}/`)];
 }
 
-// Paths that git ignores (local files such as .claude/settings.local.json).
+// Paths that the repo ignore rules ignore (local files such as .claude/settings.local.json).
 function ignoredPaths(root, paths) {
   if (paths.length === 0) return new Set();
   const queries = paths.flatMap((path) => ignoreQueries(path));
-  const result = spawnSync('git', ['check-ignore', '--no-index', '-z', '--stdin'], {
-    cwd: root,
-    encoding: 'utf8',
-    input: queries.join('\0'),
-  });
+  const result = spawnSync(
+    'git',
+    [...REPO_IGNORE_ONLY, 'check-ignore', '--no-index', '-z', '--stdin'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      input: queries.join('\0'),
+    },
+  );
   const matched = new Set(result.stdout.split('\0').filter((name) => name !== ''));
   return new Set(paths.filter((path) => ignoreQueries(path).some((query) => matched.has(query))));
 }

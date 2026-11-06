@@ -19,6 +19,8 @@ import { handle } from '../scripts/lib/stop-gate-core.mjs';
 import { isSourceFile } from '../scripts/lib/stop-gate-repo.mjs';
 import { defer } from '../scripts/stop-gate.mjs';
 
+import { withGlobalGitConfig } from './global-git.config.mjs';
+
 const RUSH = 'node common/scripts/install-run-rush.js';
 const SCRIPT = path.resolve(import.meta.dirname, '../scripts/stop-gate.mjs');
 const roots = [];
@@ -361,6 +363,20 @@ test('.mts, .cts and .jsx files are source files', () => {
   const s = makeSession(root);
   s.edit('projects/a/src/a.mts', 'export const a = 1;\n');
   assert.match(s.stop().reason, /projects\/a\/src\/a\.mts/);
+});
+
+test('the global excludes file of the user does not hide a Bash edit', () => {
+  const root = makeRepository();
+  write(root, 'global-ignore', 'new.ts\n');
+  write(root, 'global-gitconfig', `[core]\n\texcludesFile = ${path.join(root, 'global-ignore')}\n`);
+  const s = makeSession(root);
+  const reason = withGlobalGitConfig(path.join(root, 'global-gitconfig'), () => {
+    s.bash('cat <<EOF > projects/a/src/new.ts', {
+      effect: () => write(root, 'projects/a/src/new.ts', 'export const n = 1;\n'),
+    });
+    return s.stop()?.reason;
+  });
+  assert.match(reason ?? '', /projects\/a\/src\/new\.ts/);
 });
 
 test('doc-only edits and files outside the repo allow', () => {

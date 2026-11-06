@@ -62,7 +62,8 @@ export function owningProject(projects, file) {
  * @returns {{ ok: boolean, stdout: string, stderr: string }} The result.
  */
 export function git(root, args) {
-  const result = spawnSync('git', args, {
+  // Only the ignore rules of the repo count, never the global excludes file of the user.
+  const result = spawnSync('git', ['-c', 'core.excludesFile=/dev/null', ...args], {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,

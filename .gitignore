@@ -122,6 +122,7 @@ dist-storybook/
 
 # Agent state, build and test output
 .claude/state/
+.claude/settings.local.json
 coverage/
 cdk.out/
 .next/
