@@ -7,6 +7,9 @@
 // The import of the core is inside the try block, so a load error blocks too.
 // Snapshot mode (argument "snapshot", for PreToolUse on Bash): the same, but an error never writes
 // a block, because a block on PreToolUse denies the command. The stop blocks instead.
+// Commit mode (argument "commit", for PreToolUse on Bash): the commit gate (lib/commit-gate.mjs).
+// It denies `git commit` with no typecheck proof for the staged content. An error denies the
+// command only when the hook input names git and commit. Other commands always run.
 //
 // Deferral (main session only): node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>"
 // This prints the reason. The PostToolUse hook on Bash records the deferral.
@@ -44,12 +47,45 @@ function blockOnError(error) {
   });
 }
 
+/**
+ * @param {string} root - Repo root.
+ * @returns {Promise<string | undefined>} Commit gate output. An error denies a commit only.
+ */
+async function commitMode(root) {
+  let text = '';
+  try {
+    const { readStdin } = await import('./lib/fs-io.mjs');
+    text = readStdin();
+    const { commitGate } = await import('./lib/commit-gate.mjs');
+    const { gateEnvironment } = await import('./lib/stop-gate.config.mjs');
+    return commitGate(text, { root, env: gateEnvironment() });
+  } catch (error) {
+    if (!/\bgit\b[\s\S]*\bcommit(?![\w-])/.test(text)) {
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: `Commit gate error: ${message}\nThe commit waits until the gate works. Fix the cause. The owner can set FACTORY_STOP_GATE=off to turn the gate off.`,
+      },
+    });
+  }
+}
+
 if (import.meta.main) {
   const [, , mode, ...rest] = process.argv;
   if (mode === 'defer') {
     const { text, code } = defer(rest);
     process.stdout.write(text);
     process.exitCode = code;
+  } else if (mode === 'commit') {
+    const output = await commitMode(path.resolve(import.meta.dirname, '../../..'));
+    if (output) {
+      process.stdout.write(`${output}\n`);
+    }
+    process.exitCode = 0;
   } else {
     let output;
     try {
