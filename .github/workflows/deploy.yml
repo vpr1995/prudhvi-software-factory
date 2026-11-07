@@ -168,7 +168,6 @@ jobs:
       # gh run view reads the steps of the jobs of this run.
       actions: read
     env:
-      GH_TOKEN: ${{ github.token }}
       SHA: ${{ github.sha }}
       RUN_ID: ${{ github.run_id }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -176,8 +175,10 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The pushed commit and its parents, for git revert.
-          fetch-depth: 2
+          # The current main, not the pushed commit: a queued run can start after main moved on.
+          # The revert then applies to the code that main has now.
+          ref: main
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
@@ -188,20 +189,24 @@ jobs:
 
       - name: Decide
         id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh run view "${RUN_ID}" --json jobs >"${RUNNER_TEMP}/jobs.json"
           subject="$(git log -1 --format=%s "${SHA}")"
-          node tooling/repo-checks/scripts/deploy-revert.mjs decide "${subject}" <"${RUNNER_TEMP}/jobs.json"
+          body="$(git log -1 --format=%b "${SHA}")"
+          node tooling/repo-checks/scripts/deploy-revert.mjs decide "${subject}" "${body}" <"${RUNNER_TEMP}/jobs.json"
 
       - name: Open the revert PR
         if: steps.decide.outputs.revert == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           PROJECTS: ${{ steps.decide.outputs.projects }}
         run: |
           branch="revert/${SHA:0:7}"
           existing="$(gh pr list --head "${branch}" --state all --json number --jq length)"
           if [ "${existing}" != "0" ]; then
-            echo "A revert PR exists for ${SHA} (branch ${branch}). Nothing to do."
+            echo "A PR (open, closed or merged) exists for branch ${branch}. Nothing to do. Delete that PR branch first to try again."
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -215,7 +220,10 @@ jobs:
             git revert --no-edit "${SHA}"
           fi
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push "${remote}" "HEAD:refs/heads/${branch}"
+          if ! git push "${remote}" "HEAD:refs/heads/${branch}"; then
+            echo "::error::Could not push ${branch}. A commit that changes .github/workflows cannot be pushed with this token: run git revert for ${SHA} yourself."
+            exit 1
+          fi
           node tooling/repo-checks/scripts/deploy-revert.mjs body "${SHA}" "${PROJECTS}" "${RUN_URL}" >"${RUNNER_TEMP}/revert-body.md"
           title="$(node tooling/repo-checks/scripts/deploy-revert.mjs title "${subject}" "${body}")"
           if ! gh pr create --base main --head "${branch}" --title "${title}" --body-file "${RUNNER_TEMP}/revert-body.md"; then

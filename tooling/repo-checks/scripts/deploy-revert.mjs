@@ -23,8 +23,10 @@ import { appendToFile, readStdin } from './lib/fs-io.mjs';
 const CLOUDFLARE_JOB = 'cloudflare ';
 const SMOKE_STEP = 'Smoke test';
 const MERGE_SUBJECT = /^Merge pull request #\d+ /;
-// `Revert "..."` (git) or `revert: ...` (the repo convention), or the merge of a revert/<name> branch.
-const REVERT_SUBJECT = /^revert\b|^Merge pull request #\d+ from \S*\/revert\//i;
+// `Revert "..."` (git) or `revert: ...` (the repo convention), or the merge of a revert/<name> branch
+// or of a revert-<n>-<name> branch (the GitHub Revert button).
+const REVERT_SUBJECT = /^revert\b|^Merge pull request #\d+ from \S*\/revert[/-]/i;
+const REVERT_TITLE = /^revert\b/i;
 
 /**
  * @param {{ name: string, conclusion: string | null, steps?: { name: string, conclusion: string | null }[] }[]} jobs - The jobs of the run.
@@ -41,8 +43,9 @@ export function findSmokeFailures(jobs) {
 }
 
 /** @returns {boolean} True when the commit is a revert, or the merge of a revert branch. */
-export function isRevert(subject) {
-  return REVERT_SUBJECT.test(subject.trim());
+export function isRevert(subject, body = '') {
+  const firstBodyLine = body.split('\n').find((line) => line.trim() !== '') ?? '';
+  return REVERT_SUBJECT.test(subject.trim()) || REVERT_TITLE.test(firstBodyLine.trim());
 }
 
 /**
@@ -62,7 +65,7 @@ export function revertTitle(subject, body) {
  * @param {{ name: string, conclusion: string | null, steps?: object[] }[]} jobs - The jobs of the run.
  * @returns {{ revert: boolean, projects: string[], reason: string }} The decision.
  */
-export function decide(subject, jobs) {
+export function decide(subject, jobs, body = '') {
   const projects = findSmokeFailures(jobs);
   if (projects.length === 0) {
     return {
@@ -71,7 +74,7 @@ export function decide(subject, jobs) {
       reason: 'no smoke test failed (the live site did not change)',
     };
   }
-  if (isRevert(subject)) {
+  if (isRevert(subject, body)) {
     return { revert: false, projects, reason: 'the commit is a revert: never revert a revert' };
   }
   return { revert: true, projects, reason: '' };
@@ -128,7 +131,7 @@ export function revertBody({ sha, projects, runUrl }) {
 export function main() {
   const subject = process.argv[3] ?? '';
   const jobs = JSON.parse(readStdin()).jobs ?? [];
-  const decision = decide(subject, jobs);
+  const decision = decide(subject, jobs, process.argv[4] ?? '');
   const lines = `${outputLines(decision).join('\n')}\n`;
   const target = githubOutputFile();
   if (target === '') process.stdout.write(lines);
@@ -142,7 +145,7 @@ export function main() {
 /** @returns {number} The exit code 1, after a usage message. */
 function usage() {
   process.stderr.write(
-    'Usage: deploy-revert.mjs decide <subject> | title <subject> <body> | body <sha> <projects> <run-url>\n',
+    'Usage: deploy-revert.mjs decide <subject> [body] | title <subject> <body> | body <sha> <projects> <run-url>\n',
   );
   return 1;
 }

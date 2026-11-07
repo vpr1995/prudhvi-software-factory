@@ -46,6 +46,11 @@ test('isRevert is true for a revert commit and for the merge of a revert branch'
   assert.equal(isRevert('Revert "feat(x): add y"'), true);
   assert.equal(isRevert('revert: feat(x): add y'), true);
   assert.equal(isRevert('Merge pull request #80 from vpr1995/revert/abc1234'), true);
+  assert.equal(isRevert('Merge pull request #75 from vpr1995/revert-74-feat-x'), true);
+  assert.equal(
+    isRevert('Merge pull request #75 from vpr1995/fix/x', '\nRevert "feat(x): y"\n'),
+    true,
+  );
   assert.equal(isRevert('feat(x): revert the default'), false);
   assert.equal(
     isRevert('Merge pull request #73 from vpr1995/feat/deploy-workflow-cloudflare'),
