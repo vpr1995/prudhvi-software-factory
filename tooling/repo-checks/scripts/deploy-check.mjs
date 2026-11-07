@@ -93,7 +93,10 @@ function routeProblem(route) {
   if (route.zone_name !== undefined || route.zone_id !== undefined) {
     return `The entry has zone_name or zone_id. Remove it. ${fix}`;
   }
-  if (typeof route.pattern !== 'string' || !validHostname(route.pattern)) {
+  if (typeof route.pattern !== 'string') {
+    return `The entry has no string pattern. Set pattern to <label>.${DOMAIN}.`;
+  }
+  if (!validHostname(route.pattern)) {
     return `The hostname ${JSON.stringify(route.pattern)} is not valid. Use <label>.${DOMAIN} with one lowercase DNS label, no scheme, path or wildcard.`;
   }
   return null;

@@ -111,9 +111,22 @@ test('cloudflare with no wrangler.jsonc is a finding', () => {
 test('cloudflare with no custom_domain route is a finding, and each other entry is a finding', () => {
   const config = '{ "routes": ["a.vprprudhvi.dev/*", { "pattern": "a.vprprudhvi.dev" }] }';
   const findings = run({ a: { deploy: 'cloudflare', wrangler: config } });
-  assert.equal(findings.length, 3);
-  assert.ok(findings.some((message) => /at least one|No route has custom_domain/.test(message)));
-  assert.equal(findings.filter((message) => /custom_domain true/.test(message)).length >= 2, true);
+  const fix =
+    'Use { "pattern": "<name>.vprprudhvi.dev", "custom_domain": true } (static sites use custom_domain routes only).';
+  assert.deepEqual(findings, [
+    `projects/a/wrangler.jsonc: No route has custom_domain true. Add { "pattern": "<name>.vprprudhvi.dev", "custom_domain": true } to routes.`,
+    `projects/a/wrangler.jsonc: routes[0]: The entry "a.vprprudhvi.dev/*" is not a custom_domain route object. ${fix}`,
+    `projects/a/wrangler.jsonc: routes[1]: The entry does not have custom_domain true. ${fix}`,
+  ]);
+});
+
+test('a route entry with no string pattern gets a clear message', () => {
+  for (const pattern of ['', ', "pattern": 5']) {
+    const config = `{ "routes": [{ "custom_domain": true${pattern} }] }`;
+    assert.deepEqual(run({ a: { deploy: 'cloudflare', wrangler: config } }), [
+      'projects/a/wrangler.jsonc: routes[0]: The entry has no string pattern. Set pattern to <label>.vprprudhvi.dev.',
+    ]);
+  }
 });
 
 test('cloudflare with no routes array is a finding', () => {
