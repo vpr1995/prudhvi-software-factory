@@ -153,6 +153,7 @@ describe('scaffold project', () => {
     const manifest = JSON.parse(await readText(root, 'projects/notes-app/package.json'));
 
     expect(manifest.private).toBe(true);
+    expect(manifest.factory).toEqual({ deploy: 'none' });
     for (const phase of ['build', 'lint', 'typecheck', 'test', 'e2e']) {
       expect(manifest.scripts[`_phase:${phase}`]).toBe(`node scripts/phase.mjs ${phase}`);
     }
