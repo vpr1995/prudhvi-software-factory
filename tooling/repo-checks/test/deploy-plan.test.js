@@ -1,9 +1,11 @@
 // Tests for scripts/deploy-plan.mjs: which changed projects deploy to which target.
 import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { changedPaths, outputLines, pickBase, planDeploy } from '../scripts/deploy-plan.mjs';
 
@@ -203,4 +205,86 @@ test('pickBase takes the first usable candidate and skips empty, zero and unusab
     'parent',
   );
   assert.equal(pickBase(['gone', ''], usable), '');
+});
+
+test('an assets folder in a sibling folder with the same name prefix is a finding', () => {
+  const plan = run(
+    {
+      site: {
+        deploy: 'cloudflare',
+        scripts: { smoke: 'x' },
+        wrangler: wrangler('site.vprprudhvi.dev', '../site-evil/out'),
+      },
+    },
+    ['projects/site'],
+  );
+  assert.deepEqual(plan.cloudflare, []);
+  assert.deepEqual(plan.findings, [
+    'projects/site: assets.directory ../site-evil/out is outside the project folder.',
+  ]);
+});
+
+const SCRIPT = fileURLToPath(new URL('../scripts/deploy-plan.mjs', import.meta.url));
+const ZERO = '0'.repeat(40);
+
+/** Run git in a folder with a fixed identity. Return the trimmed stdout. */
+function git(folder, ...args) {
+  const identity = [
+    '-c',
+    'user.name=t',
+    '-c',
+    'user.email=t@example.com',
+    '-c',
+    'commit.gpgsign=false',
+  ];
+  return execFileSync('git', [...identity, ...args], { cwd: folder, encoding: 'utf8' }).trim();
+}
+
+/** Make a repo with `count` commits. Return the folder and the commit shas, oldest first. */
+function repository(count) {
+  const folder = mkdtempSync(path.join(tmpdir(), 'deploy-base-'));
+  git(folder, 'init', '-q');
+  const shas = [];
+  for (let index = 0; index < count; index += 1) {
+    git(folder, 'commit', '-q', '--allow-empty', '-m', `c${String(index)}`);
+    shas.push(git(folder, 'rev-parse', 'HEAD'));
+  }
+  return { folder, shas };
+}
+
+/** Run `deploy-plan.mjs base` in a repo. */
+function base(folder, ...args) {
+  const result = spawnSync('node', [SCRIPT, 'base', ...args], { cwd: folder, encoding: 'utf8' });
+  return { status: result.status, out: result.stdout.trim() };
+}
+
+test('base prints the last successful deploy when it is an ancestor of HEAD', () => {
+  const { folder, shas } = repository(3);
+  try {
+    assert.deepEqual(base(folder, shas[0], shas[1]), { status: 0, out: shas[0] });
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('base falls back to the before commit when the last success is not an ancestor', () => {
+  const { folder, shas } = repository(3);
+  try {
+    const orphan = git(folder, 'commit-tree', '-m', 'orphan', `${shas[0]}^{tree}`);
+    assert.deepEqual(base(folder, orphan, shas[1]), { status: 0, out: shas[1] });
+    assert.deepEqual(base(folder, '', ZERO), { status: 0, out: shas[1] });
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('base exits 1 when no commit is usable', () => {
+  const { folder } = repository(1);
+  try {
+    const result = base(folder, '', ZERO);
+    assert.equal(result.status, 1);
+    assert.equal(result.out, '');
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
 });
