@@ -25,10 +25,15 @@ const wrangler = (...patterns) =>
 /** Build a temp repo. `projects` maps a folder name to { deploy, wrangler }. */
 function fixture(projects) {
   const root = mkdtempSync(path.join(tmpdir(), 'deploy-check-'));
-  for (const [name, { deploy, wrangler: config, raw }] of Object.entries(projects)) {
+  for (const [name, { deploy, wrangler: config, raw, noWrangler }] of Object.entries(projects)) {
     const folder = path.join(root, 'projects', name);
     mkdirSync(folder, { recursive: true });
-    const manifest = raw ?? { name, ...(deploy === undefined ? {} : { factory: { deploy } }) };
+    // Each project lists wrangler (the deploy tool) unless the test says it does not.
+    const manifest = raw ?? {
+      name,
+      ...(deploy === undefined ? {} : { factory: { deploy } }),
+      ...(noWrangler === true ? {} : { devDependencies: { wrangler: '^4.0.0' } }),
+    };
     writeFileSync(path.join(folder, 'package.json'), JSON.stringify(manifest));
     if (config !== undefined) writeFileSync(path.join(folder, 'wrangler.jsonc'), config);
   }
@@ -323,4 +328,28 @@ test('formatFinding escapes the message and the file in Actions', () => {
   const line = formatFinding({ file: 'projects/a,b:c/x.json', message: '100%\nbad' }, true);
   assert.equal(line, '::error file=projects/a%2Cb%3Ac/x.json::100%25%0Abad');
   assert.equal(formatFinding({ file: 'f', message: 'm\nn' }, false), 'f: m\nn');
+});
+
+test('a cloudflare project without wrangler as a dependency is a finding', () => {
+  const messages = run({
+    a: { deploy: 'cloudflare', wrangler: wrangler('a.vprprudhvi.dev'), noWrangler: true },
+    b: { deploy: ['cloudflare', 'aws'], wrangler: wrangler('b.vprprudhvi.dev'), noWrangler: true },
+  });
+  assert.deepEqual(messages, [
+    'projects/a/package.json: deploy includes "cloudflare" but wrangler is not a dependency. Run "rush add -p wrangler --dev" in the project folder.',
+    'projects/b/package.json: deploy includes "cloudflare" but wrangler is not a dependency. Run "rush add -p wrangler --dev" in the project folder.',
+  ]);
+});
+
+test('wrangler in dependencies or devDependencies satisfies the rule, and aws and none projects do not need it', () => {
+  const messages = run({
+    a: {
+      deploy: 'cloudflare',
+      wrangler: wrangler('a.vprprudhvi.dev'),
+      raw: { name: 'a', factory: { deploy: 'cloudflare' }, dependencies: { wrangler: '^4.0.0' } },
+    },
+    b: { deploy: 'aws', noWrangler: true },
+    c: { deploy: 'none', noWrangler: true },
+  });
+  assert.deepEqual(messages, []);
 });

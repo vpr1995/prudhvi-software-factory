@@ -1,0 +1,150 @@
+# Deploy on merge: runs on each push to main. Design: docs/designs/software-factory/design.md, 6.7.
+# - plan: lists the projects that changed since the last successful deploy and splits them by factory.deploy target
+#   (tooling/repo-checks/scripts/deploy-plan.mjs).
+# - cloudflare: one job for each web project that deploys to Cloudflare. Build, check the _headers
+#   file, wrangler deploy, wait for the site, then the smoke script of the project.
+# The aws job and the revert PR on a smoke failure come in later PRs.
+# The secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID live in the GitHub environment prod,
+# which only main can use. Only the wrangler step reads them.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One deploy at a time. A deploy that is running is not cancelled. GitHub keeps only one waiting run,
+# so a newer push can cancel an older waiting run. The plan job therefore plans from the last
+# successful deploy, not from the commit before the push.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # gh run list reads the earlier runs of this workflow.
+      actions: read
+    outputs:
+      cloudflare: ${{ steps.plan.outputs.cloudflare }}
+      cloudflare-count: ${{ steps.plan.outputs.cloudflare-count }}
+      aws: ${{ steps.plan.outputs.aws }}
+      aws-count: ${{ steps.plan.outputs.aws-count }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the base of the push must be in the checkout.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      # The base is the head of the last successful deploy run. A failed run is not a success, so its
+      # projects deploy again on the next push. Without a usable earlier run, the base is the commit
+      # before the push, then the parent of the head (deploy-plan.mjs base picks the first usable one).
+      - name: Find the base of the push
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          last="$(gh run list --workflow deploy.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')"
+          base="$(node tooling/repo-checks/scripts/deploy-plan.mjs base "${last}" "${BEFORE}")"
+          echo "base=${base}" >>"$GITHUB_OUTPUT"
+          echo "last successful deploy: ${last:-none}"
+          echo "base: ${base}"
+          echo "head: $(git rev-parse HEAD)"
+
+      - name: Plan the deploy
+        id: plan
+        env:
+          BASE_SHA: ${{ steps.base.outputs.base }}
+        run: |
+          node common/scripts/install-run-rush.js list --impacted-by "git:${BASE_SHA}" --json >"${RUNNER_TEMP}/rush-list.json"
+          node tooling/repo-checks/scripts/deploy-plan.mjs <"${RUNNER_TEMP}/rush-list.json"
+          echo "::group::deploy plan"
+          grep -E '^(cloudflare|aws)(-count)?=' "$GITHUB_OUTPUT"
+          echo "::endgroup::"
+
+  cloudflare:
+    name: cloudflare ${{ matrix.project.name }}
+    needs: plan
+    # Skip with an empty list: fromJSON('[]') is not a valid matrix.
+    if: needs.plan.outputs.cloudflare-count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Each project deploys alone. A failure in one project does not stop the others.
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        project: ${{ fromJSON(needs.plan.outputs.cloudflare) }}
+    environment:
+      name: prod
+      url: https://${{ matrix.project.host }}
+    env:
+      PROJECT: ${{ matrix.project.name }}
+      PROJECT_PATH: ${{ matrix.project.path }}
+      ASSETS_DIRECTORY: ${{ matrix.project.assetsDirectory }}
+      HOST: ${{ matrix.project.host }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Repo setup
+        uses: ./.github/actions/repo-setup
+        with:
+          build-cache-scope: deploy-${{ matrix.project.name }}
+
+      # --to: the project and all its dependencies.
+      - name: Rush build
+        run: node common/scripts/install-run-rush.js build --to "${PROJECT}"
+
+      # The _headers file holds the security headers and the CSP. Without it the site has none.
+      - name: Check the _headers file
+        run: |
+          if [ ! -f "${ASSETS_DIRECTORY}/_headers" ]; then
+            echo "::error::${ASSETS_DIRECTORY}/_headers does not exist after the build. Add it to the static export."
+            exit 1
+          fi
+
+      # The project owns the wrangler version (a dependency) and the command (its deploy:cloudflare script).
+      - name: Wrangler deploy
+        working-directory: ${{ matrix.project.path }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy:cloudflare
+
+      # A first deploy needs time for the DNS record and the certificate.
+      - name: Wait for the site
+        run: |
+          curl --fail --silent --show-error --output /dev/null \
+            --retry 30 --retry-delay 10 --retry-all-errors \
+            "https://${HOST}/"
+
+      - name: Install Chromium and its system packages
+        run: '"${PROJECT_PATH}/node_modules/.bin/playwright" install --with-deps chromium'
+
+      - name: Smoke test
+        working-directory: ${{ matrix.project.path }}
+        env:
+          SMOKE_BASE_URL: https://${{ matrix.project.host }}
+        run: npm run smoke

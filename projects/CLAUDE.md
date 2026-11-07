@@ -29,6 +29,16 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - A project `bin` or `lib` never imports `platform/infra`. It reads SSM values through `@vprprudhvi/shared-cdk-constructs`.
 - Full list: [repo-overview.md](../docs/guides/repo-overview.md).
 
+## Deploy to Cloudflare
+
+A project with `"factory": { "deploy": "cloudflare" }` (or an array that has it) needs all of these. `deploy-check` and `deploy-plan` fail without them:
+
+- `wrangler` as a dependency of the project. Run `rush add -p wrangler --dev` in the project folder. Each project owns its wrangler version.
+- A `deploy:cloudflare` script: `"deploy:cloudflare": "wrangler deploy"`. `deploy.yml` runs it, so the workflow never names wrangler.
+- A `smoke` script that tests `SMOKE_BASE_URL` (Playwright).
+- `wrangler.jsonc` with `assets.directory` (a folder inside the project) and a top-level `custom_domain` route `<label>.vprprudhvi.dev`.
+- A `_headers` file in the static export (security headers and CSP).
+
 ## Duties for each part
 
 - API route: add a Bruno request.
