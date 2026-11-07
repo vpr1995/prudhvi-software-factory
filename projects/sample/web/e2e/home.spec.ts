@@ -26,9 +26,15 @@ test.describe('home page', () => {
 
   test('has no axe violations after a note is saved', async ({ page }) => {
     await page.goto('/');
-    await page.getByLabel('Title').fill(`Axe note ${String(Date.now())}`);
+    const title = `Axe note ${String(Date.now())}`;
+    await page.getByLabel('Title').fill(title);
     await page.getByRole('button', { name: 'Add note' }).click();
     await expect(page.getByRole('status')).toContainText('Saved');
+    // After a save the form calls router.refresh(). While the page renders again, the <title> is
+    // missing for a moment, and axe reports document-title. Wait until the new note is in the
+    // refreshed list and the title is back.
+    await expect(page.getByRole('listitem').filter({ hasText: title })).toBeVisible();
+    await expect(page).toHaveTitle('Notes');
 
     const results = await new AxeBuilder({ page }).analyze();
 
