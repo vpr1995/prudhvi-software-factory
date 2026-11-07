@@ -47,6 +47,29 @@ function webHost(config) {
   return null;
 }
 
+/** @returns {{ resolved: string, problem: string | null }} The assets folder from the repo root, or what is wrong with it. */
+function resolveAssets(projectPath, directory) {
+  const bad = (problem) => ({ resolved: '', problem: `${projectPath}: ${problem}` });
+  if (typeof directory !== 'string') {
+    return bad('wrangler.jsonc has no assets.directory. Set it to the static export folder.');
+  }
+  if (path.posix.isAbsolute(directory)) {
+    return bad(
+      `assets.directory ${directory} is an absolute path. Use a folder inside the project.`,
+    );
+  }
+  const resolved = path.posix.normalize(path.posix.join(projectPath, directory));
+  if (resolved === projectPath) {
+    return bad(
+      `assets.directory ${directory} is the project folder. Set it to the static export folder.`,
+    );
+  }
+  if (!resolved.startsWith(`${projectPath}/`)) {
+    return bad(`assets.directory ${directory} is outside the project folder.`);
+  }
+  return { resolved, problem: null };
+}
+
 /** @returns {{ entry?: object, findings: string[] }} The plan entry of one cloudflare project. */
 function cloudflareEntry(root, projectPath, manifest) {
   const findings = [];
@@ -56,26 +79,8 @@ function cloudflareEntry(root, projectPath, manifest) {
     );
   }
   const config = readConfig(root, `${projectPath}/wrangler.jsonc`, parseJsonc);
-  const directory = config?.assets?.directory;
-  let assetsDirectory;
-  if (typeof directory === 'string') {
-    assetsDirectory = path.posix.normalize(path.posix.join(projectPath, directory));
-    if (path.posix.isAbsolute(directory)) {
-      findings.push(
-        `${projectPath}: assets.directory ${directory} is an absolute path. Use a folder inside the project.`,
-      );
-    } else if (assetsDirectory === projectPath) {
-      findings.push(
-        `${projectPath}: assets.directory ${directory} is the project folder. Set it to the static export folder.`,
-      );
-    } else if (!assetsDirectory.startsWith(`${projectPath}/`)) {
-      findings.push(`${projectPath}: assets.directory ${directory} is outside the project folder.`);
-    }
-  } else {
-    findings.push(
-      `${projectPath}: wrangler.jsonc has no assets.directory. Set it to the static export folder.`,
-    );
-  }
+  const { resolved, problem } = resolveAssets(projectPath, config?.assets?.directory);
+  if (problem !== null) findings.push(problem);
   const host = webHost(config);
   if (host === null) {
     findings.push(
@@ -84,7 +89,7 @@ function cloudflareEntry(root, projectPath, manifest) {
   }
   if (findings.length > 0) return { findings };
   return {
-    entry: { name: manifest.name, path: projectPath, host, assetsDirectory },
+    entry: { name: manifest.name, path: projectPath, host, assetsDirectory: resolved },
     findings,
   };
 }
