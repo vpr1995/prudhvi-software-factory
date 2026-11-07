@@ -4,7 +4,9 @@
 // inline scripts in each page, so each page needs the hashes of its own scripts. Cloudflare allows
 // 2000 characters in a header line, so one policy for all pages is too long. Each page gets its own
 // rule with its own hashes. The rule `/*` holds the headers that do not depend on the page. It has
-// a base policy without script-src, so an unknown path (the 404 page) still gets those limits.
+// a base policy without script-src. An unknown path gets the 404 page and matches only `/*`, so it
+// has those limits but no script-src. (Two policies both apply, so the base policy cannot hold
+// script-src: it would block the hashes of the page rules.)
 // Cloudflare allows 100 rules in a _headers file: this script fails when a build needs more.
 import { createHash } from 'node:crypto';
 import { join, relative, sep } from 'node:path';
@@ -14,6 +16,10 @@ import { fileURLToPath } from 'node:url';
 import { listFiles, readText, writeText } from './fs-io.ts';
 
 export const MAX_RULES = 100;
+const MAX_LINE_LENGTH = 2000;
+
+// Export folders that no URL reaches by its own path: the 404 page is served for unknown paths.
+const NOT_SERVED = new Set(['404/index.html', '_not-found/index.html']);
 
 /** One built page: the URL path and the inline code that the browser must be allowed to run. */
 export type Page = {
@@ -105,7 +111,7 @@ function pagePolicy(page: Page): string {
  *
  * @param pages - The built pages.
  * @returns The file text.
- * @throws When the pages need more than 100 rules.
+ * @throws When the pages need more than 100 rules, or a line is too long.
  */
 export function buildHeaders(pages: readonly Page[]): string {
   if (pages.length + 1 > MAX_RULES) {
@@ -121,14 +127,21 @@ export function buildHeaders(pages: readonly Page[]): string {
     ],
     ...pages.map((page) => [page.urlPath, `  Content-Security-Policy: ${pagePolicy(page)}`]),
   ];
-  return `${blocks.map((lines) => lines.join('\n')).join('\n\n')}\n`;
+  const text = `${blocks.map((lines) => lines.join('\n')).join('\n\n')}\n`;
+  const longest = Math.max(...text.split('\n').map((line) => line.length));
+  if (longest >= MAX_LINE_LENGTH) {
+    throw new Error(
+      `A header line has ${String(longest)} characters. Cloudflare allows less than ${String(MAX_LINE_LENGTH)}.`,
+    );
+  }
+  return text;
 }
 
 /**
  * Reads the pages of a static export.
  *
  * @param outFolder - The export folder.
- * @returns One page for each `index.html` (path `/x/`). `404.html` is a page too.
+ * @returns One page for each `index.html` (path `/x/`), except the 404 folders.
  */
 function readPages(outFolder: string): Page[] {
   const pages: Page[] = [];
@@ -139,10 +152,8 @@ function readPages(outFolder: string): Page[] {
         ? '/'
         : path.endsWith('/index.html')
           ? `/${path.slice(0, -'index.html'.length)}`
-          : path === '404.html'
-            ? '/404.html'
-            : undefined;
-    if (urlPath === undefined) {
+          : undefined;
+    if (urlPath === undefined || NOT_SERVED.has(path)) {
       continue;
     }
     const html = readText(file);

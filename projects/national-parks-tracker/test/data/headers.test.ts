@@ -73,6 +73,12 @@ describe('buildHeaders', () => {
     expect(Math.max(...text.split('\n').map((line) => line.length))).toBeLessThan(2000);
   });
 
+  it('throws when a header line is too long for Cloudflare', () => {
+    const many = Array.from({ length: 40 }, (_, index) => `a${String(index)}()`);
+    const page = { urlPath: '/x/', scripts: [], styleAttributes: many };
+    expect(() => buildHeaders([page])).toThrow(/Cloudflare allows less than 2000/);
+  });
+
   it('throws when the pages need more than the rules that Cloudflare allows', () => {
     const pages = Array.from({ length: MAX_RULES }, (_, index) => ({
       urlPath: `/p${String(index)}/`,
