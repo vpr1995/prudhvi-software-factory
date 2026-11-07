@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "_phase:test": "node --test \"test/**/*.test.js\"",
+    "deploy-check": "node scripts/deploy-check.mjs",
     "doc-lint": "node scripts/doc-lint.mjs",
     "test": "npm run _phase:test"
   },

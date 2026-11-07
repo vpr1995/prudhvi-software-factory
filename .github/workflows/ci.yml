@@ -76,6 +76,10 @@ jobs:
       - name: Doc lint
         run: node tooling/repo-checks/scripts/doc-lint.mjs
 
+      # Fails when a project has no valid factory.deploy or a bad or duplicate wrangler hostname.
+      - name: Deploy field check
+        run: node tooling/repo-checks/scripts/deploy-check.mjs
+
       # Fails when the diff weakens tests or checks (root CLAUDE.md rule 2). BASE_SHA comes from
       # GITHUB_ENV. With the risk:high label, each finding is a warning.
       # The guard runs from the base commit, so a PR cannot weaken the guard that checks it. A guard

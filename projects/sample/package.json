@@ -4,6 +4,9 @@
   "private": true,
   "description": "The sample project: contracts, TypeScript API, Next.js web app and Bruno collection in one package. The CDK app (bin, lib) builds the API stack.",
   "type": "module",
+  "factory": {
+    "deploy": "none"
+  },
   "main": "./dist/api/lambda.js",
   "files": [
     "dist"

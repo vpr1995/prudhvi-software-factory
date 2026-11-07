@@ -4,6 +4,9 @@
   "private": true,
   "description": "A static map of the 64 US national parks that shows which parks the owner has visited. Contracts (Zod) and a Next.js static export in one package.",
   "type": "module",
+  "factory": {
+    "deploy": "aws"
+  },
   "scripts": {
     "_phase:build": "node scripts/phase.mjs build",
     "_phase:e2e": "node scripts/phase.mjs e2e",
