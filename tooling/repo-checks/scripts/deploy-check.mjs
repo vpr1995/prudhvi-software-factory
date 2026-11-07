@@ -4,12 +4,17 @@
 //
 // Rule 1: package.json has `factory.deploy`: "cloudflare", "aws" or "none". Or a non-empty array
 //         of "cloudflare" and "aws" with no duplicates.
-// Rule 2: a project that deploys to "cloudflare" has projects/<name>/wrangler.jsonc. Its `routes`
-//         has at least one entry with `custom_domain: true`. The `pattern` of each such entry is
-//         <label>.vprprudhvi.dev with one DNS label. A project without "cloudflare" that has such
-//         routes still takes part in rule 3.
+// Rule 2: a project that deploys to "cloudflare" has projects/<name>/wrangler.jsonc. It has at least
+//         one route entry with `custom_domain: true`. The route shapes checked are `route` and `routes`
+//         at the top level and in each `env.<name>`. Every route entry must be an object with
+//         `custom_domain: true`, a `pattern` of <label>.vprprudhvi.dev with one lowercase DNS label,
+//         and no `zone_name` and no `zone_id`. A project without "cloudflare" that has a
+//         wrangler.jsonc still takes part in rule 3.
 // Rule 3: no two projects use the same hostname. The API hostname <project>-api.vprprudhvi.dev of a
 //         project that deploys to "aws" must not equal a wrangler hostname of any project.
+//
+// CI runs this check from the base commit, so a PR cannot weaken the check that checks it. The repo
+// root comes from git, in the working directory.
 //
 // Run from the repo root: node tooling/repo-checks/scripts/deploy-check.mjs
 import { execFileSync } from 'node:child_process';
@@ -40,6 +45,7 @@ function targetsOf(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+// The hostname rule is strictly lowercase (LABEL_CHARACTERS rejects uppercase), so no case folding.
 /** @returns {boolean} True when the host is <label>.vprprudhvi.dev with one DNS label. */
 function validHostname(host) {
   const suffix = `.${DOMAIN}`;
@@ -53,13 +59,44 @@ function validHostname(host) {
   );
 }
 
-/** @returns {unknown[]} The routes that have custom_domain true, as { pattern } entries. */
-function customDomainRoutes(config) {
-  const routes = typeof config === 'object' && config !== null ? config.routes : undefined;
-  if (!Array.isArray(routes)) return [];
-  return routes.filter(
-    (route) => typeof route === 'object' && route !== null && route.custom_domain === true,
-  );
+/** @returns {{ where: string, route: unknown }[]} Every route entry of a wrangler config. */
+function routeEntries(config) {
+  if (typeof config !== 'object' || config === null) return [];
+  const entries = [];
+  const collect = (scope, where) => {
+    if (typeof scope !== 'object' || scope === null) return;
+    if (scope.route !== undefined) entries.push({ where: `${where}route`, route: scope.route });
+    if (Array.isArray(scope.routes)) {
+      for (const [index, route] of scope.routes.entries()) {
+        entries.push({ where: `${where}routes[${index}]`, route });
+      }
+    } else if (scope.routes !== undefined) {
+      entries.push({ where: `${where}routes`, route: scope.routes });
+    }
+  };
+  collect(config, '');
+  const environments = typeof config.env === 'object' && config.env !== null ? config.env : {};
+  for (const [envName, scope] of Object.entries(environments)) collect(scope, `env.${envName}.`);
+  return entries;
+}
+
+/** @returns {string | null} What is wrong with one route entry, or null when it is good. */
+function routeProblem(route) {
+  const fix =
+    'Use { "pattern": "<name>.vprprudhvi.dev", "custom_domain": true } (static sites use custom_domain routes only).';
+  if (typeof route !== 'object' || route === null || Array.isArray(route)) {
+    return `The entry ${JSON.stringify(route)} is not a custom_domain route object. ${fix}`;
+  }
+  if (route.custom_domain !== true) {
+    return `The entry does not have custom_domain true. ${fix}`;
+  }
+  if (route.zone_name !== undefined || route.zone_id !== undefined) {
+    return `The entry has zone_name or zone_id. Remove it. ${fix}`;
+  }
+  if (typeof route.pattern !== 'string' || !validHostname(route.pattern)) {
+    return `The hostname ${JSON.stringify(route.pattern)} is not valid. Use <label>.${DOMAIN} with one lowercase DNS label, no scheme, path or wildcard.`;
+  }
+  return null;
 }
 
 /**
@@ -87,23 +124,20 @@ function checkWrangler(root, name, wantsCloudflare) {
     findings.push({ file, message: 'The file is not valid JSONC. Fix the syntax.' });
     return { hosts, findings };
   }
-  const routes = customDomainRoutes(config);
-  if (wantsCloudflare && routes.length === 0) {
+  const entries = routeEntries(config);
+  if (wantsCloudflare && !entries.some(({ route }) => route?.custom_domain === true)) {
     findings.push({
       file,
       message:
         'No route has custom_domain true. Add { "pattern": "<name>.vprprudhvi.dev", "custom_domain": true } to routes.',
     });
   }
-  for (const route of routes) {
-    const host = route.pattern;
-    if (typeof host === 'string' && validHostname(host)) {
-      hosts.push(host.toLowerCase());
+  for (const { where, route } of entries) {
+    const problem = routeProblem(route);
+    if (problem === null) {
+      hosts.push(route.pattern);
     } else {
-      findings.push({
-        file,
-        message: `The hostname ${JSON.stringify(host)} is not valid. Use <label>.${DOMAIN} with one lowercase DNS label, no scheme, path or wildcard.`,
-      });
+      findings.push({ file, message: `${where}: ${problem}` });
     }
   }
   return { hosts, findings };
@@ -129,14 +163,21 @@ function checkManifest(root, name) {
   return { targets: targetsOf(deploy), findings: [] };
 }
 
-/** Add a finding for each hostname that two projects use. */
+/** Add a finding for each hostname that two projects use, or that one project lists twice. */
 function duplicateFindings(owners) {
   const findings = [];
-  for (const [host, names] of owners) {
+  for (const [host, list] of owners) {
+    const names = [...new Set(list)];
+    const file = `projects/${names[0]}/wrangler.jsonc`;
     if (names.length > 1) {
       findings.push({
-        file: `projects/${names[0]}/wrangler.jsonc`,
+        file,
         message: `The hostname ${host} is used by the projects ${names.join(' and ')}. Give each project its own hostname.`,
+      });
+    } else if (list.length > 1) {
+      findings.push({
+        file,
+        message: `The project ${names[0]} lists the host ${host} twice. Remove the repeat.`,
       });
     }
   }
@@ -164,8 +205,8 @@ export function checkDeploy(root) {
   }
   findings.push(...duplicateFindings(owners));
   for (const { name, host } of apiHosts) {
-    const web = owners.get(host);
-    if (web !== undefined) {
+    const web = [...new Set(owners.get(host) ?? [])];
+    if (web.length > 0) {
       findings.push({
         file: `projects/${web[0]}/wrangler.jsonc`,
         message: `The hostname ${host} is the API hostname of the project ${name} and the web hostname of the project ${web.join(' and ')}. Rename the web hostname.`,
@@ -175,10 +216,20 @@ export function checkDeploy(root) {
   return findings;
 }
 
+/** @returns {string} The message data, escaped for a GitHub workflow command. */
+export function escapeData(value) {
+  return String(value).replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+}
+
+/** @returns {string} A command property such as file, escaped for a GitHub workflow command. */
+export function escapeProperty(value) {
+  return escapeData(value).replaceAll(':', '%3A').replaceAll(',', '%2C');
+}
+
 /** @returns {string} One output line for a finding. */
 export function formatFinding(finding, github) {
   return github
-    ? `::error file=${finding.file}::${finding.message}`
+    ? `::error file=${escapeProperty(finding.file)}::${escapeData(finding.message)}`
     : `${finding.file}: ${finding.message}`;
 }
 

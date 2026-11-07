@@ -77,8 +77,22 @@ jobs:
         run: node tooling/repo-checks/scripts/doc-lint.mjs
 
       # Fails when a project has no valid factory.deploy or a bad or duplicate wrangler hostname.
+      # The check runs from the base commit, so a PR cannot weaken the check that checks it. A change
+      # takes effect after merge. The check reads the repo root from its working directory.
+      # Bootstrap: when the base has no deploy check, the PR copy runs. BASE_SHA comes from GITHUB_ENV.
       - name: Deploy field check
-        run: node tooling/repo-checks/scripts/deploy-check.mjs
+        env:
+          DEPLOY_CHECK: tooling/repo-checks/scripts/deploy-check.mjs
+        run: |
+          if git cat-file -e "${BASE_SHA}:${DEPLOY_CHECK}" 2>/dev/null; then
+            mkdir -p "${RUNNER_TEMP}/deploy-check-base"
+            git archive "${BASE_SHA}" tooling/repo-checks | tar -x -C "${RUNNER_TEMP}/deploy-check-base"
+            echo "deploy check from the base commit ${BASE_SHA}"
+            node "${RUNNER_TEMP}/deploy-check-base/${DEPLOY_CHECK}"
+          else
+            echo "::notice::The base commit has no deploy check. The check of this PR runs (bootstrap)."
+            node "${DEPLOY_CHECK}"
+          fi
 
       # Fails when the diff weakens tests or checks (root CLAUDE.md rule 2). BASE_SHA comes from
       # GITHUB_ENV. With the risk:high label, each finding is a warning.

@@ -5,7 +5,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { checkDeploy, formatFinding, validateDeployValue } from '../scripts/deploy-check.mjs';
+import {
+  checkDeploy,
+  escapeData,
+  escapeProperty,
+  formatFinding,
+  validateDeployValue,
+} from '../scripts/deploy-check.mjs';
 
 const wrangler = (...patterns) =>
   `{
@@ -102,11 +108,12 @@ test('cloudflare with no wrangler.jsonc is a finding', () => {
   assert.match(findings[0], /wrangler\.jsonc/);
 });
 
-test('cloudflare with no custom_domain route is a finding', () => {
+test('cloudflare with no custom_domain route is a finding, and each other entry is a finding', () => {
   const config = '{ "routes": ["a.vprprudhvi.dev/*", { "pattern": "a.vprprudhvi.dev" }] }';
   const findings = run({ a: { deploy: 'cloudflare', wrangler: config } });
-  assert.equal(findings.length, 1);
-  assert.match(findings[0], /custom_domain/);
+  assert.equal(findings.length, 3);
+  assert.ok(findings.some((message) => /at least one|No route has custom_domain/.test(message)));
+  assert.equal(findings.filter((message) => /custom_domain true/.test(message)).length >= 2, true);
 });
 
 test('cloudflare with no routes array is a finding', () => {
@@ -188,4 +195,119 @@ test('formatFinding gives a plain line, and a GitHub annotation in Actions', () 
     formatFinding(finding, true),
     '::error file=projects/a/package.json::bad value. Fix it.',
   );
+});
+
+// Computed keys: wrangler uses snake_case names that the naming rule rejects as plain keys.
+const CUSTOM_DOMAIN = 'custom_domain';
+const ZONE_NAME = 'zone_name';
+const ZONE_ID = 'zone_id';
+const json = (value) => JSON.stringify(value);
+const entry = (pattern) => ({ pattern, [CUSTOM_DOMAIN]: true });
+
+test('a singular route object is read as a hostname', () => {
+  const same = json({ route: entry('same.vprprudhvi.dev') });
+  const findings = run({
+    a: { deploy: 'cloudflare', wrangler: same },
+    b: { deploy: 'cloudflare', wrangler: wrangler('same.vprprudhvi.dev') },
+  });
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /same\.vprprudhvi\.dev/);
+});
+
+test('a singular route string is a finding', () => {
+  const config = json({ route: 'a.vprprudhvi.dev/*', routes: [entry('a.vprprudhvi.dev')] });
+  const findings = run({ a: { deploy: 'cloudflare', wrangler: config } });
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /custom_domain/);
+});
+
+test('env.production.routes entries are checked', () => {
+  const bad = json({
+    routes: [entry('a.vprprudhvi.dev')],
+    env: { production: { routes: ['x.com/*'] } },
+  });
+  assert.equal(run({ a: { deploy: 'cloudflare', wrangler: bad } }).length, 1);
+  const worse = json({
+    routes: [entry('a.vprprudhvi.dev')],
+    env: { production: { routes: [entry('A.x.dev')] } },
+  });
+  assert.equal(run({ a: { deploy: 'cloudflare', wrangler: worse } }).length, 1);
+});
+
+test('env.staging.route entries are checked', () => {
+  const config = json({
+    routes: [entry('a.vprprudhvi.dev')],
+    env: { staging: { route: 'a-stg.vprprudhvi.dev/*' } },
+  });
+  const findings = run({ a: { deploy: 'cloudflare', wrangler: config } });
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /env\.staging/);
+});
+
+test('a duplicate host that is only in an env entry of another project is a finding', () => {
+  const envOnly = json({ env: { staging: { routes: [entry('same.vprprudhvi.dev')] } } });
+  const findings = run({
+    a: { deploy: 'cloudflare', wrangler: wrangler('same.vprprudhvi.dev') },
+    b: { deploy: 'none', wrangler: envOnly },
+  });
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /\ba\b.*\bb\b|\bb\b.*\ba\b/);
+});
+
+test('zone_name or zone_id on a route is a finding', () => {
+  for (const extra of [{ [ZONE_NAME]: 'vprprudhvi.dev' }, { [ZONE_ID]: 'abc' }]) {
+    const config = json({ routes: [{ ...entry('a.vprprudhvi.dev'), ...extra }] });
+    const findings = run({ a: { deploy: 'cloudflare', wrangler: config } });
+    assert.equal(findings.length, 1);
+    assert.match(findings[0], /zone_name|zone_id/);
+  }
+});
+
+test('a non-string pattern is a finding', () => {
+  const config = json({
+    routes: [{ pattern: 5, [CUSTOM_DOMAIN]: true }, entry('a.vprprudhvi.dev')],
+  });
+  assert.equal(run({ a: { deploy: 'cloudflare', wrangler: config } }).length, 1);
+});
+
+test('an api hostname collision through a singular route is a finding', () => {
+  const findings = run({
+    shop: { deploy: 'aws' },
+    web: { deploy: 'cloudflare', wrangler: json({ route: entry('shop-api.vprprudhvi.dev') }) },
+  });
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /shop-api\.vprprudhvi\.dev/);
+});
+
+test('the same host twice in one project is one finding that names the project once', () => {
+  const findings = run({
+    a: { deploy: 'cloudflare', wrangler: wrangler('x.vprprudhvi.dev', 'x.vprprudhvi.dev') },
+  });
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /lists the host/);
+  assert.doesNotMatch(findings[0], /a and a/);
+});
+
+test('an api collision with a host that a project lists twice names the web project once', () => {
+  const findings = run({
+    shop: { deploy: 'aws' },
+    web: {
+      deploy: 'cloudflare',
+      wrangler: wrangler('shop-api.vprprudhvi.dev', 'shop-api.vprprudhvi.dev'),
+    },
+  });
+  assert.ok(findings.some((message) => /API hostname/.test(message)));
+  assert.ok(findings.every((message) => !/web and web/.test(message)));
+});
+
+test('escape helpers follow the Actions toolkit', () => {
+  assert.equal(escapeData('50%\r\nnext'), '50%25%0D%0Anext');
+  assert.equal(escapeData('a:b,c'), 'a:b,c');
+  assert.equal(escapeProperty('p/a:b,c%\n'), 'p/a%3Ab%2Cc%25%0A');
+});
+
+test('formatFinding escapes the message and the file in Actions', () => {
+  const line = formatFinding({ file: 'projects/a,b:c/x.json', message: '100%\nbad' }, true);
+  assert.equal(line, '::error file=projects/a%2Cb%3Ac/x.json::100%25%0Abad');
+  assert.equal(formatFinding({ file: 'f', message: 'm\nn' }, false), 'f: m\nn');
 });

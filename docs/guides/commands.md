@@ -23,7 +23,7 @@ node common/scripts/install-run-rush.js license-check
 node common/scripts/install-run-rush.js knip         # alias: rush knip (unused files, exports, dependencies; config: knip.jsonc)
 node tooling/tsconfig/scripts/check-tsconfigs.mjs     # tsconfig rules (CI runs it)
 node tooling/repo-checks/scripts/doc-lint.mjs         # doc lint: links, repo paths and Rush commands in *.md (CI runs it)
-node tooling/repo-checks/scripts/deploy-check.mjs     # deploy check: factory.deploy and wrangler hostnames of each project (CI runs it)
+node tooling/repo-checks/scripts/deploy-check.mjs     # deploy check: factory.deploy and wrangler hostnames (route, routes, env.*; custom_domain entries only, no zone_name or zone_id). CI runs it from the base commit
 node tooling/repo-checks/scripts/test-guard.mjs "$(git merge-base main HEAD)" # test guard: weakened tests or checks in the diff (CI runs it)
 node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>" # verify gate: let the main session stop without proof (logged)
 node scripts/security/install-tools.mjs              # pinned gitleaks, actionlint, zizmor, pinact (rush install runs it)
