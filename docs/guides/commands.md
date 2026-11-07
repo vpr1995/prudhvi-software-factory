@@ -25,6 +25,7 @@ node tooling/tsconfig/scripts/check-tsconfigs.mjs     # tsconfig rules (CI runs 
 node tooling/repo-checks/scripts/doc-lint.mjs         # doc lint: links, repo paths and Rush commands in *.md (CI runs it)
 node tooling/repo-checks/scripts/deploy-check.mjs     # deploy check: factory.deploy and wrangler hostnames (route, routes, env.*; custom_domain entries only, no zone_name or zone_id). CI runs it from the base commit
 rush list --impacted-by git:<base> --json | node tooling/repo-checks/scripts/deploy-plan.mjs   # deploy plan: the changed projects for each deploy target. Prints four GITHUB_OUTPUT lines. `deploy.yml` runs it
+node tooling/repo-checks/scripts/deploy-revert.mjs decide "<subject>" < jobs.json   # deploy revert: reads `gh run view <run> --json jobs`. Prints revert=true when a smoke test failed and the commit is not a revert. Modes `title` and `body` print the text of the revert PR. `deploy.yml` runs it
 node tooling/repo-checks/scripts/deploy-plan.mjs base <last-success-sha> <before-sha>   # print the commit that the deploy plan starts from
 node tooling/repo-checks/scripts/test-guard.mjs "$(git merge-base main HEAD)" # test guard: weakened tests or checks in the diff (CI runs it)
 node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>" # verify gate: let the main session stop without proof (logged)

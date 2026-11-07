@@ -8,6 +8,7 @@
     "_phase:test": "node --test \"test/**/*.test.js\"",
     "deploy-check": "node scripts/deploy-check.mjs",
     "deploy-plan": "node scripts/deploy-plan.mjs",
+    "deploy-revert": "node scripts/deploy-revert.mjs",
     "doc-lint": "node scripts/doc-lint.mjs",
     "test": "npm run _phase:test"
   },

@@ -13,6 +13,8 @@ Use this runbook when a change harms users, data, cost, or security after releas
 
 A revert PR passes the same checks as any other PR. A revert does not skip a check.
 
+A failed smoke test after a deploy opens a revert PR by itself (the `revert` job of `deploy.yml`). Close and reopen that PR to start its checks. Read the failed run first. When the commit did not cause the failure, close the PR and run the failed deploy job again.
+
 ## 2. After the rollback
 
 1. Write a short incident note. Include the time, the cause, the impact.
