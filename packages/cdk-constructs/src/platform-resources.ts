@@ -51,8 +51,8 @@ export function readPlatformUserPool(scope: Construct, env: PlatformEnv): Platfo
 }
 
 /**
- * Reads the DNS parameters of the platform and imports the hosted zone. Only call it after the
- * platform writes them. Today no zone exists, so the parameters are not there and a deploy fails.
+ * Reads the DNS parameters of the platform and imports the hosted zone. The owner creates the
+ * parameters by hand (`platform/CLAUDE.md`), not the platform stack. Without them a deploy fails.
  * It adds the child construct `PlatformDns` to `scope`. Call it one time for each scope.
  *
  * @param scope - The stack (or construct) that uses the zone.
@@ -70,14 +70,14 @@ export function readPlatformDns(scope: Construct, env: PlatformEnv): IHostedZone
 }
 
 /**
- * Reads the ACM parameter of the platform and imports the wildcard certificate. Only call it after
- * the platform writes it. Today no certificate exists, so the parameter is not there and a deploy
- * fails. It adds the child construct `PlatformCertificate` to `scope`. Call it one time for each
+ * Reads the ACM parameter of the platform and imports the wildcard certificate. The owner creates
+ * the parameter by hand (`platform/CLAUDE.md`), not the platform stack. Without it a deploy fails.
+ * The certificate must be in the region of the stack that uses it. It adds the child construct `PlatformCertificate` to `scope`. Call it one time for each
  * scope.
  *
  * @param scope - The stack (or construct) that uses the certificate.
  * @param env - The environment whose `/platform/<env>/acm/...` parameter to read.
- * @returns The imported wildcard certificate (region `us-east-1`).
+ * @returns The imported wildcard certificate.
  */
 export function readPlatformCertificate(scope: Construct, env: PlatformEnv): ICertificate {
   const names = platformParameterNames(env);

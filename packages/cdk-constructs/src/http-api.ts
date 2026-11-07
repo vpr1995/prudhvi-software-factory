@@ -56,7 +56,7 @@ export type TracedHttpRoute = {
 export type HttpApiDomain = {
   /** The imported hosted zone. */
   readonly hostedZone: IHostedZone;
-  /** The wildcard certificate of the zone (`us-east-1`). */
+  /** The wildcard certificate of the zone. It must be in the region of the API stack. */
   readonly certificate: ICertificate;
   /** One DNS label under the zone, for example `sample-api`. The wildcard certificate covers one label. */
   readonly recordName: string;
