@@ -3,7 +3,9 @@
 #   (tooling/repo-checks/scripts/deploy-plan.mjs).
 # - cloudflare: one job for each web project that deploys to Cloudflare. Build, check the _headers
 #   file, wrangler deploy, wait for the site, then the smoke script of the project.
-# The aws job and the revert PR on a smoke failure come in later PRs.
+# - revert: after a failed smoke test, opens a revert PR for the pushed commit (one for each commit,
+#   never a revert of a revert). tooling/repo-checks/scripts/deploy-revert.mjs decides.
+# The aws job comes in a later PR.
 # The secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID live in the GitHub environment prod,
 # which only main can use. Only the wrangler step reads them.
 name: deploy
@@ -148,3 +150,77 @@ jobs:
         env:
           SMOKE_BASE_URL: https://${{ matrix.project.host }}
         run: npm run smoke
+
+  # After a failed smoke test: open a revert PR for the pushed commit. A failed build or a failed
+  # `wrangler deploy` did not change the live site, so only the smoke test counts. The job runs no
+  # project code, and it is the only job with write permissions.
+  # The repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
+  # Checks do not start on a PR that GitHub Actions opens: the owner closes and reopens the PR.
+  revert:
+    name: revert
+    needs: cloudflare
+    if: ${{ !cancelled() && needs.cloudflare.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      # gh run view reads the steps of the jobs of this run.
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.sha }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The pushed commit and its parents, for git revert.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Decide
+        id: decide
+        run: |
+          gh run view "${RUN_ID}" --json jobs >"${RUNNER_TEMP}/jobs.json"
+          subject="$(git log -1 --format=%s "${SHA}")"
+          node tooling/repo-checks/scripts/deploy-revert.mjs decide "${subject}" <"${RUNNER_TEMP}/jobs.json"
+
+      - name: Open the revert PR
+        if: steps.decide.outputs.revert == 'true'
+        env:
+          PROJECTS: ${{ steps.decide.outputs.projects }}
+        run: |
+          branch="revert/${SHA:0:7}"
+          existing="$(gh pr list --head "${branch}" --state all --json number --jq length)"
+          if [ "${existing}" != "0" ]; then
+            echo "A revert PR exists for ${SHA} (branch ${branch}). Nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          subject="$(git log -1 --format=%s "${SHA}")"
+          body="$(git log -1 --format=%b "${SHA}")"
+          # A merge commit needs the first parent (main) as the mainline.
+          if [ "$(git rev-list --parents -n 1 "${SHA}" | wc -w)" -gt 2 ]; then
+            git revert --no-edit -m 1 "${SHA}"
+          else
+            git revert --no-edit "${SHA}"
+          fi
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push "${remote}" "HEAD:refs/heads/${branch}"
+          node tooling/repo-checks/scripts/deploy-revert.mjs body "${SHA}" "${PROJECTS}" "${RUN_URL}" >"${RUNNER_TEMP}/revert-body.md"
+          title="$(node tooling/repo-checks/scripts/deploy-revert.mjs title "${subject}" "${body}")"
+          if ! gh pr create --base main --head "${branch}" --title "${title}" --body-file "${RUNNER_TEMP}/revert-body.md"; then
+            # Delete the branch, so that a rerun of this job can try again.
+            git push "${remote}" --delete "${branch}"
+            echo "::error::Could not open the revert PR. Turn on Settings > Actions > General > Allow GitHub Actions to create and approve pull requests. Or run git revert for ${SHA} yourself."
+            exit 1
+          fi
