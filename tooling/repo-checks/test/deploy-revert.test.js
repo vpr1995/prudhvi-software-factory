@@ -117,7 +117,9 @@ const SCRIPT = fileURLToPath(new URL('../scripts/deploy-revert.mjs', import.meta
 
 /** Run the script with arguments and optional stdin. */
 function cli(args, input = '') {
-  return spawnSync('node', [SCRIPT, ...args], { input, encoding: 'utf8' });
+  // CI sets GITHUB_OUTPUT, and the script then writes there. An empty value makes it print to stdout.
+  const env = { GITHUB_OUTPUT: '' };
+  return spawnSync(process.execPath, [SCRIPT, ...args], { input, encoding: 'utf8', env });
 }
 
 test('the decide mode reads the jobs on stdin and prints the output lines', () => {
