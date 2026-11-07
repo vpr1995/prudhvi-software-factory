@@ -47,7 +47,7 @@ function targetsOf(value) {
 
 // The hostname rule is strictly lowercase (LABEL_CHARACTERS rejects uppercase), so no case folding.
 /** @returns {boolean} True when the host is <label>.vprprudhvi.dev with one DNS label. */
-function validHostname(host) {
+export function validHostname(host) {
   const suffix = `.${DOMAIN}`;
   if (!host.endsWith(suffix)) return false;
   const label = host.slice(0, -suffix.length);
@@ -60,7 +60,7 @@ function validHostname(host) {
 }
 
 /** @returns {{ where: string, route: unknown }[]} Every route entry of a wrangler config. */
-function routeEntries(config) {
+export function routeEntries(config) {
   if (typeof config !== 'object' || config === null) return [];
   const entries = [];
   const collect = (scope, where) => {
