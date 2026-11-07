@@ -9,8 +9,10 @@
 //         at the top level and in each `env.<name>`. Every route entry must be an object with
 //         `custom_domain: true`, a `pattern` of <label>.vprprudhvi.dev with one lowercase DNS label,
 //         and no `zone_name` and no `zone_id`. A project without "cloudflare" that has a
-//         wrangler.jsonc still takes part in rule 3.
-// Rule 3: no two projects use the same hostname. The API hostname <project>-api.vprprudhvi.dev of a
+//         wrangler.jsonc still takes part in rule 4.
+// Rule 3: a project that deploys to "cloudflare" lists wrangler in dependencies or devDependencies.
+//         The deploy workflow runs it through the deploy:cloudflare script of the project.
+// Rule 4: no two projects use the same hostname. The API hostname <project>-api.vprprudhvi.dev of a
 //         project that deploys to "aws" must not equal a wrangler hostname of any project.
 //
 // CI runs this check from the base commit, so a PR cannot weaken the check that checks it. The repo
@@ -163,7 +165,16 @@ function checkManifest(root, name) {
     const message = `factory.deploy is ${deploy === undefined ? 'missing' : `invalid (${JSON.stringify(deploy)})`}. Set it to "cloudflare", "aws", "none", or an array of "cloudflare" and "aws" with no duplicates.`;
     return { targets: [], findings: [{ file, message }] };
   }
-  return { targets: targetsOf(deploy), findings: [] };
+  const targets = targetsOf(deploy);
+  const hasWrangler = [manifest.dependencies, manifest.devDependencies].some(
+    (group) => typeof group === 'object' && group !== null && 'wrangler' in group,
+  );
+  if (targets.includes('cloudflare') && !hasWrangler) {
+    const message =
+      'deploy includes "cloudflare" but wrangler is not a dependency. Run "rush add -p wrangler --dev" in the project folder.';
+    return { targets, findings: [{ file, message }] };
+  }
+  return { targets, findings: [] };
 }
 
 /** Add a finding for each hostname that two projects use, or that one project lists twice. */

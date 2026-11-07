@@ -5,6 +5,8 @@
 // variable is not set): `cloudflare=<json>`, `cloudflare-count=<n>`, `aws=<json>`, `aws-count=<n>`.
 //
 // Rules for a project that deploys to "cloudflare" (a finding for each rule it breaks):
+// - package.json has a "deploy:cloudflare" script (wrangler deploy). The deploy workflow runs it, so
+//   the workflow never names wrangler and the project owns the wrangler version.
 // - package.json has a "smoke" script. The deploy workflow runs it with SMOKE_BASE_URL set.
 // - wrangler.jsonc has a string assets.directory. It stays inside the project folder.
 // - wrangler.jsonc has a custom_domain route at the top level with a valid hostname.
@@ -76,6 +78,11 @@ function cloudflareEntry(root, projectPath, manifest) {
   if (typeof manifest.scripts?.smoke !== 'string') {
     findings.push(
       `${projectPath}: the package.json has no "smoke" script. Add one that tests SMOKE_BASE_URL.`,
+    );
+  }
+  if (typeof manifest.scripts?.['deploy:cloudflare'] !== 'string') {
+    findings.push(
+      `${projectPath}: the package.json has no "deploy:cloudflare" script. Add "deploy:cloudflare": "wrangler deploy".`,
     );
   }
   const config = readConfig(root, `${projectPath}/wrangler.jsonc`, parseJsonc);

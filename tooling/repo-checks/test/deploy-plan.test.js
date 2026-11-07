@@ -44,10 +44,13 @@ function run(projects, changed) {
   }
 }
 
+// The scripts that a cloudflare project needs: the deploy command and the smoke test.
+const SCRIPTS = { smoke: 'playwright test', 'deploy:cloudflare': 'wrangler deploy' };
+
 const web = (host) => ({
   deploy: 'cloudflare',
   wrangler: wrangler(host),
-  scripts: { smoke: 'playwright test' },
+  scripts: SCRIPTS,
 });
 
 test('a changed cloudflare project is planned with its host and assets folder', () => {
@@ -100,23 +103,33 @@ test('a project that did not change is not planned, and neither is a path outsid
 test('a cloudflare project with no smoke script, no assets folder or no custom domain is a finding', () => {
   const plan = run(
     {
-      nosmoke: { deploy: 'cloudflare', wrangler: wrangler('a.vprprudhvi.dev') },
-      noassets: {
+      nosmoke: {
+        deploy: 'cloudflare',
+        scripts: { 'deploy:cloudflare': 'wrangler deploy' },
+        wrangler: wrangler('a.vprprudhvi.dev'),
+      },
+      nodeploy: {
         deploy: 'cloudflare',
         scripts: { smoke: 'x' },
+        wrangler: wrangler('d.vprprudhvi.dev'),
+      },
+      noassets: {
+        deploy: 'cloudflare',
+        scripts: SCRIPTS,
         wrangler: '{ "routes": [{ "pattern": "b.vprprudhvi.dev", "custom_domain": true }] }',
       },
       nodomain: {
         deploy: 'cloudflare',
-        scripts: { smoke: 'x' },
+        scripts: SCRIPTS,
         wrangler: '{ "assets": { "directory": "./out" } }',
       },
     },
-    ['projects/nosmoke', 'projects/noassets', 'projects/nodomain'],
+    ['projects/nosmoke', 'projects/nodeploy', 'projects/noassets', 'projects/nodomain'],
   );
   assert.deepEqual(plan.cloudflare, []);
   assert.deepEqual(plan.findings, [
     'projects/nosmoke: the package.json has no "smoke" script. Add one that tests SMOKE_BASE_URL.',
+    'projects/nodeploy: the package.json has no "deploy:cloudflare" script. Add "deploy:cloudflare": "wrangler deploy".',
     'projects/noassets: wrangler.jsonc has no assets.directory. Set it to the static export folder.',
     'projects/nodomain: wrangler.jsonc has no custom_domain route with a valid hostname.',
   ]);
@@ -127,7 +140,7 @@ test('an assets folder that leaves the project folder is a finding', () => {
     {
       site: {
         deploy: 'cloudflare',
-        scripts: { smoke: 'x' },
+        scripts: SCRIPTS,
         wrangler: wrangler('site.vprprudhvi.dev', '../../etc'),
       },
     },
@@ -157,17 +170,17 @@ test('an absolute assets folder and an assets folder that is the project folder 
     {
       absolute: {
         deploy: 'cloudflare',
-        scripts: { smoke: 'x' },
+        scripts: SCRIPTS,
         wrangler: wrangler('a.vprprudhvi.dev', '/abs/out'),
       },
       same: {
         deploy: 'cloudflare',
-        scripts: { smoke: 'x' },
+        scripts: SCRIPTS,
         wrangler: wrangler('b.vprprudhvi.dev', '.'),
       },
       empty: {
         deploy: 'cloudflare',
-        scripts: { smoke: 'x' },
+        scripts: SCRIPTS,
         wrangler: wrangler('c.vprprudhvi.dev', ''),
       },
     },
@@ -212,7 +225,7 @@ test('an assets folder in a sibling folder with the same name prefix is a findin
     {
       site: {
         deploy: 'cloudflare',
-        scripts: { smoke: 'x' },
+        scripts: SCRIPTS,
         wrangler: wrangler('site.vprprudhvi.dev', '../site-evil/out'),
       },
     },
