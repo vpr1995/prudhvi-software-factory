@@ -140,3 +140,6 @@ lib/
 *.tsbuildinfo
 playwright-report/
 test-results/
+
+# Wrangler local state
+.wrangler/

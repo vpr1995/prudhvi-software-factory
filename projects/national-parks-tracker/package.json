@@ -5,7 +5,7 @@
   "description": "A static map of the 64 US national parks that shows which parks the owner has visited. Contracts (Zod) and a Next.js static export in one package.",
   "type": "module",
   "factory": {
-    "deploy": "aws"
+    "deploy": "cloudflare"
   },
   "scripts": {
     "_phase:build": "node scripts/phase.mjs build",
@@ -15,9 +15,11 @@
     "_phase:typecheck": "node scripts/phase.mjs typecheck",
     "build": "npm run _phase:build",
     "build:cdk": "tsc -p tsconfig.cdk.json",
+    "deploy:cloudflare": "wrangler deploy",
     "dev:web": "cd web && next dev",
     "e2e": "npm run _phase:e2e",
     "lint": "npm run _phase:lint",
+    "smoke": "playwright test --config playwright.smoke.config.ts",
     "synth": "cdk synth",
     "test": "npm run _phase:test",
     "typecheck": "npm run _phase:typecheck"
@@ -42,7 +44,8 @@
     "jsdom": "^30.1.3",
     "typescript": "~7.0.2",
     "vite": "^7.3.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "wrangler": "~4.158.0"
   },
   "dependencies": {
     "aws-cdk-lib": "2.273.0",
