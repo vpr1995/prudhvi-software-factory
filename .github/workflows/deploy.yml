@@ -1,5 +1,5 @@
 # Deploy on merge: runs on each push to main. Design: docs/designs/software-factory/design.md, 6.7.
-# - plan: lists the projects that the push impacts and splits them by factory.deploy target
+# - plan: lists the projects that changed since the last successful deploy and splits them by factory.deploy target
 #   (tooling/repo-checks/scripts/deploy-plan.mjs).
 # - cloudflare: one job for each web project that deploys to Cloudflare. Build, check the _headers
 #   file, wrangler deploy, wait for the site, then the smoke script of the project.
@@ -15,7 +15,9 @@ on:
 permissions:
   contents: read
 
-# One deploy at a time, in order. A later push waits. It does not cancel a deploy that is running.
+# One deploy at a time. A deploy that is running is not cancelled. GitHub keeps only one waiting run,
+# so a newer push can cancel an older waiting run. The plan job therefore plans from the last
+# successful deploy, not from the commit before the push.
 concurrency:
   group: deploy
   cancel-in-progress: false
@@ -29,6 +31,10 @@ jobs:
     name: plan
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      # gh run list reads the earlier runs of this workflow.
+      actions: read
     outputs:
       cloudflare: ${{ steps.plan.outputs.cloudflare }}
       cloudflare-count: ${{ steps.plan.outputs.cloudflare-count }}
@@ -48,18 +54,20 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
-      # The base is the commit before the push. A new branch or a rewritten history has no usable
-      # base, so then the base is the parent of the head and only the last commit counts.
+      # The base is the head of the last successful deploy run. A failed run is not a success, so its
+      # projects deploy again on the next push. Without a usable earlier run, the base is the commit
+      # before the push, then the parent of the head (deploy-plan.mjs base picks the first usable one).
       - name: Find the base of the push
         id: base
         env:
+          GH_TOKEN: ${{ github.token }}
           BEFORE: ${{ github.event.before }}
         run: |
-          if [[ "${BEFORE}" =~ ^0+$ ]] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            BEFORE="$(git rev-parse HEAD~1)"
-          fi
-          echo "base=${BEFORE}" >>"$GITHUB_OUTPUT"
-          echo "base: ${BEFORE}"
+          last="$(gh run list --workflow deploy.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')"
+          base="$(node tooling/repo-checks/scripts/deploy-plan.mjs base "${last}" "${BEFORE}")"
+          echo "base=${base}" >>"$GITHUB_OUTPUT"
+          echo "last successful deploy: ${last:-none}"
+          echo "base: ${base}"
           echo "head: $(git rev-parse HEAD)"
 
       - name: Plan the deploy

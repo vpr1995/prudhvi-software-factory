@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { outputLines, planDeploy } from '../scripts/deploy-plan.mjs';
+import { changedPaths, outputLines, pickBase, planDeploy } from '../scripts/deploy-plan.mjs';
 
 const wrangler = (host, directory = './web/out') =>
   `{
@@ -148,4 +148,59 @@ test('outputLines gives a matrix and a count for each job', () => {
   assert.equal(lines[3], 'aws-count=1');
   assert.deepEqual(JSON.parse(lines[0].replace('cloudflare=', '')), plan.cloudflare);
   assert.deepEqual(JSON.parse(lines[2].replace('aws=', '')), plan.aws);
+});
+
+test('an absolute assets folder and an assets folder that is the project folder are findings', () => {
+  const plan = run(
+    {
+      absolute: {
+        deploy: 'cloudflare',
+        scripts: { smoke: 'x' },
+        wrangler: wrangler('a.vprprudhvi.dev', '/abs/out'),
+      },
+      same: {
+        deploy: 'cloudflare',
+        scripts: { smoke: 'x' },
+        wrangler: wrangler('b.vprprudhvi.dev', '.'),
+      },
+      empty: {
+        deploy: 'cloudflare',
+        scripts: { smoke: 'x' },
+        wrangler: wrangler('c.vprprudhvi.dev', ''),
+      },
+    },
+    ['projects/absolute', 'projects/same', 'projects/empty'],
+  );
+  assert.deepEqual(plan.cloudflare, []);
+  assert.deepEqual(plan.findings, [
+    'projects/absolute: assets.directory /abs/out is an absolute path. Use a folder inside the project.',
+    'projects/same: assets.directory . is the project folder. Set it to the static export folder.',
+    'projects/empty: assets.directory  is the project folder. Set it to the static export folder.',
+  ]);
+});
+
+test('a project listed twice is planned once', () => {
+  const plan = run({ site: web('site.vprprudhvi.dev') }, ['projects/site', 'projects/site']);
+  assert.equal(plan.cloudflare.length, 1);
+});
+
+test('changedPaths skips the text before the first brace', () => {
+  const text =
+    'Rush banner\nNode.js version\n{"projects":[{"path":"projects/a"},{"path":"tooling/x"}]}';
+  assert.deepEqual(changedPaths(text), ['projects/a', 'tooling/x']);
+});
+
+test('changedPaths throws when the input has no JSON', () => {
+  assert.throws(() => changedPaths('no json here'), /no JSON object/);
+});
+
+test('pickBase takes the first usable candidate and skips empty, zero and unusable shas', () => {
+  const usable = (sha) => sha !== 'gone';
+  assert.equal(pickBase(['last', 'before', 'parent'], usable), 'last');
+  assert.equal(pickBase(['', 'before', 'parent'], usable), 'before');
+  assert.equal(
+    pickBase(['gone', '0000000000000000000000000000000000000000', 'parent'], usable),
+    'parent',
+  );
+  assert.equal(pickBase(['gone', ''], usable), '');
 });

@@ -12,6 +12,9 @@
 // The deploy workflow runs this from the commit that it deploys. deploy-check.mjs, which CI runs
 // from the base commit on each PR, has already checked the field and the hostnames.
 //
+// `deploy-plan.mjs base <last-success> <before>` prints the commit to plan from: the first usable one of
+// the last successful deploy, the commit before the push, and the parent of HEAD.
+//
 // Run: node common/scripts/install-run-rush.js list --impacted-by git:<base> --json | node tooling/repo-checks/scripts/deploy-plan.mjs
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
@@ -57,7 +60,15 @@ function cloudflareEntry(root, projectPath, manifest) {
   let assetsDirectory;
   if (typeof directory === 'string') {
     assetsDirectory = path.posix.normalize(path.posix.join(projectPath, directory));
-    if (!assetsDirectory.startsWith(`${projectPath}/`)) {
+    if (path.posix.isAbsolute(directory)) {
+      findings.push(
+        `${projectPath}: assets.directory ${directory} is an absolute path. Use a folder inside the project.`,
+      );
+    } else if (assetsDirectory === projectPath) {
+      findings.push(
+        `${projectPath}: assets.directory ${directory} is the project folder. Set it to the static export folder.`,
+      );
+    } else if (!assetsDirectory.startsWith(`${projectPath}/`)) {
       findings.push(`${projectPath}: assets.directory ${directory} is outside the project folder.`);
     }
   } else {
@@ -113,10 +124,51 @@ export function outputLines(plan) {
 }
 
 /** @returns {string[]} The project paths in the output of `rush list --json`. */
-function changedPaths(text) {
+export function changedPaths(text) {
   const start = text.indexOf('{');
   if (start === -1) throw new Error('The input has no JSON object.');
   return JSON.parse(text.slice(start)).projects.map((project) => project.path);
+}
+
+const ZERO_SHA = /^0+$/;
+
+/**
+ * Pick the commit to plan from. GitHub keeps one waiting run for each concurrency group, so a
+ * newer push can cancel the run of an older push. The event's "before" commit then misses the
+ * changes of the cancelled push. The last successful deploy is the safe base.
+ * @param {string[]} candidates - Commits in order of preference.
+ * @param {(sha: string) => boolean} isUsable - True when the commit is in the checkout and is an ancestor of HEAD.
+ * @returns {string} The first usable commit, or an empty string.
+ */
+export function pickBase(candidates, isUsable) {
+  return candidates.find((sha) => sha !== '' && !ZERO_SHA.test(sha) && isUsable(sha)) ?? '';
+}
+
+/** @returns {boolean} True when git succeeds for the arguments. */
+function gitSucceeds(args) {
+  try {
+    execFileSync('git', args, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Print the base commit for `deploy-plan.mjs base <last-success> <before>`. Return the exit code. */
+function printBase(lastSuccess = '', before = '') {
+  const parent = gitSucceeds(['rev-parse', '--verify', '--quiet', 'HEAD~1'])
+    ? execFileSync('git', ['rev-parse', 'HEAD~1'], { encoding: 'utf8' }).trim()
+    : '';
+  const isUsable = (sha) =>
+    gitSucceeds(['cat-file', '-e', `${sha}^{commit}`]) &&
+    gitSucceeds(['merge-base', '--is-ancestor', sha, 'HEAD']);
+  const base = pickBase([lastSuccess, before, parent], isUsable);
+  if (base === '') {
+    process.stderr.write('deploy-plan: no usable base commit.\n');
+    return 1;
+  }
+  process.stdout.write(`${base}\n`);
+  return 0;
 }
 
 /** Run the plan from the repo root. Return the exit code. */
@@ -140,5 +192,6 @@ export function main() {
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = main();
+  const [mode, ...rest] = process.argv.slice(2);
+  process.exitCode = mode === 'base' ? printBase(...rest) : main();
 }
