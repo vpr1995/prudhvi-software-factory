@@ -17,6 +17,7 @@
     "components",
     "lib",
     "e2e",
+    "smoke",
     "../test/web",
     ".next/types/**/*.ts"
   ],

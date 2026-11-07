@@ -15,7 +15,10 @@ const E2E_BUILD_ENV = {
 };
 
 const PHASES = {
-  build: [{ part: 'web (static export to web/out)', directory: 'web', command: 'next build' }],
+  build: [
+    { part: 'web (static export to web/out)', directory: 'web', command: 'next build' },
+    { part: 'security headers (web/out/_headers)', command: 'node scripts/headers.ts web/out' },
+  ],
   lint: [{ part: 'typescript and web (eslint)', command: 'eslint --max-warnings 0 .' }],
   typecheck: [
     { part: 'typescript (src, tests, configs)', command: 'tsc -p tsconfig.json --noEmit' },

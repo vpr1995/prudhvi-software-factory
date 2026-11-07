@@ -1,4 +1,13 @@
-import { base, boundaries, cdk, next, node, scope, test } from '@vprprudhvi/tooling-eslint-config';
+import {
+  base,
+  boundaries,
+  cdk,
+  fsIoException,
+  next,
+  node,
+  scope,
+  test,
+} from '@vprprudhvi/tooling-eslint-config';
 
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
 
@@ -12,5 +21,6 @@ export default [
   ...scope(['web/**', 'test/web/**'], next),
   ...scope(['bin/**', 'lib/**'], cdk),
   ...test,
+  fsIoException(['scripts/fs-io.ts']),
   ...boundaries({ rootPath: REPO_ROOT }),
 ];

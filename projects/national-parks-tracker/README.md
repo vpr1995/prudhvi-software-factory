@@ -8,13 +8,13 @@ Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you ch
 
 ## Folders
 
-| Folder           | What it is                                                                                                                                                                                |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/contracts/` | Zod schemas of the data files (`parks.json`, `photos.json`, `visits.json`): `park.ts` (parks and Wikimedia photos), `visit.ts` (visits) and `messages.ts` (error messages). They import only `zod`.                                                              |
-| `web/`           | The Next.js app, built as a static export. `app/` holds the pages. `components/` and `lib/` hold the parts of the pages. `data/` holds the data files. `e2e/` holds the Playwright specs. |
-| `test/`          | The unit tests (`contracts/`, `data/`, `web/`), the e2e visits fixture (`fixtures/visits.e2e.json`) and the e2e static server (`e2e/serve-static.js`).                                    |
-| `scripts/`       | `phase.mjs` runs each Rush phase.                                                                                                                                                         |
-| `config/`        | The Rush settings (`rush-project.json`).                                                                                                                                                  |
+| Folder           | What it is                                                                                                                                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/contracts/` | Zod schemas of the data files (`parks.json`, `photos.json`, `visits.json`): `park.ts` (parks and Wikimedia photos), `visit.ts` (visits) and `messages.ts` (error messages). They import only `zod`. |
+| `web/`           | The Next.js app, built as a static export. `app/` holds the pages. `components/` and `lib/` hold the parts of the pages. `data/` holds the data files. `e2e/` holds the Playwright specs.           |
+| `test/`          | The unit tests (`contracts/`, `data/`, `web/`), the e2e visits fixture (`fixtures/visits.e2e.json`) and the e2e static server (`e2e/serve-static.js`).                                              |
+| `scripts/`       | `phase.mjs` runs each Rush phase. `headers.ts` writes `web/out/_headers` after the build (`fs-io.ts` does its file access).                                                                         |
+| `config/`        | The Rush settings (`rush-project.json`).                                                                                                                                                            |
 
 ## Add a visit
 
@@ -77,17 +77,15 @@ node common/scripts/install-run-rush.js verify -o @vprprudhvi/national-parks-tra
 
 ## Hosting
 
-The site is a folder of static files. A later change adds the S3 and CloudFront hosting. The host must:
+The site runs on Cloudflare (Workers static assets) at https://national-parks.vprprudhvi.dev. A push to `main` that changes this project runs `.github/workflows/deploy.yml`: build, `npm run deploy:cloudflare` (`wrangler deploy`), then `npm run smoke` against the live site. `wrangler.jsonc` holds the hostname (a `custom_domain` route) and the assets folder (`web/out`). Nothing else is needed to publish a change: edit `web/data/visits.json`, merge, and the deploy runs.
 
-- serve `/x/index.html` for `/x/`, and send `404.html` with status 404 for an unknown path.
-- set the security headers. The site has no proxy or middleware, because a static export does not support them.
-
-The CloudFront change must set this Content Security Policy:
+The site has no proxy or middleware, because a static export does not support them. Cloudflare sets the security headers from `web/out/_headers`. `scripts/headers.ts` writes that file after `next build` (the `build` phase runs it). The policy:
 
 ```
 default-src 'self';
-script-src 'self' <hashes of the inline scripts>;
+script-src 'self' <hashes of the inline scripts of the page>;
 style-src 'self';
+style-src-attr 'unsafe-hashes' <hash of the style attribute of next/image>;
 img-src 'self' https://tile.openstreetmap.org https://upload.wikimedia.org data:;
 connect-src 'self';
 object-src 'none';
@@ -96,17 +94,12 @@ frame-ancestors 'none';
 form-action 'none'
 ```
 
-- `script-src`: Next.js puts inline scripts in each page. When you deploy, calculate a `'sha256-...'` hash for each inline script in `web/out/**/*.html`. Add the hashes to `script-src`. Do not use `'unsafe-inline'`. It lets an injected script run, so it is not acceptable.
-- `style-src`: `next/image` writes one inline style attribute on each photo (`position:absolute;height:100%;...`). `style-src 'self'` blocks it, and then the photos lose their layout. Add `style-src-attr 'unsafe-hashes' 'sha256-...'` with the hash of that attribute. Calculate the hash when you deploy, like the script hashes.
-- `img-src`: a new image host or tile host needs a change to this list.
+- `script-src`: Next.js puts inline scripts in each page, and the scripts differ from page to page. The script reads each `index.html`, hashes its inline scripts, and writes one rule for each page, because a header line may have 2000 characters at most. The file may have 100 rules at most (now 69). The script fails the build when a build needs more. `'unsafe-inline'` is not acceptable: it lets an injected script run.
+- `style-src`: `next/image` writes one inline style attribute on each photo. The script hashes it like the scripts.
+- `/*` holds the other headers (`Referrer-Policy: strict-origin-when-cross-origin`, which the OpenStreetMap tile policy needs, `X-Content-Type-Options`, `X-Frame-Options`, `Permissions-Policy`, `Strict-Transport-Security`) and a base policy without `script-src`. An unknown path (the 404 page) gets only this base policy.
+- `img-src`: a new image host or tile host needs a change to `FIXED_DIRECTIVES` in `scripts/headers.ts`.
 
-The host must also set this header:
-
-```
-Referrer-Policy: strict-origin-when-cross-origin
-```
-
-The OpenStreetMap tile policy needs a referrer on each tile request. This policy sends only the origin, not the full path.
+The smoke test (`web/smoke/smoke.spec.ts`, config `playwright.smoke.config.ts`) checks the headers and fails on a Content Security Policy error in the browser console. To run it against a local server: `npx wrangler dev --port 8799`, then `SMOKE_BASE_URL=http://127.0.0.1:8799 npm run smoke`.
 
 ## Telemetry and flags
 

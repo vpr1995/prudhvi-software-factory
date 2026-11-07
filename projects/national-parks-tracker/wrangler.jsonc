@@ -1,0 +1,10 @@
+{
+  // Cloudflare Worker with static assets: the Next.js static export. No Worker script runs.
+  "name": "national-parks-tracker",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./web/out",
+    "not_found_handling": "404-page",
+  },
+  "routes": [{ "pattern": "national-parks.vprprudhvi.dev", "custom_domain": true }],
+}
