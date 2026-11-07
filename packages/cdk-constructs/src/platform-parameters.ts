@@ -3,9 +3,9 @@
  * The names are a contract. Do not rename or remove one. A change needs a human and a
  * coordinated deploy. `platform/infra` tests that it writes exactly `writtenPlatformParameterNames`.
  *
- * The contract has two groups. The Cognito names are written now. The DNS and ACM names are
- * reserved for later: no Route53 zone and no certificate exist yet, so nothing writes them and a
- * project must not read them (see `readPlatformDns` and `readPlatformCertificate`).
+ * The contract has two groups. `platform/infra` writes the Cognito names. The owner creates the DNS
+ * and ACM names by hand (`platform/CLAUDE.md`), so the stack never overwrites them. A project reads
+ * them with `readPlatformDns` and `readPlatformCertificate`.
  */
 
 /**

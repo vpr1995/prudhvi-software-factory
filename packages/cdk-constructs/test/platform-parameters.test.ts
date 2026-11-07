@@ -66,7 +66,7 @@ describe('writtenPlatformParameterNames', () => {
     ]);
   });
 
-  it('holds no DNS or ACM name, because no zone and no certificate exist yet', () => {
+  it('holds no DNS or ACM name, because the owner creates them by hand', () => {
     for (const name of writtenPlatformParameterNames('prod')) {
       expect(name).not.toMatch(/\/(dns|acm)\//);
     }
