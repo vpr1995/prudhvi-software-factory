@@ -109,6 +109,12 @@
       "projectFolder": "platform/infra",
       "shouldPublish": false,
       "tags": ["platform"]
+    },
+    {
+      "packageName": "@vprprudhvi/portfolio",
+      "projectFolder": "projects/portfolio",
+      "shouldPublish": false,
+      "tags": ["project/portfolio"]
     }
   ]
 }

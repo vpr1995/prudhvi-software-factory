@@ -1,0 +1,87 @@
+{
+  "site": {
+    "title": "Sample Name, backend engineer",
+    "description": "Sample description of the portfolio page.",
+    "url": "https://portfolio.vprprudhvi.dev"
+  },
+  "profile": {
+    "name": "Sample Name",
+    "headline": "Sample headline",
+    "summary": "Sample summary. The owner replaces all sample values in a later task.",
+    "location": {
+      "primary": "Boston",
+      "also": ["Bay Area", "Seattle", "NYC"]
+    }
+  },
+  "contact": {
+    "email": "sample@example.com",
+    "linkedin": "https://www.linkedin.com/in/sample",
+    "github": "https://github.com/vpr1995",
+    "medium": "https://medium.com/@vprprudhvi",
+    "phone": {
+      "display": "+1 (555) 010-0100",
+      "href": "tel:+15550100100"
+    }
+  },
+  "experience": [
+    {
+      "company": "Sample Company",
+      "role": "Sample role",
+      "location": "Sample city",
+      "start": "2020-01",
+      "end": null,
+      "bullets": ["Sample bullet."]
+    }
+  ],
+  "skills": [
+    {
+      "category": "Sample category 1",
+      "items": ["Sample skill 1", "Sample skill 2", "Sample skill 3"]
+    },
+    {
+      "category": "Sample category 2",
+      "items": ["Sample skill 1", "Sample skill 2", "Sample skill 3"]
+    },
+    {
+      "category": "Sample category 3",
+      "items": ["Sample skill 1", "Sample skill 2", "Sample skill 3"]
+    }
+  ],
+  "awards": [
+    {
+      "title": "Sample award",
+      "year": "2025",
+      "source": "https://example.com/award"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Sample certification 1",
+      "issuer": "Sample issuer",
+      "level": "Associate",
+      "issued": "2024-09",
+      "expires": "2027-09",
+      "credentialUrl": "https://example.com/credential/1"
+    },
+    {
+      "name": "Sample certification 2",
+      "issuer": "Sample issuer",
+      "issued": "2025-03"
+    },
+    {
+      "name": "Sample certification 3",
+      "issuer": "Sample issuer",
+      "issued": "2023-05",
+      "credentialUrl": "https://example.com/credential/3"
+    }
+  ],
+  "pinnedRepos": [
+    {
+      "fullName": "vpr1995/prudhvi-software-factory"
+    }
+  ],
+  "medium": {
+    "handle": "@vprprudhvi",
+    "max": 6
+  }
+}

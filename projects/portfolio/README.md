@@ -1,0 +1,31 @@
+# portfolio
+
+`portfolio` is one product in one Rush project. The Rush name is `@vprprudhvi/portfolio`. It has one `package.json`. `rush new --project portfolio` made it.
+
+Read [projects/CLAUDE.md](../CLAUDE.md) and [REVIEW.md](REVIEW.md) before you change it.
+
+## Parts
+
+A new project has no parts. Add each part that the project needs, in any order:
+
+```sh
+node common/scripts/install-run-rush.js add-part --project portfolio --part node   # Fastify server in src/api, Bruno collection in bruno/
+node common/scripts/install-run-rush.js add-part --project portfolio --part web    # Next.js app in web/, Playwright specs in web/e2e/
+node common/scripts/install-run-rush.js add-part --project portfolio --part infra  # CDK app in bin/ and lib/
+```
+
+When an endpoint needs a request or response shape, write the Zod schema in `src/contracts/`.
+
+## Owner runbook
+
+The owner changes the content, the feeds, and the deploy with [portfolio-content.md](../../docs/runbooks/portfolio-content.md).
+
+## Phases
+
+Rush runs each phase through the `_phase:*` script of `package.json`. Each script runs `scripts/phase.mjs`. The script finds the parts by their folders and runs the steps of each part. When a step fails, the phase stops and the message names the part.
+
+Run the phases from the repo root:
+
+```sh
+node common/scripts/install-run-rush.js verify --to @vprprudhvi/portfolio
+```

@@ -1,0 +1,71 @@
+/* The row matches the contact rows in contact.module.css: a mono label, then the value. */
+.row {
+  display: grid;
+  gap: 0.15rem;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.value {
+  display: grid;
+  justify-items: start;
+  min-width: 0;
+}
+
+/* The same look as the secondary buttons of the hero. */
+.button {
+  min-height: 2.75rem;
+  padding: 10px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color 150ms ease;
+}
+
+.button:hover {
+  border-color: var(--accent);
+}
+
+/* The live region stays in the page, empty, before the click: a hidden region is not announced. */
+.region {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.link {
+  display: inline-block;
+  margin-block-start: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 40rem) {
+  .row {
+    grid-template-columns: 7rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

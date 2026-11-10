@@ -1,0 +1,47 @@
+{
+  "medium": {
+    "fetchedAt": "2026-11-10T00:53:39.406Z",
+    "items": [
+      {
+        "title": "How We Made an 80-Project Monorepo Ready for AI Coding Agents",
+        "url": "https://medium.com/@vprprudhvi/how-we-made-an-80-project-monorepo-ready-for-ai-coding-agents-80aa33a6a9d0?source=rss-39444bd8a3ba------2",
+        "publishedAt": "2026-10-16T01:17:45.000Z"
+      },
+      {
+        "title": "The Complete Guide to LLM Observability with OpenTelemetry",
+        "url": "https://medium.com/@vprprudhvi/the-complete-guide-to-llm-observability-with-opentelemetry-27034d68df07?source=rss-39444bd8a3ba------2",
+        "publishedAt": "2026-03-30T04:45:04.000Z"
+      },
+      {
+        "title": "A Practical Guide to Prompt Engineering and AI Agents",
+        "url": "https://medium.com/@vprprudhvi/a-practical-guide-to-prompt-engineering-and-ai-agents-004ce4647549?source=rss-39444bd8a3ba------2",
+        "publishedAt": "2026-02-08T21:12:46.000Z"
+      },
+      {
+        "title": "From Postgres to DynamoDB: Why We Added a Transformation Layer Between DMS and Our Target Database",
+        "url": "https://medium.com/@vprprudhvi/from-postgres-to-dynamodb-why-we-added-a-transformation-layer-between-dms-and-our-target-database-7731510d4a6f?source=rss-39444bd8a3ba------2",
+        "publishedAt": "2025-12-13T23:50:53.000Z"
+      },
+      {
+        "title": "Running Transformers.js inside a Chrome extension (Manifest V3): a practical patch",
+        "url": "https://medium.com/@vprprudhvi/running-transformers-js-inside-a-chrome-extension-manifest-v3-a-practical-patch-d7ce4d6a0eac?source=rss-39444bd8a3ba------2",
+        "publishedAt": "2025-11-01T18:59:27.000Z"
+      },
+      {
+        "title": "Building an AI Photography Assistant: A Developer’s Journey",
+        "url": "https://medium.com/@vprprudhvi/building-an-ai-photography-assistant-a-developers-journey-7fb0ef053886?source=rss-39444bd8a3ba------2",
+        "publishedAt": "2025-08-03T02:09:50.000Z"
+      }
+    ]
+  },
+  "github": {
+    "fetchedAt": "2026-11-10T00:53:39.406Z",
+    "repos": [
+      {
+        "fullName": "vpr1995/prudhvi-software-factory",
+        "url": "https://github.com/vpr1995/prudhvi-software-factory",
+        "description": "Agent-driven software factory: task → Claude Code agents → gated pipeline (hooks, CI, rulesets) → reviewed PR. The human steers, the gates enforce."
+      }
+    ]
+  }
+}

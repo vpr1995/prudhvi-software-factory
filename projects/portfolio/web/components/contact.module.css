@@ -1,0 +1,41 @@
+.list {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 8px 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  gap: 0.2rem;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Long addresses wrap, so the page never scrolls sideways on a phone. */
+.value {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 40rem) {
+  .row {
+    grid-template-columns: 7rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 1rem;
+  }
+}

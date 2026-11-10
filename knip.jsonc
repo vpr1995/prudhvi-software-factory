@@ -27,6 +27,12 @@
       // @opennextjs/aws: planned OpenNext web build (ADR 0010, docs/guides/infra.md). Owner to decide.
       "ignoreDependencies": ["esbuild", "@opennextjs/aws"],
     },
+    // This key replaces "projects/*" for portfolio, a web-only project: no bin/app.ts.
+    "projects/portfolio": {
+      // test/scripts/fake-fetch.mjs: the feed script tests preload it by path (node --import).
+      "entry": ["scripts/*.mjs", "test/scripts/fake-fetch.mjs"],
+      "next": { "config": ["web/next.config.ts"] },
+    },
     "packages/*": {
       // package.json exports point at dist/. src/index.ts is the source of that entry.
       "entry": ["src/index.ts"],
