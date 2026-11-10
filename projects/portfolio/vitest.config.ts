@@ -1,0 +1,5 @@
+import { createAppVitestConfig } from '@vprprudhvi/tooling-vitest-config';
+
+// The shared app preset gives the settings, the thresholds and the coverage globs.
+// `rush add-part --part web` sets `web: true`. It adds the jsdom test set for test/web.
+export default createAppVitestConfig({ web: true });
