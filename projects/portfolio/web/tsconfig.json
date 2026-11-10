@@ -7,6 +7,6 @@
     "incremental": true,
     "tsBuildInfoFile": ".next/cache/tsconfig.tsbuildinfo"
   },
-  "include": ["next-env.d.ts", "*.ts", "app", "e2e", "../test/web", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "*.ts", "app", "e2e", "smoke", "../test/web", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }

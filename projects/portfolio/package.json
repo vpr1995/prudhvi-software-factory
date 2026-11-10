@@ -18,6 +18,7 @@
     "e2e": "npm run _phase:e2e",
     "fetch-feeds": "node scripts/fetch-feeds.ts",
     "lint": "npm run _phase:lint",
+    "smoke": "playwright test --config playwright.smoke.config.ts",
     "test": "npm run _phase:test",
     "typecheck": "npm run _phase:typecheck"
   },

@@ -8,7 +8,10 @@ const WEB_ORIGIN = `http://127.0.0.1:${String(WEB_PORT)}`;
 const SERVER_START_TIMEOUT_MS = 30_000;
 
 export default defineConfig({
-  testDir: './web/e2e',
+  testDir: './web',
+  // The e2e specs and the smoke spec. The smoke spec also runs here, against the local server with
+  // the real _headers file, so a header that the smoke test checks is checked before the deploy.
+  testMatch: '{e2e,smoke}/**/*.spec.ts',
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,

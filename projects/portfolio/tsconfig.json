@@ -2,7 +2,16 @@
   "extends": "@vprprudhvi/tooling-tsconfig/node.json",
   "compilerOptions": { "noEmit": true, "allowImportingTsExtensions": true },
   // The list holds the folders of every part. A folder that does not exist adds no files.
-  "include": ["src", "scripts", "bin", "lib", "test", "vitest.config.ts", "playwright.config.ts"],
+  "include": [
+    "src",
+    "scripts",
+    "bin",
+    "lib",
+    "test",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "playwright.smoke.config.ts"
+  ],
   // The web tests need the web settings (jsx, DOM). web/tsconfig.json includes them.
   "exclude": ["test/web"]
 }

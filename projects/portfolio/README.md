@@ -16,6 +16,10 @@ node common/scripts/install-run-rush.js add-part --project portfolio --part infr
 
 When an endpoint needs a request or response shape, write the Zod schema in `src/contracts/`.
 
+## Owner runbook
+
+The owner changes the content, the feeds, and the deploy with [portfolio-content.md](../../docs/runbooks/portfolio-content.md).
+
 ## Phases
 
 Rush runs each phase through the `_phase:*` script of `package.json`. Each script runs `scripts/phase.mjs`. The script finds the parts by their folders and runs the steps of each part. When a step fails, the phase stops and the message names the part.
