@@ -26,7 +26,11 @@ The feeds are in `content/feeds.json`. The Medium articles and the GitHub reposi
 
 To refresh the feeds now, run `npm run fetch-feeds`. The script writes `content/feeds.json` only when the items change.
 
-The weekly workflow also refreshes the feeds. It opens a pull request that updates `content/feeds.json`. Review the pull request. Merge it to publish the new items.
+The workflow `.github/workflows/portfolio-feeds.yml` also refreshes the feeds each week. It starts from `main` and opens a pull request from the branch `feeds/weekly` when `content/feeds.json` changes. A second run updates the same pull request. Checks do not start on a pull request that GitHub Actions opens, so close and reopen it. Review the pull request. Merge it to publish the new items.
+
+If a feed fails, the pull request still has the feed that worked, and the job ends red. GitHub sends you an email.
+
+To test a failing feed, run the workflow by hand and set the input `handle` to a Medium handle that does not exist. The script reads it from the variable `FEEDS_MEDIUM_HANDLE`. Leave the input empty for a normal run.
 
 ## Deploy
 

@@ -28,7 +28,7 @@ import type {
   MediumRssItem,
 } from '../src/contracts/feeds.ts';
 
-import { readGithubToken } from './config.ts';
+import { readGithubToken, readMediumHandle } from './config.ts';
 import { readText, writeText } from './fs-io.ts';
 
 const MEDIUM_ORIGIN = 'https://medium.com/';
@@ -77,6 +77,8 @@ export type MainOptions = {
   readonly fetchFn: FetchFunction;
   readonly logger: Logger;
   readonly now: Date;
+  /** A Medium handle that replaces the handle of the content file for this run (R-12). */
+  readonly mediumHandle?: string | undefined;
 };
 
 /** The refresh of one feed collects its warnings and the names of the feeds that failed. */
@@ -511,10 +513,14 @@ function readSnapshot(path: string): Feeds {
  * feed failed. The file is written before the exit code is decided.
  */
 export async function main(options: MainOptions): Promise<number> {
-  const { dir, argv, fetchFn, logger, now } = options;
+  const { dir, argv, fetchFn, logger, now, mediumHandle } = options;
   const isStrict = argv.includes('--strict');
   try {
-    const content = parseWith(ContentSchema, readJson(join(dir, CONTENT_PATH)), CONTENT_PATH);
+    const parsed = parseWith(ContentSchema, readJson(join(dir, CONTENT_PATH)), CONTENT_PATH);
+    const content: FeedSources =
+      mediumHandle === undefined
+        ? parsed
+        : { ...parsed, medium: { ...parsed.medium, handle: mediumHandle } };
     const snapshot = readSnapshot(join(dir, FEEDS_PATH));
 
     const result = await refreshFeeds({ fetchFn, content, snapshot, now });
@@ -547,5 +553,6 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     fetchFn: authorizedFetch(fetch, readGithubToken()),
     logger: createLogger({ serviceName: 'portfolio-feeds' }),
     now: new Date(),
+    mediumHandle: readMediumHandle(),
   });
 }

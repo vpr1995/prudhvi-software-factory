@@ -1,0 +1,145 @@
+# Refreshes projects/portfolio/content/feeds.json each week and opens one PR for the change (R-12).
+# Each run starts from main and force-updates the branch feeds/weekly, so there is never a second
+# PR, a same-day clash or a merge conflict. Nothing deploys from here: the owner reviews and merges
+# the PR. The PR step runs even when the script failed (one feed can work while the other fails),
+# and the last step then fails the job, so GitHub notifies the owner.
+# The repo setting "Allow GitHub Actions to create and approve pull requests" must be on.
+# Checks do not start on a PR that GitHub Actions opens: the owner closes and reopens the PR.
+name: portfolio-feeds
+
+on:
+  schedule:
+    # Mondays, 06:17 UTC.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      handle:
+        description: >-
+          Optional Medium handle that replaces the handle of content/portfolio.json for this run,
+          for example @someone. Leave empty for the normal run. Use it to test a failing feed.
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+# A scheduled run and a manual run cannot race on the force-push. A run in progress is not cancelled.
+concurrency:
+  group: portfolio-feeds
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  feeds:
+    name: feeds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      FEEDS_PATH: projects/portfolio/content/feeds.json
+      BRANCH: feeds/weekly
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Always the current main, never a branch that a person chose for a manual run.
+          ref: main
+          persist-credentials: false
+
+      - name: Repo setup
+        uses: ./.github/actions/repo-setup
+        with:
+          build-cache-scope: portfolio-feeds
+
+      # The handle input reaches the script only through the environment variable. The script
+      # checks its format (scripts/config.ts). continue-on-error keeps the next steps running, so a
+      # feed that worked is still proposed. The last step fails the job.
+      - name: Refresh the feeds
+        id: fetch
+        continue-on-error: true
+        working-directory: projects/portfolio
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FEEDS_MEDIUM_HANDLE: ${{ inputs.handle }}
+        run: npm run fetch-feeds -- --strict
+
+      - name: Check for a change
+        id: diff
+        run: |
+          # status --porcelain also sees a file that main does not have yet.
+          if [ -z "$(git status --porcelain -- "${FEEDS_PATH}")" ]; then
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+            echo "feeds.json did not change. No PR."
+          else
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+            git --no-pager diff --stat -- "${FEEDS_PATH}"
+          fi
+
+      - name: Open or update the PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FETCH_OUTCOME: ${{ steps.fetch.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Which feeds changed: compare the parts of the file on main with the new file.
+          old="$(git show "HEAD:${FEEDS_PATH}" 2>/dev/null || echo '{}')"
+          changed=""
+          for part in medium github; do
+            if [ "$(jq -c ".${part}.items // .${part}.repos" <<<"${old}")" != "$(jq -c ".${part}.items // .${part}.repos" "${FEEDS_PATH}")" ]; then
+              changed="${changed}- ${part}"$'\n'
+            fi
+          done
+          {
+            echo "Weekly refresh of \`${FEEDS_PATH}\`."
+            echo
+            echo "Feeds that changed:"
+            echo
+            if [ -z "${changed}" ]; then
+              changed="- (only the layout of the file changed)"$'\n'
+            fi
+            printf '%s' "${changed}"
+            echo
+            if [ "${FETCH_OUTCOME}" = "failure" ]; then
+              echo "**The refresh script failed for at least one feed.** This PR has the feed that worked. The old part of the failed feed is kept. See the run: ${RUN_URL}"
+            else
+              echo "Run: ${RUN_URL}"
+            fi
+            echo
+            echo "Nothing goes live until you merge this PR. Checks do not start on a PR that GitHub Actions opens: close and reopen it to start them."
+          } >"${RUNNER_TEMP}/feeds-body.md"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "${BRANCH}"
+          git add -- "${FEEDS_PATH}"
+          git commit -m "chore(portfolio): refresh the feeds"
+
+          # Force push: feeds/weekly is the branch of this workflow only. Each run rebuilds it from
+          # main with one commit, so a stale branch or a merge conflict cannot last. The rule
+          # against force pushes covers shared branches, not this one.
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force "${remote}" "HEAD:refs/heads/${BRANCH}"
+
+          existing="$(gh pr list --head "${BRANCH}" --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -n "${existing}" ]; then
+            gh pr edit "${existing}" --body-file "${RUNNER_TEMP}/feeds-body.md"
+            echo "Updated PR #${existing}."
+          else
+            gh pr create --base main --head "${BRANCH}" \
+              --title "chore(portfolio): refresh the feeds" \
+              --body-file "${RUNNER_TEMP}/feeds-body.md"
+          fi
+
+      # The job must be red when the script failed, so the owner gets the email.
+      - name: Fail the job when the refresh failed
+        if: steps.fetch.outcome == 'failure'
+        run: |
+          echo "::error::The feed refresh failed. See the log of the step Refresh the feeds."
+          exit 1

@@ -517,6 +517,29 @@ describe('main (R-9, R-10, R-19)', () => {
     expect(FeedsSchema.parse(JSON.parse(text)).github.fetchedAt).toBe(NOW.toISOString());
   });
 
+  it('fetches the Medium feed of the handle option instead of the handle of the content file', async () => {
+    const routes = routesFor(content, { medium: 'ok', github: 'ok' });
+    routes['https://medium.com/feed/@someone-else'] = { status: 404, body: 'Not Found' };
+    const { fetchFn, calls } = fakeFetch(routes);
+    const { logger } = captureLogger();
+
+    const code = await main({
+      dir: folder,
+      argv: ['--strict'],
+      fetchFn,
+      logger,
+      now: NOW,
+      mediumHandle: '@someone-else',
+    });
+
+    expect(calls).toContain('https://medium.com/feed/@someone-else');
+    expect(calls).not.toContain(MEDIUM_URL);
+    expect(code).toBe(1);
+    const written = FeedsSchema.parse(JSON.parse(readFileSync(feedsFile, 'utf8')));
+    expect(written.medium.items).toHaveLength(0);
+    expect(written.github.repos).toHaveLength(1);
+  });
+
   it('keeps the failed feed, writes the other one and exits 0 without --strict', async () => {
     writeFeeds(MAIN_SNAPSHOT);
     const { fetchFn } = fakeFetch(routesFor(content, { medium: 'fail', github: 'ok' }));
@@ -639,6 +662,7 @@ describe('the fetch-feeds CLI (R-10)', () => {
   function runCli(
     routes: Record<string, Route>,
     args: readonly string[],
+    extraEnv: Record<string, string> = {},
   ): { status: number | null; output: string } {
     writeFileSync(join(folder, 'fake-fetch.json'), JSON.stringify(routes));
     const result = spawnSync(
@@ -647,7 +671,7 @@ describe('the fetch-feeds CLI (R-10)', () => {
       {
         cwd: folder,
         encoding: 'utf8',
-        env: { GITHUB_TOKEN: TOKEN },
+        env: { GITHUB_TOKEN: TOKEN, ...extraEnv },
       },
     );
     return { status: result.status, output: `${result.stdout}${result.stderr}` };
@@ -679,6 +703,31 @@ describe('the fetch-feeds CLI (R-10)', () => {
 
   it('exits 1 with --strict and writes nothing when both feeds fail', () => {
     const result = runCli(routesFor(content(), { medium: 'fail', github: 'fail' }), ['--strict']);
+    expect(result.status).toBe(1);
+    expect(existsSync(join(folder, 'content/feeds.json'))).toBe(false);
+  });
+
+  it('reads the handle of the FEEDS_MEDIUM_HANDLE variable and exits 1 with --strict when it fails', () => {
+    const routes = routesFor(content(), { medium: 'ok', github: 'ok' });
+    routes['https://medium.com/feed/@no-such-user'] = { status: 404, body: 'Not Found' };
+    const result = runCli(routes, ['--strict'], { FEEDS_MEDIUM_HANDLE: '@no-such-user' });
+
+    expect(result.status).toBe(1);
+    const written = FeedsSchema.parse(
+      JSON.parse(readFileSync(join(folder, 'content/feeds.json'), 'utf8')),
+    );
+    expect(written.github.repos).toHaveLength(1);
+  });
+
+  it('uses the handle of the content file when FEEDS_MEDIUM_HANDLE is empty', () => {
+    const result = runCli(routesFor(content(), { medium: 'ok', github: 'ok' }), ['--strict'], {
+      FEEDS_MEDIUM_HANDLE: '',
+    });
+    expect(result.status).toBe(0);
+  });
+
+  it('exits 1 and fetches nothing when FEEDS_MEDIUM_HANDLE is not a valid handle', () => {
+    const result = runCli({}, ['--strict'], { FEEDS_MEDIUM_HANDLE: 'x/../../evil?y=1' });
     expect(result.status).toBe(1);
     expect(existsSync(join(folder, 'content/feeds.json'))).toBe(false);
   });
