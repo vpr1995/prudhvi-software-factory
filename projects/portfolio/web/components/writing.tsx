@@ -30,7 +30,7 @@ export function Writing(props: WritingProps): React.JSX.Element {
     .slice(0, max);
 
   return (
-    <section id="writing" aria-labelledby="writing-heading" className={styles['section']}>
+    <section id="writing" aria-labelledby="writing-heading" className="section">
       <h2 id="writing-heading">Writing</h2>
       {shown.length === 0 ? (
         <p className={styles['fallback']}>
@@ -47,7 +47,7 @@ export function Writing(props: WritingProps): React.JSX.Element {
                   {item.title}
                 </a>
               </h3>
-              <time className={styles['label']} dateTime={item.publishedAt}>
+              <time className={styles['date']} dateTime={item.publishedAt}>
                 {formatPublishedMonth(item.publishedAt)}
               </time>
             </li>

@@ -8,7 +8,7 @@
 // It lives in test/ because it is test support code: it serves the e2e build and the screenshots.
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 import { argv, exit, stderr, stdout } from 'node:process';
 
 const HOST = '127.0.0.1';
@@ -100,8 +100,17 @@ function isInside(root, target) {
  * @returns {Promise<string | undefined>} The real path, or undefined when it leaves the root or does not exist.
  */
 async function realPathInside(root, target) {
+  // Check the lexical path before any file system call, then check the real path again.
+  const lexicalRoot = resolve(root);
+  const lexicalTarget = resolve(target);
+  if (lexicalTarget !== lexicalRoot && !lexicalTarget.startsWith(`${lexicalRoot}${sep}`)) {
+    return;
+  }
   try {
-    const [realRoot, realTarget] = await Promise.all([realpath(root), realpath(target)]);
+    const [realRoot, realTarget] = await Promise.all([
+      realpath(lexicalRoot),
+      realpath(lexicalTarget),
+    ]);
     return isInside(realRoot, realTarget) ? realTarget : undefined;
   } catch {
     return;
@@ -161,9 +170,13 @@ export async function findResponse(root, requestUrl) {
   }
   const [pathname = '/', query] = url.split('?');
   if (!pathname.endsWith('/')) {
+    // Build the location from the real folder path, not from the request text. The location is
+    // always one path on this host: each segment is encoded, so no segment can start a new host.
+    const segments = relative(root, target).split(sep).filter(Boolean).map(encodeURIComponent);
+    const location = `/${segments.join('/')}${segments.length > 0 ? '/' : ''}`;
     return {
       status: STATUS_REDIRECT,
-      location: `${pathname}/${query === undefined ? '' : `?${query}`}`,
+      location: query === undefined ? location : `${location}?${encodeURI(query)}`,
     };
   }
   const index = await realPathInside(root, join(target, 'index.html'));

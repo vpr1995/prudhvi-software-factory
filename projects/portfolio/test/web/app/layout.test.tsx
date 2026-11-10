@@ -20,7 +20,7 @@ const GLOBAL_CSS_PATH = resolve(process.cwd(), 'web/app/globals.css');
  * Reads the value of a design token from the rule of one selector in the global styles.
  *
  * @param selector - The selector of the rule, as written in the stylesheet, for example `:root`.
- * @param name - The token name, for example `--color-bg`.
+ * @param name - The token name, for example `--bg`.
  * @returns The colour value written in that rule.
  */
 function tokenIn(selector: string, name: string): string {
@@ -115,8 +115,8 @@ describe('page metadata', () => {
   });
 
   it('sets the browser theme colours to the light and dark background tokens', () => {
-    const lightBackground = tokenIn(':root[data-theme="light"]', '--color-bg');
-    const darkBackground = tokenIn(':root[data-theme="dark"]', '--color-bg');
+    const lightBackground = tokenIn(':root[data-theme="light"]', '--bg');
+    const darkBackground = tokenIn(':root[data-theme="dark"]', '--bg');
     expect(lightBackground).toMatch(/^#[0-9a-f]{6}$/u);
     expect(darkBackground).toMatch(/^#[0-9a-f]{6}$/u);
     expect(viewport.themeColor).toEqual([

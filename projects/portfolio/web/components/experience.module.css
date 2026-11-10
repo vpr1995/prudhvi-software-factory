@@ -1,81 +1,91 @@
-.section {
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--color-border);
-}
-
-.section h2 {
-  margin-bottom: var(--space-md);
-}
-
 .list {
+  display: grid;
+  gap: 2rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* A hairline between the entries. The first entry has the section line above it instead. */
 .entry {
   display: grid;
-  gap: var(--space-xs);
-  padding: var(--space-md) 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.entry:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-/* The mono labels: dates, locations and metric names. */
-.label {
-  margin: 0;
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.role {
-  font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem);
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: var(--space-sm);
-  row-gap: 0;
+  margin: 0;
   overflow-wrap: anywhere;
+}
+
+.company {
+  color: var(--fg);
+}
+
+.place {
+  color: var(--muted);
+}
+
+.place::before {
+  content: ' · ';
+  white-space: pre;
+}
+
+.period {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .bullets {
   display: grid;
-  gap: 0.4rem;
-  margin: var(--space-xs) 0 0;
-  padding-left: 1.2rem;
-  max-width: var(--measure);
+  gap: 8px;
+  max-width: 62ch;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  color: var(--fg);
+  font-size: 0.9375rem;
+  list-style: none;
+}
+
+.bullets li {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.bullets li::before {
+  position: absolute;
+  left: 0;
+  width: 12px;
+  color: var(--muted);
+  content: '–';
 }
 
 .metrics {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-md);
-  margin: var(--space-xs) 0 0;
+  gap: 0.5rem 2rem;
+  margin: 0.75rem 0 0;
 }
 
 .metric {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.1rem;
   margin: 0;
 }
 
-/* A key figure: large, in the accent colour, with the label above it. */
+.metricLabel {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
 .figure {
   margin: 0;
-  color: var(--color-accent);
-  font-size: clamp(2rem, 1.4rem + 2vw, 3rem);
+  color: var(--fg);
+  font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.2;
 }

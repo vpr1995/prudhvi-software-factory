@@ -1,17 +1,19 @@
 /* The row matches the contact rows in contact.module.css: a mono label, then the value. */
 .row {
   display: grid;
-  gap: 0.25rem;
-  padding: var(--space-xs) 0;
-  border-top: 1px solid var(--color-border);
+  gap: 0.15rem;
+  padding-block: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: 0;
 }
 
 .label {
-  color: var(--color-muted);
+  color: var(--muted);
   font-family: var(--font-mono);
-  font-size: var(--text-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.8125rem;
 }
 
 .value {
@@ -20,21 +22,24 @@
   min-width: 0;
 }
 
+/* The same look as the secondary buttons of the hero. */
 .button {
-  padding: 0.35rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-accent);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  min-height: 2.75rem;
+  padding: 12px 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
+  transition: border-color 150ms ease;
 }
 
 .button:hover {
-  background: var(--color-surface);
+  border-color: var(--accent);
 }
 
 /* The live region stays in the page, empty, before the click: a hidden region is not announced. */
@@ -45,15 +50,20 @@
 
 .link {
   display: inline-block;
-  margin-block-start: var(--space-xs);
-  color: var(--color-accent);
+  margin-block-start: 0.5rem;
   overflow-wrap: anywhere;
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 40rem) {
   .row {
-    grid-template-columns: 9rem 1fr;
+    grid-template-columns: 7rem minmax(0, 1fr);
     align-items: baseline;
-    gap: var(--space-sm);
+    gap: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
   }
 }

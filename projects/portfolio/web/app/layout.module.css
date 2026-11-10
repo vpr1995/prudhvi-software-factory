@@ -1,45 +1,102 @@
 .topBar {
-  display: flex;
-  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Row one is the name and the toggle, 56px tall. On a phone the links take a second row. */
+.topBarInner {
+  display: grid;
+  grid-template-areas:
+    'name toggle'
+    'nav nav';
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: var(--header-height) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-xs);
-  padding: var(--space-sm) var(--gutter);
-  border-bottom: 1px solid var(--color-border);
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
 }
 
 .siteName {
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  grid-area: name;
+  justify-self: start;
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
-.main {
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: var(--space-lg) var(--gutter);
+.toggle {
+  grid-area: toggle;
+  justify-self: end;
+}
+
+/* The strip scrolls sideways inside its own box. No JavaScript is needed. */
+.nav {
+  grid-area: nav;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav::-webkit-scrollbar {
+  display: none;
 }
 
 .sectionList {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs) var(--space-sm);
+  gap: 1rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .sectionLink {
-  color: var(--color-accent);
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-  letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--muted);
+  font-size: 0.875rem;
   text-decoration: none;
-  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color 150ms ease;
 }
 
 .sectionLink:hover {
-  text-decoration: underline;
+  color: var(--fg);
+}
+
+.main {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+@media (min-width: 48rem) {
+  .topBarInner {
+    grid-template-areas: 'name nav toggle';
+    grid-template-columns: 1fr auto auto;
+    grid-template-rows: var(--header-height);
+    column-gap: 1.5rem;
+  }
+
+  .nav {
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .sectionLink {
+    min-height: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sectionLink {
+    transition: none;
+  }
 }

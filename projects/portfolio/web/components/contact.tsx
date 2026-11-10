@@ -13,7 +13,7 @@ import { PhoneReveal } from './phone-reveal';
  */
 export function Contact(): React.JSX.Element {
   return (
-    <section id="contact" aria-labelledby="contact-heading" className={styles['section']}>
+    <section id="contact" aria-labelledby="contact-heading" className="section">
       <h2 id="contact-heading">Contact</h2>
       <ul className={styles['list']}>
         {profileLinks(content.contact).map((link) => (

@@ -1,57 +1,75 @@
-.section {
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--color-border);
-}
-
-.section h2 {
-  margin-bottom: var(--space-md);
-}
-
 .list {
-  display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* A hairline between the awards, like the experience entries. */
 .item {
-  display: grid;
-  gap: var(--space-xs);
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-block: 1.125rem;
+  border-bottom: 1px solid var(--line);
 }
 
 .item:first-child {
   padding-top: 0;
-  border-top: 0;
+}
+
+.item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .title {
-  font-size: clamp(1.15rem, 1.05rem + 0.4vw, 1.4rem);
+  overflow-wrap: anywhere;
 }
 
 .meta {
   display: flex;
   flex-wrap: wrap;
-  column-gap: var(--space-sm);
+  gap: 0 0.75rem;
+  order: 2;
   margin: 0;
 }
 
-.label {
-  color: var(--color-muted);
+.year {
+  color: var(--muted);
   font-family: var(--font-mono);
-  font-size: var(--text-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.issuer {
+  color: var(--muted);
+  font-size: 0.875rem;
 }
 
 .source {
-  justify-self: start;
-  color: var(--color-accent);
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  overflow-wrap: anywhere;
+  order: 3;
+  align-self: flex-start;
+  margin-top: 0.15rem;
+  font-size: 0.875rem;
+}
+
+@media (min-width: 40rem) {
+  .item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 1.5rem;
+    align-items: baseline;
+  }
+
+  .title {
+    grid-column: 1;
+  }
+
+  .meta {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .source {
+    grid-column: 1;
+  }
 }

@@ -1,21 +1,25 @@
 .group {
   display: inline-flex;
+  align-items: center;
   gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--color-border);
+  padding: 3px;
+  border: 1px solid var(--line);
   border-radius: 999px;
+  background: var(--surface);
 }
 
+/* Each button is 28px on a wide screen. On a phone padding grows the hit area to 36px. */
 .button {
-  padding: 0.35rem 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--muted);
   cursor: pointer;
   transition:
     background-color 150ms ease,
@@ -23,14 +27,30 @@
 }
 
 .button:hover {
-  background: var(--color-surface);
+  color: var(--fg);
 }
 
-/* The picked choice is inverted: the text colour on the page background. */
 .button[aria-pressed='true'],
 .button[aria-pressed='true']:hover {
-  background: var(--color-text);
-  color: var(--color-bg);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.icon {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (min-width: 48rem) {
+  .button {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

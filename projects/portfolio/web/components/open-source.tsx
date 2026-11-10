@@ -28,7 +28,7 @@ export function OpenSource(props: OpenSourceProps): React.JSX.Element {
   const profileUrl = props.profileUrl ?? content.contact.github;
 
   return (
-    <section id="open-source" aria-labelledby="open-source-heading" className={styles['section']}>
+    <section id="open-source" aria-labelledby="open-source-heading" className="section">
       <h2 id="open-source-heading">Open source</h2>
       {pinnedRepos.length === 0 ? (
         <p className={styles['fallback']}>
@@ -47,7 +47,7 @@ export function OpenSource(props: OpenSourceProps): React.JSX.Element {
             );
             const description = feed?.description;
             return (
-              <li key={pinned.fullName} className={styles['item']}>
+              <li key={pinned.fullName} className={styles['card']}>
                 <h3 className={styles['title']}>
                   <a href={href} {...externalLinkProps(href)} className={styles['link']}>
                     {pinned.fullName}
@@ -59,6 +59,9 @@ export function OpenSource(props: OpenSourceProps): React.JSX.Element {
                 {description === undefined || description === null ? null : (
                   <p className={styles['description']}>{description}</p>
                 )}
+                <span className={styles['affordance']} aria-hidden="true">
+                  GitHub ↗
+                </span>
               </li>
             );
           })}

@@ -1,50 +1,89 @@
-.section {
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--color-border);
-}
-
-.section h2 {
-  margin-bottom: var(--space-md);
-}
-
 .list {
   display: grid;
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* A hairline between the repos, like the awards. */
-.item {
-  display: grid;
-  gap: var(--space-xs);
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--color-border);
+/* A card. The repo link stretches over the whole card, so the card is one target. */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  transition: border-color 150ms ease;
 }
 
-.item:first-child {
-  padding-top: 0;
-  border-top: 0;
+.card:hover,
+.card:focus-within {
+  border-color: var(--accent);
 }
 
 .title {
-  font-size: clamp(1.15rem, 1.05rem + 0.4vw, 1.4rem);
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
 .link {
-  color: var(--color-text);
-  text-decoration-color: var(--color-accent);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.link::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  content: '';
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+.card:has(.link:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .blurb {
-  color: var(--color-text);
+  color: var(--fg);
+  font-size: 0.9375rem;
 }
 
 .description {
-  color: var(--color-muted);
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.affordance {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
 }
 
 .fallback {
-  color: var(--color-muted);
+  color: var(--muted);
+}
+
+@media (min-width: 40rem) {
+  .list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
 }

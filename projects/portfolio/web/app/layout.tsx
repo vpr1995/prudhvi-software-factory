@@ -68,24 +68,30 @@ export default function RootLayout(props: RootLayoutProps): React.JSX.Element {
       <head>
         <script>{THEME_SCRIPT}</script>
       </head>
-      <body>
+      <body id="top">
         <a className="skip-link" href="#main">
           Skip to main content
         </a>
         <header className={styles['topBar']}>
-          <p className={styles['siteName']}>{content.profile.name}</p>
-          <nav aria-label="Sections">
-            <ul className={styles['sectionList']}>
-              {SECTION_LINKS.map((link) => (
-                <li key={link.href}>
-                  <a className={styles['sectionLink']} href={link.href}>
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-          <ThemeToggle />
+          <div className={styles['topBarInner']}>
+            <a className={styles['siteName']} href="#top">
+              {content.profile.name}
+            </a>
+            <nav aria-label="Sections" className={styles['nav']}>
+              <ul className={styles['sectionList']}>
+                {SECTION_LINKS.map((link) => (
+                  <li key={link.href}>
+                    <a className={styles['sectionLink']} href={link.href}>
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <div className={styles['toggle']}>
+              <ThemeToggle />
+            </div>
+          </div>
         </header>
         <main id="main" className={styles['main']}>
           {props.children}

@@ -12,14 +12,26 @@ import styles from './hero.module.css';
  */
 export function Hero(): React.JSX.Element {
   const { profile, contact } = content;
+  const [primaryLink, ...otherLinks] = profileLinks(contact);
   return (
     <div className={styles['hero']}>
-      <h1>{profile.name}</h1>
+      <p className={styles['status']}>{formatLocationLine(profile.location)}</p>
+      <h1 id="hero-heading">{profile.name}</h1>
       <p className={styles['headline']}>{profile.headline}</p>
       <p className={styles['summary']}>{profile.summary}</p>
-      <p className={styles['location']}>{formatLocationLine(profile.location)}</p>
       <ul className={styles['actions']}>
-        {profileLinks(contact).map((link) => (
+        {primaryLink === undefined ? null : (
+          <li>
+            <a
+              className={`${styles['action']} ${styles['primary']}`}
+              href={primaryLink.href}
+              {...externalLinkProps(primaryLink.href)}
+            >
+              {primaryLink.label}
+            </a>
+          </li>
+        )}
+        {otherLinks.map((link) => (
           <li key={link.label}>
             <a className={styles['action']} href={link.href} {...externalLinkProps(link.href)}>
               {link.label}

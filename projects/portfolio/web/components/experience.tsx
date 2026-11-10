@@ -19,17 +19,17 @@ type ExperienceProps = {
 export function Experience(props: ExperienceProps): React.JSX.Element {
   const entries = props.entries ?? siteContent.experience;
   return (
-    <section id="experience" aria-labelledby="experience-heading" className={styles['section']}>
+    <section id="experience" aria-labelledby="experience-heading" className="section">
       <h2 id="experience-heading">Experience</h2>
       <ol className={styles['list']}>
         {entries.map((entry) => (
           <li key={`${entry.company}-${entry.start}`} className={styles['entry']}>
-            <p className={styles['label']}>{formatPeriod(entry.start, entry.end)}</p>
             <h3 className={styles['role']}>{entry.role}</h3>
             <p className={styles['meta']}>
-              <span>{entry.company}</span>
-              <span className={styles['label']}>{entry.location}</span>
+              <span className={styles['company']}>{entry.company}</span>
+              <span className={styles['place']}>{entry.location}</span>
             </p>
+            <p className={styles['period']}>{formatPeriod(entry.start, entry.end)}</p>
             <ul className={styles['bullets']}>
               {entry.bullets.map((bullet) => (
                 <li key={bullet}>{bullet}</li>
@@ -39,7 +39,7 @@ export function Experience(props: ExperienceProps): React.JSX.Element {
               <dl className={styles['metrics']}>
                 {entry.metrics.map((metric) => (
                   <div key={metric.label} className={styles['metric']}>
-                    <dt className={styles['label']}>{metric.label}</dt>
+                    <dt className={styles['metricLabel']}>{metric.label}</dt>
                     <dd className={styles['figure']}>{metric.value}</dd>
                   </div>
                 ))}
