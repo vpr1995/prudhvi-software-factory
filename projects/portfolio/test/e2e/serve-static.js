@@ -6,7 +6,7 @@
 // - A path that leaves the folder (`..`, encoded or not, or a symbolic link) gets 404.
 // - Leading slashes collapse to one, so `//parks` redirects to `/parks/`, not to the host `parks`.
 // It lives in test/ because it is test support code: it serves the e2e build and the screenshots.
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 import { argv, exit, stderr, stdout } from 'node:process';
@@ -107,10 +107,16 @@ async function realPathInside(root, target) {
     return;
   }
   try {
-    const [realRoot, realTarget] = await Promise.all([
-      realpath(lexicalRoot),
-      realpath(lexicalTarget),
-    ]);
+    const realRoot = await realpath(lexicalRoot);
+    // Walk the folders by name. Each name comes from the folder listing, never from the request.
+    let current = realRoot;
+    for (const segment of relative(lexicalRoot, lexicalTarget).split(sep).filter(Boolean)) {
+      const names = await readdir(current);
+      const name = names.find((entry) => entry === segment);
+      if (name === undefined) return;
+      current = join(current, name);
+    }
+    const realTarget = await realpath(current);
     return isInside(realRoot, realTarget) ? realTarget : undefined;
   } catch {
     return;
