@@ -81,7 +81,9 @@ describe('staleFeedWarnings (R-20)', () => {
 
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('medium');
-    expect(warnings[0]).toContain('91 days');
+    expect(warnings[0]).toContain('has not changed for 91 days');
+    expect(warnings[0]).toContain('weekly refresh may still be running');
+    expect(warnings[0]).not.toContain('stale');
   });
 
   it('does not warn about a feed whose snapshot is 89 days old', () => {

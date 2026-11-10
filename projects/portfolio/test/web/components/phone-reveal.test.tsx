@@ -66,4 +66,16 @@ describe('PhoneReveal', () => {
 
     expect(screen.getAllByRole('link')).toHaveLength(1);
   });
+
+  it('renders no href when the decoded href does not start with tel:', () => {
+    render(
+      <ul>
+        <PhoneReveal token={encodePhone({ display: 'Call me', href: 'javascript:alert(1)' })} />
+      </ul>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show phone number' }));
+
+    expect(screen.getByText('Call me')).not.toHaveAttribute('href');
+  });
 });

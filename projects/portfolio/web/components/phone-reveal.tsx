@@ -66,7 +66,10 @@ export function PhoneReveal(props: PhoneRevealProps): React.JSX.Element | null {
         </button>
         <span id={regionId} className={styles['region']} aria-live="polite">
           {phone === undefined ? null : (
-            <a className={styles['link']} href={phone.href}>
+            <a
+              className={styles['link']}
+              href={phone.href.startsWith('tel:') ? phone.href : undefined}
+            >
               {phone.display}
             </a>
           )}

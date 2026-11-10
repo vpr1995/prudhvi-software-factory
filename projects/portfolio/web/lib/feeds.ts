@@ -43,7 +43,7 @@ export function staleFeedWarnings(feeds: Feeds, now: Date): string[] {
       return [];
     }
     return [
-      `The ${name} feed has not changed for ${String(days)} days. Its snapshot in content/feeds.json is older than ${String(STALE_AFTER_DAYS)} days. Run npm run fetch-feeds.`,
+      `The ${name} feed has not changed for ${String(days)} days. The weekly refresh may still be running fine and the source may have no new items. If you expect new items, check the refresh workflow or run npm run fetch-feeds.`,
     ];
   });
 }

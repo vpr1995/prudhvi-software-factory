@@ -8,7 +8,13 @@ const MAX_BULLETS = 6;
 const MAX_MEDIUM_ITEMS = 10;
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/u;
 const YEAR_PATTERN = /^\d{4}$/u;
-const REPO_PATTERN = /^[\w.-]+\/[\w.-]+$/u;
+// The owner and the name use letters, digits, dots, hyphens and underscores. Neither one may be `.`
+// or `..`, so the name cannot walk up a URL path.
+const REPO_PATTERN = /^(?!\.{1,2}\/)[\w.-]+\/(?!\.{1,2}$)[\w.-]+$/u;
+// The same strict pattern as the handle check in scripts/config.ts: an optional at sign, then
+// letters, digits, dots, hyphens and underscores. It is a copy, so this file imports only zod.
+const MEDIUM_HANDLE_PATTERN = /^@?[A-Za-z0-9._-]{1,64}$/u;
+const PHONE_HREF_PATTERN = /^tel:\+?[0-9()\-.\s]+$/u;
 const PHONE_PATH = ['contact', 'phone'] as const;
 
 /**
@@ -133,7 +139,16 @@ const contactSchema = strictObject(
     linkedin: httpsUrlOn('linkedin.com'),
     github: httpsUrlOn('github.com'),
     medium: httpsUrlOn('medium.com'),
-    phone: strictObject({ display: text(), href: text() }, 'the phone').optional(),
+    phone: strictObject(
+      {
+        display: text(),
+        href: text().regex(
+          PHONE_HREF_PATTERN,
+          'Use a tel: link with digits only, for example "tel:+15550100100".',
+        ),
+      },
+      'the phone',
+    ).optional(),
   },
   'the contact details',
 );
@@ -170,7 +185,7 @@ const pinnedRepositorySchema = strictObject(
   {
     fullName: z
       .string({ error: 'Write the repo name in double quotes, for example "owner/name".' })
-      .regex(REPO_PATTERN, 'Use the form owner/name.'),
+      .regex(REPO_PATTERN, 'Use the form owner/name. The owner and the name must not be . or ..'),
     blurb: text().optional(),
   },
   'a pinned repo',
@@ -178,7 +193,10 @@ const pinnedRepositorySchema = strictObject(
 
 const mediumSchema = strictObject(
   {
-    handle: text(),
+    handle: text().regex(
+      MEDIUM_HANDLE_PATTERN,
+      'Use letters, digits, dots, hyphens and underscores, with an optional leading @.',
+    ),
     max: z
       .number({ error: 'Write a whole number, without quotes.' })
       .int('Write a whole number.')

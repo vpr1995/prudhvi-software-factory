@@ -116,6 +116,17 @@ test.describe('home page with JavaScript off', () => {
     await expect(page.getByRole('link', { name: contact.medium, exact: true })).toBeVisible();
   });
 
+  test('still shows the open source and the writing sections with their items', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { level: 2, name: 'Open source' })).toBeVisible();
+    await expect(page.locator('section#open-source li').first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Writing' })).toBeVisible();
+    await expect(page.locator('section#writing li').first()).toBeVisible();
+  });
+
   test('shows no theme toggle, because the toggle needs JavaScript', async ({ page }) => {
     await page.goto('/');
 

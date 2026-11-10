@@ -190,6 +190,21 @@ function captureLogger(): { logger: ReturnType<typeof createLogger>; lines: stri
 }
 
 describe('parseMediumRss (R-7)', () => {
+  it('keeps an item whose title looks like a number, as text', () => {
+    const rss = `<rss version="2.0"><channel><item>
+      <title>2025</title>
+      <link>https://medium.com/@vprprudhvi/2025-abc123</link>
+      <pubDate>Mon, 02 Mar 2026 09:00:00 GMT</pubDate>
+    </item></channel></rss>`;
+    expect(parseMediumRss(rss)).toEqual([
+      {
+        title: '2025',
+        link: 'https://medium.com/@vprprudhvi/2025-abc123',
+        pubDate: 'Mon, 02 Mar 2026 09:00:00 GMT',
+      },
+    ]);
+  });
+
   it('keeps only the title, the link and the date of each item', () => {
     const items = parseMediumRss(RSS);
     expect(items).toEqual([
@@ -252,6 +267,14 @@ describe('filterByOrigin (R-8)', () => {
 });
 
 describe('authorizedFetch (R-19)', () => {
+  it('keeps a header of the caller when it adds the Authorization header', async () => {
+    const { fetchFn, inits } = fakeFetch({ [REPO_URL]: REPO_TEXT });
+    await authorizedFetch(fetchFn, TOKEN)(REPO_URL, { headers: { Accept: 'application/json' } });
+    const headers = new Headers(inits[0]?.headers);
+    expect(headers.get('accept')).toBe('application/json');
+    expect(headers.get('authorization')).toBe(`Bearer ${TOKEN}`);
+  });
+
   it('sends the token as an Authorization header to api.github.com only', async () => {
     const { fetchFn, inits } = fakeFetch({ [REPO_URL]: REPO_TEXT, [MEDIUM_URL]: RSS });
     const authorized = authorizedFetch(fetchFn, TOKEN);

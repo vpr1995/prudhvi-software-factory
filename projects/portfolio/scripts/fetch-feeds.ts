@@ -88,6 +88,8 @@ type Outcome = { warnings: string[]; failed: FeedName[] };
 // it never reads the markup of an article body.
 const rssParser = new XMLParser({
   ignoreAttributes: true,
+  parseTagValue: false,
+  parseAttributeValue: false,
   isArray: (_name, jpath) => jpath === 'rss.channel.item',
   stopNodes: ['*.content:encoded', '*.description'],
 });
@@ -222,7 +224,9 @@ export function authorizedFetch(
     if (new URL(url).hostname !== GITHUB_API_HOST) {
       return fetchFunction(url, init);
     }
-    return fetchFunction(url, { ...init, headers: { Authorization: `Bearer ${token}` } });
+    const headers = new Headers(init?.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    return fetchFunction(url, { ...init, headers });
   };
 }
 
