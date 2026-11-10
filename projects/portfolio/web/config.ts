@@ -29,6 +29,26 @@ export type WebConfig = {
   readonly outDir: string | undefined;
 };
 
+/** The environment variables that feature flags read: every variable with the `FLAG_` prefix. */
+export type FlagEnvironment = Readonly<Record<string, string | undefined>>;
+
+const FLAG_PREFIX = 'FLAG_';
+
+/**
+ * Picks the feature flag variables. The flag provider (web/lib/flags.ts) reads them, and it
+ * accepts only the true and false words, so other variables are not passed on.
+ *
+ * @param source - The environment variables. Defaults to the process environment.
+ * @returns The variables whose names start with `FLAG_`.
+ */
+export function loadFlagEnvironment(
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): FlagEnvironment {
+  return Object.fromEntries(
+    Object.entries(source).filter(([name]) => name.startsWith(FLAG_PREFIX)),
+  );
+}
+
 /**
  * Reads and validates the build settings. It throws a `ZodError` when a value is invalid.
  *

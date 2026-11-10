@@ -350,6 +350,9 @@ importers:
 
   ../../projects/portfolio:
     dependencies:
+      '@vprprudhvi/shared-flags':
+        specifier: workspace:*
+        version: link:../../packages/flags
       '@vprprudhvi/shared-logger':
         specifier: workspace:*
         version: link:../../packages/logger

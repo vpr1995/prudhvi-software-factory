@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadWebConfig } from '../../web/config';
+import { loadFlagEnvironment, loadWebConfig } from '../../web/config';
 
 describe('loadWebConfig', () => {
   it('uses the default export folder when nothing is set', () => {
@@ -23,5 +23,19 @@ describe('loadWebConfig', () => {
 
   it('reads the process environment by default', () => {
     expect(loadWebConfig()).toHaveProperty('outDir');
+  });
+
+  it('passes only the FLAG_ variables to the flag provider', () => {
+    expect(
+      loadFlagEnvironment({
+        FLAG_PORTFOLIO_CHAT: 'true',
+        PORTFOLIO_OUT_DIR: 'out-e2e',
+        SECRET_TOKEN: 'not-a-flag',
+      }),
+    ).toEqual({ FLAG_PORTFOLIO_CHAT: 'true' });
+  });
+
+  it('returns an empty flag record when no flag is set', () => {
+    expect(loadFlagEnvironment({ PORTFOLIO_OUT_DIR: 'out-e2e' })).toEqual({});
   });
 });

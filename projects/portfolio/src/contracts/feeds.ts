@@ -27,7 +27,7 @@ function httpsUrl(): z.ZodString {
 /**
  * A snapshot Medium item. Its URL must be on medium.com.
  */
-export const MediumItemSchema = z.strictObject({
+const MediumItemSchema = z.strictObject({
   title: z.string().min(1, 'Write the title of the article.'),
   url: z.string().startsWith(MEDIUM_ORIGIN, `Use a link that starts with ${MEDIUM_ORIGIN}.`),
   publishedAt: z.iso.datetime({
@@ -38,7 +38,7 @@ export const MediumItemSchema = z.strictObject({
 /**
  * A snapshot GitHub repo. Its URL must be on github.com.
  */
-export const GithubRepositorySchema = z.strictObject({
+const GithubRepositorySchema = z.strictObject({
   fullName: z.string().min(1, 'Write the repo name as owner/name.'),
   url: z.string().startsWith(GITHUB_ORIGIN, `Use a link that starts with ${GITHUB_ORIGIN}.`),
   description: z.string().nullable(),
@@ -47,7 +47,7 @@ export const GithubRepositorySchema = z.strictObject({
 /**
  * The Medium part of the snapshot.
  */
-export const MediumSnapshotSchema = z.strictObject({
+const MediumSnapshotSchema = z.strictObject({
   fetchedAt: z.iso.datetime({
     message: 'Use an ISO date and time, for example 2026-03-02T09:00:00.000Z.',
   }),
@@ -57,7 +57,7 @@ export const MediumSnapshotSchema = z.strictObject({
 /**
  * The GitHub part of the snapshot.
  */
-export const GithubSnapshotSchema = z.strictObject({
+const GithubSnapshotSchema = z.strictObject({
   fetchedAt: z.iso.datetime({
     message: 'Use an ISO date and time, for example 2026-03-02T09:00:00.000Z.',
   }),
