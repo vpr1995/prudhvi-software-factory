@@ -350,6 +350,9 @@ importers:
 
   ../../projects/portfolio:
     dependencies:
+      '@vprprudhvi/shared-logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       fast-xml-parser:
         specifier: ~5.12.0
         version: 5.12.0

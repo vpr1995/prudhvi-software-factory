@@ -16,6 +16,7 @@
     "build": "npm run _phase:build",
     "dev:web": "cd web && next dev",
     "e2e": "npm run _phase:e2e",
+    "fetch-feeds": "node scripts/fetch-feeds.ts",
     "lint": "npm run _phase:lint",
     "start:web": "cd web && next start",
     "test": "npm run _phase:test",
@@ -45,6 +46,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zod": "^4.6.7",
-    "fast-xml-parser": "~5.12.0"
+    "fast-xml-parser": "~5.12.0",
+    "@vprprudhvi/shared-logger": "workspace:*"
   }
 }
