@@ -1,0 +1,59 @@
+/* The row matches the contact rows in contact.module.css: a mono label, then the value. */
+.row {
+  display: grid;
+  gap: 0.25rem;
+  padding: var(--space-xs) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.label {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.value {
+  display: grid;
+  justify-items: start;
+  min-width: 0;
+}
+
+.button {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--color-surface);
+}
+
+/* The live region stays in the page, empty, before the click: a hidden region is not announced. */
+.region {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.link {
+  display: inline-block;
+  margin-block-start: var(--space-xs);
+  color: var(--color-accent);
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 48rem) {
+  .row {
+    grid-template-columns: 9rem 1fr;
+    align-items: baseline;
+    gap: var(--space-sm);
+  }
+}

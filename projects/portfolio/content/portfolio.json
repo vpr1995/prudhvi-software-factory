@@ -14,7 +14,8 @@
     "email": "sample@example.com",
     "linkedin": "https://www.linkedin.com/in/sample",
     "github": "https://github.com/vpr1995",
-    "medium": "https://medium.com/@vprprudhvi"
+    "medium": "https://medium.com/@vprprudhvi",
+    "phone": { "display": "+1 (555) 010-0100", "href": "tel:+15550100100" }
   },
   "experience": [
     {

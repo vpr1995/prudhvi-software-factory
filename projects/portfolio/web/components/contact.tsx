@@ -1,11 +1,13 @@
 import { content } from '../lib/content';
 import { externalLinkProps, profileLinks } from '../lib/links';
+import { encodePhone } from '../lib/phone-token';
 
 import styles from './contact.module.css';
+import { PhoneReveal } from './phone-reveal';
 
 /**
- * The contact section: the email address, LinkedIn, GitHub and Medium. The phone number is not
- * here yet. The phone reveal comes in a later ticket, at the marked place below.
+ * The contact section: the email address, LinkedIn, GitHub, Medium and, when the content has one,
+ * the phone number behind a click (R-5). The phone is passed as a token, not as plain text.
  *
  * @returns The section.
  */
@@ -22,9 +24,10 @@ export function Contact(): React.JSX.Element {
             </a>
           </li>
         ))}
+        {content.contact.phone === undefined ? null : (
+          <PhoneReveal token={encodePhone(content.contact.phone)} />
+        )}
       </ul>
-      {/* PHONE REVEAL: ticket #89 adds the click-to-reveal phone number here. Render nothing for
-          phone until then (R-5, R-6). */}
     </section>
   );
 }

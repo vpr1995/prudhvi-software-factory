@@ -1,8 +1,30 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Contact } from '../../../web/components/contact';
+import type * as contentModule from '../../../web/lib/content';
 import { content } from '../../../web/lib/content';
+
+// The tests switch the phone off for one case. The real content has a phone, so the mock reads
+// the switch and returns the content without it.
+const overrides = vi.hoisted(() => ({ withoutPhone: false }));
+
+vi.mock('../../../web/lib/content', async (importOriginal) => {
+  const actual = await importOriginal<typeof contentModule>();
+  return {
+    ...actual,
+    get content(): typeof actual.content {
+      if (!overrides.withoutPhone) {
+        return actual.content;
+      }
+      return { ...actual.content, contact: { ...actual.content.contact, phone: undefined } };
+    },
+  };
+});
+
+afterEach(() => {
+  overrides.withoutPhone = false;
+});
 
 describe('Contact', () => {
   it('has a section with the Contact level 2 heading', () => {
@@ -33,9 +55,21 @@ describe('Contact', () => {
     }
   });
 
-  it('renders no phone number and no tel link, because the reveal comes later', () => {
+  it('shows a Phone row with the reveal button, and no number before the click', () => {
     const { container } = render(<Contact />);
+
+    expect(screen.getByText('Phone', { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show phone number' })).toBeInTheDocument();
+    expect(container.textContent).not.toContain('010-0100');
     expect(container.querySelector('a[href^="tel:"]')).toBeNull();
-    expect(screen.queryByText(/phone/iu)).toBeNull();
+  });
+
+  it('has no Phone row when the content has no phone', () => {
+    overrides.withoutPhone = true;
+    render(<Contact />);
+
+    expect(screen.queryByText('Phone', { exact: true })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show phone number' })).toBeNull();
+    expect(screen.getByRole('link', { name: content.contact.email })).toBeInTheDocument();
   });
 });
