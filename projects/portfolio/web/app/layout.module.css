@@ -1,0 +1,23 @@
+.topBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--gutter);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.siteName {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-lg) var(--gutter);
+}

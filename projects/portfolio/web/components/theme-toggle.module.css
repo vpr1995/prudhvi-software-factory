@@ -1,0 +1,40 @@
+.group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.button {
+  padding: 0.35rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.button:hover {
+  background: var(--color-surface);
+}
+
+/* The picked choice is inverted: the text colour on the page background. */
+.button[aria-pressed='true'],
+.button[aria-pressed='true']:hover {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

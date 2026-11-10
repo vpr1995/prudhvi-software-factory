@@ -1,0 +1,147 @@
+/*
+ * Global styles and design tokens (D-2, D-5). Plain CSS: the components keep their own CSS Modules.
+ * No Tailwind, no UI kit, no animation library.
+ *
+ * The theme follows the system, unless the visitor picks light or dark. The choice sets the
+ * data-theme attribute on <html> (web/lib/theme.ts). The dark values are written twice on purpose:
+ * once for the system choice (`:not([data-theme="light"])`) and once for the picked dark choice.
+ * Each token has the same values in both blocks. Keep them in step.
+ *
+ * Every text colour meets WCAG AA (4.5:1) on the surfaces that it sits on, in both themes.
+ */
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: #fbfbf8;
+  --color-surface: #f1f1ec;
+  --color-text: #121212;
+  --color-muted: #55554f;
+  --color-accent: #1f4fb0;
+  --color-border: #d6d6cf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-bg: #0f0f0e;
+    --color-surface: #1a1a18;
+    --color-text: #f1f1ec;
+    --color-muted: #a6a69f;
+    --color-accent: #9dbfff;
+    --color-border: #3a3a35;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #0f0f0e;
+  --color-surface: #1a1a18;
+  --color-text: #f1f1ec;
+  --color-muted: #a6a69f;
+  --color-accent: #9dbfff;
+  --color-border: #3a3a35;
+}
+
+:root {
+  --font-sans:
+    var(--font-geist-sans), system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --text-body: 1rem;
+  --text-label: 0.75rem;
+  --text-h2: clamp(1.75rem, 1.4rem + 1.6vw, 2.5rem);
+  --text-display: clamp(2.75rem, 1.6rem + 6vw, 6.5rem);
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 2rem;
+  --space-lg: 4rem;
+  --space-xl: 7rem;
+  --gutter: 1rem;
+  --measure: 68ch;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --gutter: 2rem;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+h1 {
+  font-size: var(--text-display);
+}
+
+h2 {
+  font-size: var(--text-h2);
+}
+
+p {
+  margin: 0;
+  max-width: var(--measure);
+}
+
+a {
+  color: var(--color-accent);
+  text-underline-offset: 0.2em;
+}
+
+/* A visible focus ring on every control. It is the accent colour, which meets 3:1 on both pages. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/* The skip link is off screen until it gets keyboard focus. */
+.skip-link {
+  position: absolute;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  z-index: 10;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: 4px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}

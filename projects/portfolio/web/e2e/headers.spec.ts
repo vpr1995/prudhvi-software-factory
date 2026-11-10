@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { siteContent } from './site-content';
+
 // The security headers that Cloudflare sends for every page (the `/*` rule of _headers).
 const SHARED_HEADERS: Readonly<Record<string, string>> = {
   'x-content-type-options': 'nosniff',
@@ -74,7 +76,9 @@ test.describe('security headers of the home page', () => {
       });
     });
     await page.goto('/');
-    await expect(page.getByRole('heading', { level: 1, name: 'portfolio' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: siteContent.profile.name }),
+    ).toBeVisible();
 
     const violations: unknown = await page.evaluate(() => {
       const recorded: unknown = Reflect.get(window, 'cspViolations');
