@@ -9,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 
 const PROJECT_DIRECTORY = fileURLToPath(new URL('..', import.meta.url));
 
+// The e2e build writes its own export, so the production export in web/out is not overwritten.
+const E2E_BUILD_ENV = { PORTFOLIO_OUT_DIR: 'out-e2e' };
+
 // Rush runs the phase scripts in the project folder, so the paths are relative to it.
 const PARTS = {
   project: true,
@@ -22,6 +25,7 @@ const PARTS = {
 const STEPS = [
   { phase: 'build', part: 'node', command: 'tsc -p tsconfig.build.json' },
   { phase: 'build', part: 'web', directory: 'web', command: 'next build' },
+  { phase: 'build', part: 'web', command: 'node scripts/headers.ts web/out' },
   { phase: 'lint', part: 'project', command: 'eslint --max-warnings 0 .' },
   { phase: 'typecheck', part: 'project', command: 'tsc -p tsconfig.json --noEmit' },
   {
@@ -32,6 +36,14 @@ const STEPS = [
   },
   { phase: 'test', part: 'project', command: 'vitest run --coverage' },
   { phase: 'e2e', part: 'node', command: 'node scripts/e2e.mjs' },
+  {
+    phase: 'e2e',
+    part: 'web',
+    directory: 'web',
+    command: 'next build',
+    env: E2E_BUILD_ENV,
+  },
+  { phase: 'e2e', part: 'web', command: 'node scripts/headers.ts web/out-e2e' },
   { phase: 'e2e', part: 'web', command: 'playwright install chromium && playwright test' },
 ];
 
@@ -40,14 +52,18 @@ const PHASES = ['build', 'lint', 'typecheck', 'test', 'e2e'];
 /**
  * Runs one shell command and resolves with its exit code.
  *
- * @param {{ directory?: string, command: string }} step - The step.
+ * @param {{ directory?: string, command: string, env?: Record<string, string> }} step - The step.
  * @returns {Promise<number>} The exit code.
  */
-function runStep({ directory = '.', command }) {
+function runStep({ directory = '.', command, env: stepEnv = {} }) {
   return new Promise((resolve) => {
     const child = spawn('bash', ['-c', command], {
       cwd: `${PROJECT_DIRECTORY}${directory}`,
-      env: { ...env, PATH: `${PROJECT_DIRECTORY}node_modules/.bin:${env['PATH'] ?? ''}` },
+      env: {
+        ...env,
+        ...stepEnv,
+        PATH: `${PROJECT_DIRECTORY}node_modules/.bin:${env['PATH'] ?? ''}`,
+      },
       stdio: 'inherit',
     });
     child.on('error', () => {

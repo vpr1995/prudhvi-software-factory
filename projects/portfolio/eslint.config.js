@@ -15,6 +15,8 @@ const REPO_ROOT = new URL('../../', import.meta.url).pathname;
 // web/** and test/web/** get `next`, bin/** and lib/** get `cdk`, everything gets `node`.
 // A scope with no files does nothing, so `rush add-part` does not change this file.
 export default [
+  // The static exports of `next build`: web/out (the site) and web/out-e2e (the e2e build).
+  { name: 'project/ignore-build-output', ignores: ['web/out/**', 'web/out-e2e/**'] },
   ...base,
   ...node,
   ...scope(['web/**', 'test/web/**'], next),

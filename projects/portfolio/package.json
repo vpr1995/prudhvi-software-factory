@@ -18,7 +18,6 @@
     "e2e": "npm run _phase:e2e",
     "fetch-feeds": "node scripts/fetch-feeds.ts",
     "lint": "npm run _phase:lint",
-    "start:web": "cd web && next start",
     "test": "npm run _phase:test",
     "typecheck": "npm run _phase:typecheck"
   },
