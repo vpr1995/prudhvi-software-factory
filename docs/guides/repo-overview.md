@@ -41,8 +41,8 @@ Enforcer: `eslint-plugin-boundaries`. See `docs/standards/coding-conventions.md`
 
 ## 4. Non-goals
 
-- No cloud other than AWS.
-- No infrastructure tool other than AWS CDK.
+- No cloud other than AWS. Exception: static sites can deploy to Cloudflare. See [ADR 0012](../adr/0012-cloudflare-for-static-sites.md).
+- No infrastructure tool other than AWS CDK. Exception: Cloudflare static sites use wrangler. See [ADR 0012](../adr/0012-cloudflare-for-static-sites.md).
 - No feature-flag vendor yet. Flags use env or JSON files behind `packages/flags`.
 - Deploy rules: see root `CLAUDE.md`, rule 4.
 - No dependency on GitHub Advanced Security.
