@@ -65,6 +65,20 @@ describe('RootLayout', () => {
     expect(html).toContain(`<head><script>${THEME_SCRIPT}</script></head>`);
   });
 
+  it('links the top bar to the sections that exist now, and no others', () => {
+    const html = renderToStaticMarkup(
+      <RootLayout>
+        <p>Page</p>
+      </RootLayout>,
+    );
+    expect(html).toMatch(/<nav aria-label="Sections"[^>]*>/u);
+    expect(html).toContain('href="#experience"');
+    expect(html).toContain('href="#awards"');
+    expect(html).toContain('href="#contact"');
+    expect(html).not.toContain('href="#open-source"');
+    expect(html).not.toContain('href="#writing"');
+  });
+
   it('shows the site name and the theme toggle in the top bar', () => {
     const html = renderToStaticMarkup(
       <RootLayout>

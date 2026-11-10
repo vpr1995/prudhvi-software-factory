@@ -1,0 +1,45 @@
+.section {
+  padding-top: var(--space-lg);
+  padding-bottom: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.section h2 {
+  margin-bottom: var(--space-md);
+}
+
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  gap: 0.25rem;
+  padding: var(--space-xs) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.label {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Long addresses wrap, so the page never scrolls sideways on a phone. */
+.value {
+  color: var(--color-accent);
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 48rem) {
+  .row {
+    grid-template-columns: 9rem 1fr;
+    align-items: baseline;
+    gap: var(--space-sm);
+  }
+}

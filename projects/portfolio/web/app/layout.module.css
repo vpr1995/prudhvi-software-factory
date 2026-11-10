@@ -21,3 +21,25 @@
   margin: 0 auto;
   padding: var(--space-lg) var(--gutter);
 }
+
+.sectionList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sectionLink {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.sectionLink:hover {
+  text-decoration: underline;
+}
