@@ -54,3 +54,28 @@ function isHttpsUrl(href: string): boolean {
     return false;
   }
 }
+
+/** The origin of the Medium articles. A feed item must start with this text to be shown. */
+export const MEDIUM_ORIGIN = 'https://medium.com/';
+
+/** The origin of the pinned repos. A feed repo must start with this text to be shown. */
+export const GITHUB_ORIGIN = 'https://github.com/';
+
+/**
+ * Tells whether a link is on an origin, as a second line of defence after the build script (R-8).
+ * The link must start with the origin text, have a path, and parse as a URL on that same origin.
+ *
+ * @param href - The link from a feed or from the content.
+ * @param origin - The origin text, for example `https://medium.com/`.
+ * @returns True only for a link on that origin.
+ */
+export function isOnOrigin(href: string, origin: string): boolean {
+  if (!href.startsWith(origin) || href.length === origin.length) {
+    return false;
+  }
+  try {
+    return new URL(href).origin === new URL(origin).origin;
+  } catch {
+    return false;
+  }
+}

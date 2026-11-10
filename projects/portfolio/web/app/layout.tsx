@@ -11,12 +11,13 @@ import { THEME_COLORS, THEME_SCRIPT } from '../lib/theme';
 import styles from './layout.module.css';
 
 /**
- * The in-page links of the top bar. Each target is a section of the home page. Ticket #88 adds the
- * open source and writing links, with their sections. Only the links whose target exists are here.
+ * The in-page links of the top bar. Each target is a section of the home page.
  */
 const SECTION_LINKS: readonly { readonly href: string; readonly label: string }[] = [
   { href: '#experience', label: 'Experience' },
   { href: '#awards', label: 'Awards' },
+  { href: '#open-source', label: 'Open source' },
+  { href: '#writing', label: 'Writing' },
   { href: '#contact', label: 'Contact' },
 ];
 

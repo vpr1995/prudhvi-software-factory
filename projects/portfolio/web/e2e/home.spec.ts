@@ -59,9 +59,15 @@ test.describe('home page', () => {
     await page.goto('/');
     const sections = page.getByRole('navigation', { name: 'Sections' });
 
-    for (const name of ['Experience', 'Awards', 'Contact']) {
+    for (const [name, id] of [
+      ['Experience', 'experience'],
+      ['Awards', 'awards'],
+      ['Open source', 'open-source'],
+      ['Writing', 'writing'],
+      ['Contact', 'contact'],
+    ] as const) {
       await sections.getByRole('link', { name, exact: true }).click();
-      await expect.poll(() => new URL(page.url()).hash).toBe(`#${name.toLowerCase()}`);
+      await expect.poll(() => new URL(page.url()).hash).toBe(`#${id}`);
       await expect(page.getByRole('heading', { level: 2, name })).toBeInViewport();
     }
   });
@@ -72,6 +78,8 @@ test.describe('home page', () => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto('/');
       await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
+      await expect(page.getByRole('heading', { level: 2, name: 'Open source' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 2, name: 'Writing' })).toBeVisible();
 
       const results = await new AxeBuilder({ page }).analyze();
 

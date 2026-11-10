@@ -65,7 +65,7 @@ describe('RootLayout', () => {
     expect(html).toContain(`<head><script>${THEME_SCRIPT}</script></head>`);
   });
 
-  it('links the top bar to the sections that exist now, and no others', () => {
+  it('links the top bar to each section of the page, in section order', () => {
     const html = renderToStaticMarkup(
       <RootLayout>
         <p>Page</p>
@@ -74,9 +74,11 @@ describe('RootLayout', () => {
     expect(html).toMatch(/<nav aria-label="Sections"[^>]*>/u);
     expect(html).toContain('href="#experience"');
     expect(html).toContain('href="#awards"');
+    expect(html).toContain('href="#open-source"');
+    expect(html).toContain('href="#writing"');
     expect(html).toContain('href="#contact"');
-    expect(html).not.toContain('href="#open-source"');
-    expect(html).not.toContain('href="#writing"');
+    expect(html.indexOf('href="#awards"')).toBeLessThan(html.indexOf('href="#open-source"'));
+    expect(html.indexOf('href="#writing"')).toBeLessThan(html.indexOf('href="#contact"'));
   });
 
   it('shows the site name and the theme toggle in the top bar', () => {

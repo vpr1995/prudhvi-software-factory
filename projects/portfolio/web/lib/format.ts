@@ -61,3 +61,23 @@ export function formatPeriod(start: string, end: string | null): string {
 export function formatLocationLine(location: Location): string {
   return `Open to relocation: ${[location.primary, ...location.also].join(' · ')}`;
 }
+
+/**
+ * Writes an ISO date and time as a short English month and a year, for example `Oct 2026`. The
+ * month is read in UTC, so the build and the browser show the same words.
+ *
+ * @param value - A date and time in ISO form, checked by the feed contract.
+ * @returns The month and the year.
+ * @throws Error when the text is not a date.
+ */
+export function formatPublishedMonth(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${value} is not a date.`);
+  }
+  const name = MONTH_NAMES[date.getUTCMonth()];
+  if (name === undefined) {
+    throw new Error(`The month of ${value} is not 01 to 12.`);
+  }
+  return `${name} ${String(date.getUTCFullYear())}`;
+}
