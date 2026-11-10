@@ -1,37 +1,78 @@
+/* The floating pill. On a phone it holds the name and the toggle, and the links take a strip
+   below it. From 900px the links sit inside the pill. */
 .topBar {
   position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
+  top: 12px;
+  z-index: 20;
+  margin-top: 12px;
 }
 
-/* Row one is the name and the toggle, 56px tall. On a phone the links take a second row. */
-.topBarInner {
+/* A grid of two rows. Row one holds the name and the buttons, and the ::before is the pill behind
+   it. Row two holds the links on a phone. */
+.pill {
+  position: relative;
   display: grid;
   grid-template-areas:
-    'name toggle'
+    'name actions'
     'nav nav';
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: var(--header-height) auto;
   align-items: center;
-  max-width: 56rem;
+  gap: 8px 12px;
+  max-width: 68rem;
   margin: 0 auto;
   padding: 0 var(--gutter);
 }
 
+.pill::before {
+  grid-area: 1 / 1 / 2 / 3;
+  align-self: stretch;
+  margin: 0 calc(var(--gutter) * 0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  content: '';
+}
+
 .siteName {
-  grid-area: name;
+  grid-area: 1 / 1;
   justify-self: start;
+  padding: 0.6rem 0 0.6rem 1.25rem;
   color: var(--fg);
-  font-weight: 600;
+  font-family: var(--ff-display);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   text-decoration: none;
   white-space: nowrap;
 }
 
-.toggle {
-  grid-area: toggle;
-  justify-self: end;
+.actions {
+  grid-area: 1 / 2;
+  padding: 8px 8px 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The email button is hidden on a phone: the hero has the same button. */
+.email {
+  display: none;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 10px 20px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: opacity 150ms ease;
+}
+
+.email:hover {
+  opacity: 0.9;
 }
 
 /* The strip scrolls sideways inside its own box. No JavaScript is needed. */
@@ -49,7 +90,7 @@
 
 .sectionList {
   display: flex;
-  gap: 1rem;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -59,29 +100,52 @@
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-decoration: none;
+  text-transform: uppercase;
   white-space: nowrap;
-  transition: color 150ms ease;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease;
 }
 
 .sectionLink:hover {
+  border-color: var(--accent);
   color: var(--fg);
 }
 
 .main {
-  max-width: 56rem;
+  max-width: 68rem;
   margin: 0 auto;
   padding: 0 var(--gutter);
 }
 
-@media (min-width: 48rem) {
-  .topBarInner {
-    grid-template-areas: 'name nav toggle';
-    grid-template-columns: 1fr auto auto;
-    grid-template-rows: var(--header-height);
-    column-gap: 1.5rem;
+@media (min-width: 68.75rem) {
+  .pill {
+    grid-template-areas: 'name nav actions';
+    grid-template-columns: auto 1fr auto;
+    gap: 1.25rem;
+  }
+
+  .pill::before {
+    grid-area: 1 / 1 / 2 / 4;
+  }
+
+  .siteName {
+    grid-area: name;
+    padding-left: 1.75rem;
+  }
+
+  .actions {
+    grid-area: actions;
+    padding-right: 14px;
   }
 
   .nav {
@@ -90,13 +154,19 @@
     overflow: visible;
   }
 
+  .sectionList {
+    justify-content: center;
+    gap: 1.1rem;
+  }
+
   .sectionLink {
     min-height: 2rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .sectionLink {
-    transition: none;
+  .email {
+    display: inline-flex;
   }
 }

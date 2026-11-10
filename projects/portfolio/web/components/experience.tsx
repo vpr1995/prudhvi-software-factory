@@ -20,31 +20,37 @@ export function Experience(props: ExperienceProps): React.JSX.Element {
   const entries = props.entries ?? siteContent.experience;
   return (
     <section id="experience" aria-labelledby="experience-heading" className="section">
-      <h2 id="experience-heading">Experience</h2>
+      <div className="section-header">
+        <p className="section-eyebrow">Career journey</p>
+        <h2 id="experience-heading">Experience</h2>
+      </div>
       <ol className={styles['list']}>
         {entries.map((entry) => (
           <li key={`${entry.company}-${entry.start}`} className={styles['entry']}>
-            <h3 className={styles['role']}>{entry.role}</h3>
-            <p className={styles['meta']}>
-              <span className={styles['company']}>{entry.company}</span>
-              <span className={styles['place']}>{entry.location}</span>
-            </p>
             <p className={styles['period']}>{formatPeriod(entry.start, entry.end)}</p>
-            <ul className={styles['bullets']}>
-              {entry.bullets.map((bullet) => (
-                <li key={bullet}>{bullet}</li>
-              ))}
-            </ul>
-            {entry.metrics !== undefined && entry.metrics.length > 0 ? (
-              <dl className={styles['metrics']}>
-                {entry.metrics.map((metric) => (
-                  <div key={metric.label} className={styles['metric']}>
-                    <dt className={styles['metricLabel']}>{metric.label}</dt>
-                    <dd className={styles['figure']}>{metric.value}</dd>
-                  </div>
+            <div className={styles['rail']} aria-hidden="true" />
+            <div className={styles['card']}>
+              <h3 className={styles['role']}>{entry.role}</h3>
+              <p className={styles['meta']}>
+                <span className={styles['company']}>{entry.company}</span>
+                <span className={styles['place']}>{entry.location}</span>
+              </p>
+              <ul className={styles['bullets']}>
+                {entry.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
                 ))}
-              </dl>
-            ) : null}
+              </ul>
+              {entry.metrics !== undefined && entry.metrics.length > 0 ? (
+                <dl className={styles['metrics']}>
+                  {entry.metrics.map((metric) => (
+                    <div key={metric.label} className={styles['metric']}>
+                      <dt className={styles['metricLabel']}>{metric.label}</dt>
+                      <dd className={styles['figure']}>{metric.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+            </div>
           </li>
         ))}
       </ol>

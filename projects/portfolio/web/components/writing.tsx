@@ -31,7 +31,10 @@ export function Writing(props: WritingProps): React.JSX.Element {
 
   return (
     <section id="writing" aria-labelledby="writing-heading" className="section">
-      <h2 id="writing-heading">Writing</h2>
+      <div className="section-header">
+        <p className="section-eyebrow">On Medium</p>
+        <h2 id="writing-heading">Writing</h2>
+      </div>
       {shown.length === 0 ? (
         <p className={styles['fallback']}>
           <a href={profileUrl} {...externalLinkProps(profileUrl)}>
@@ -41,15 +44,18 @@ export function Writing(props: WritingProps): React.JSX.Element {
       ) : (
         <ul className={styles['list']}>
           {shown.map((item) => (
-            <li key={item.url} className={styles['item']}>
+            <li key={item.url} className={styles['card']}>
+              <time className={styles['date']} dateTime={item.publishedAt}>
+                {formatPublishedMonth(item.publishedAt)}
+              </time>
               <h3 className={styles['title']}>
                 <a href={item.url} {...externalLinkProps(item.url)} className={styles['link']}>
                   {item.title}
                 </a>
               </h3>
-              <time className={styles['date']} dateTime={item.publishedAt}>
-                {formatPublishedMonth(item.publishedAt)}
-              </time>
+              <span className={styles['footer']} aria-hidden="true">
+                Read on Medium ↗
+              </span>
             </li>
           ))}
         </ul>

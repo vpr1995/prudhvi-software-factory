@@ -29,7 +29,10 @@ export function OpenSource(props: OpenSourceProps): React.JSX.Element {
 
   return (
     <section id="open-source" aria-labelledby="open-source-heading" className="section">
-      <h2 id="open-source-heading">Open source</h2>
+      <div className="section-header">
+        <p className="section-eyebrow">Selected work</p>
+        <h2 id="open-source-heading">Open source</h2>
+      </div>
       {pinnedRepos.length === 0 ? (
         <p className={styles['fallback']}>
           <a href={profileUrl} {...externalLinkProps(profileUrl)}>

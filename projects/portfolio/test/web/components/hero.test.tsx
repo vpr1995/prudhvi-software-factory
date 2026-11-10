@@ -28,10 +28,12 @@ describe('Hero', () => {
 
   it('links to email, LinkedIn, GitHub and Medium, with rel on each', () => {
     render(<Hero />);
-    expect(screen.getByRole('link', { name: 'Email' })).toHaveAttribute(
-      'href',
-      `mailto:${content.contact.email}`,
-    );
+    // The hero has two Email links: the call to action and the icon. Both go to the same address.
+    const emailLinks = screen.getAllByRole('link', { name: 'Email' });
+    expect(emailLinks.length).toBeGreaterThanOrEqual(2);
+    for (const link of emailLinks) {
+      expect(link).toHaveAttribute('href', `mailto:${content.contact.email}`);
+    }
     for (const name of ['LinkedIn', 'GitHub', 'Medium']) {
       const link = screen.getByRole('link', { name });
       expect(link).toHaveAttribute('target', '_blank');

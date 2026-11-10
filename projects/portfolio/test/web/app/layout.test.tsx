@@ -10,7 +10,12 @@ import { THEME_SCRIPT } from '../../../web/lib/theme';
 
 // next/font/local only runs inside the Next.js build, so the font modules are replaced here. The
 // build and the Playwright specs load the real Geist fonts.
-vi.mock('geist/font/sans', () => ({ GeistSans: { variable: '__geist_sans' } }));
+vi.mock('next/font/google', () =>
+  Object.fromEntries([
+    ['Space_Grotesk', () => ({ variable: '__display' })],
+    ['Plus_Jakarta_Sans', () => ({ variable: '__body' })],
+  ]),
+);
 vi.mock('geist/font/mono', () => ({ GeistMono: { variable: '__geist_mono' } }));
 
 // The tests run from the project folder (Rush and vitest both do).
@@ -47,13 +52,13 @@ describe('RootLayout', () => {
     expect(html).toContain('href="#main"');
   });
 
-  it('sets the Geist font variables on <html>', () => {
+  it('sets the font variables on <html>', () => {
     const html = renderToStaticMarkup(
       <RootLayout>
         <p>Page</p>
       </RootLayout>,
     );
-    expect(html).toContain('class="__geist_sans __geist_mono"');
+    expect(html).toContain('class="__display __body __geist_mono"');
   });
 
   it('puts the pre-paint theme script in the head, unchanged', () => {
@@ -73,11 +78,18 @@ describe('RootLayout', () => {
     );
     expect(html).toMatch(/<nav aria-label="Sections"[^>]*>/u);
     expect(html).toContain('href="#experience"');
+    expect(html).toContain('href="#skills"');
     expect(html).toContain('href="#awards"');
+    expect(html).toContain('href="#certifications"');
     expect(html).toContain('href="#open-source"');
     expect(html).toContain('href="#writing"');
     expect(html).toContain('href="#contact"');
-    expect(html.indexOf('href="#awards"')).toBeLessThan(html.indexOf('href="#open-source"'));
+    expect(html.indexOf('href="#experience"')).toBeLessThan(html.indexOf('href="#skills"'));
+    expect(html.indexOf('href="#skills"')).toBeLessThan(html.indexOf('href="#awards"'));
+    expect(html.indexOf('href="#awards"')).toBeLessThan(html.indexOf('href="#certifications"'));
+    expect(html.indexOf('href="#certifications"')).toBeLessThan(
+      html.indexOf('href="#open-source"'),
+    );
     expect(html.indexOf('href="#writing"')).toBeLessThan(html.indexOf('href="#contact"'));
   });
 

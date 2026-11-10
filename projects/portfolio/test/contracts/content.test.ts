@@ -234,3 +234,209 @@ describe('phone-number shape table', () => {
     },
   );
 });
+
+describe('content contract: skills', () => {
+  it('accepts the skill groups of the sample content', () => {
+    const result = ContentSchema.safeParse(sample);
+    expect(result.success).toBe(true);
+    expect(result.data?.skills.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('rejects a missing skills block, and names the path', () => {
+    const result = ContentSchema.safeParse(
+      withChange((c) => {
+        deletePath(c, ['skills']);
+      }),
+    );
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(['skills']);
+  });
+
+  it('rejects an empty list of groups and more than 8 groups', () => {
+    const empty = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['skills'], []);
+      }),
+    );
+    expect(empty.error?.issues[0]?.message).toContain('Add at least one skill group');
+
+    const tooMany = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(
+          c,
+          ['skills'],
+          Array.from({ length: 9 }, (_, index) => ({
+            category: `Group ${String(index)}`,
+            items: ['A'],
+          })),
+        );
+      }),
+    );
+    expect(tooMany.error?.issues[0]?.message).toContain('Use at most 8 skill groups');
+  });
+
+  it('rejects a group with no items, an empty item, and more than 24 items', () => {
+    const noItems = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['skills', 0, 'items'], []);
+      }),
+    );
+    expect(noItems.error?.issues[0]?.path).toEqual(['skills', 0, 'items']);
+    expect(noItems.error?.issues[0]?.message).toContain('Add at least one skill');
+
+    const emptyItem = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['skills', 0, 'items', 0], '   ');
+      }),
+    );
+    expect(emptyItem.error?.issues[0]?.path).toEqual(['skills', 0, 'items', 0]);
+
+    const tooMany = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(
+          c,
+          ['skills', 0, 'items'],
+          Array.from({ length: 25 }, (_, index) => `Skill ${String(index)}`),
+        );
+      }),
+    );
+    expect(tooMany.error?.issues[0]?.message).toContain('Use at most 24 skills');
+  });
+
+  it('rejects an empty category and an unknown field, and names the field', () => {
+    const emptyCategory = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['skills', 0, 'category'], '');
+      }),
+    );
+    expect(emptyCategory.error?.issues[0]?.path).toEqual(['skills', 0, 'category']);
+
+    const extra = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['skills', 0, 'level'], 'expert');
+      }),
+    );
+    expect(extra.success).toBe(false);
+    expect(extra.error?.issues[0]?.message).toContain('"level"');
+  });
+
+  it('rejects two groups with the same category, and names the path and the rule', () => {
+    const result = ContentSchema.safeParse(
+      withChange((c) => {
+        const skills = c['skills'] as { category: string; items: string[] }[];
+        setPath(c, ['skills'], [skills[0], { ...skills[0] }]);
+      }),
+    );
+    expect(result.success).toBe(false);
+    const issue = result.error?.issues.find((item) => item.message.includes('twice'));
+    expect(issue?.path).toEqual(['skills', 1, 'category']);
+    expect(issue?.message).toContain('Use each category name once');
+  });
+});
+
+describe('content contract: certifications', () => {
+  it('accepts the certifications of the sample content', () => {
+    const result = ContentSchema.safeParse(sample);
+    expect(result.success).toBe(true);
+    expect(result.data?.certifications.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('rejects a missing certifications block, an empty list and more than 12 entries', () => {
+    const missing = ContentSchema.safeParse(
+      withChange((c) => {
+        deletePath(c, ['certifications']);
+      }),
+    );
+    expect(missing.error?.issues[0]?.path).toEqual(['certifications']);
+
+    const empty = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['certifications'], []);
+      }),
+    );
+    expect(empty.error?.issues[0]?.message).toContain('Add at least one certification');
+
+    const tooMany = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(
+          c,
+          ['certifications'],
+          Array.from({ length: 13 }, (_, index) => ({
+            name: `Cert ${String(index)}`,
+            issuer: 'Issuer',
+            issued: '2024-01',
+          })),
+        );
+      }),
+    );
+    expect(tooMany.error?.issues[0]?.message).toContain('Use at most 12 certifications');
+  });
+
+  it('accepts an entry with only the required fields', () => {
+    const result = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['certifications'], [{ name: 'A', issuer: 'B', issued: '2024-01' }]);
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a bad month, and names the path', () => {
+    const result = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['certifications', 0, 'issued'], 'Sep 2024');
+      }),
+    );
+    expect(result.error?.issues[0]?.path).toEqual(['certifications', 0, 'issued']);
+    expect(result.error?.issues[0]?.message).toContain('Use the form YYYY-MM');
+  });
+
+  it('rejects a credential link that is not https, and names the path', () => {
+    const result = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['certifications', 0, 'credentialUrl'], 'http://example.com/c');
+      }),
+    );
+    expect(result.error?.issues[0]?.path).toEqual(['certifications', 0, 'credentialUrl']);
+    expect(result.error?.issues[0]?.message).toContain('Use an https link');
+  });
+
+  it('rejects an unknown field and an empty name', () => {
+    const extra = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['certifications', 0, 'score'], '900');
+      }),
+    );
+    expect(extra.error?.issues[0]?.message).toContain('"score"');
+
+    const empty = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['certifications', 0, 'name'], '');
+      }),
+    );
+    expect(empty.error?.issues[0]?.path).toEqual(['certifications', 0, 'name']);
+  });
+
+  it('rejects an expiry before the issue month, and names the path and the rule', () => {
+    const result = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['certifications', 0, 'issued'], '2024-09');
+        setPath(c, ['certifications', 0, 'expires'], '2024-08');
+      }),
+    );
+    expect(result.success).toBe(false);
+    const issue = result.error?.issues.find((item) => item.message.includes('before'));
+    expect(issue?.path).toEqual(['certifications', 0, 'expires']);
+    expect(issue?.message).toContain('Use an expiry month that is not before the issue month');
+  });
+
+  it('accepts an expiry in the same month as the issue month', () => {
+    const result = ContentSchema.safeParse(
+      withChange((c) => {
+        setPath(c, ['certifications', 0, 'issued'], '2024-09');
+        setPath(c, ['certifications', 0, 'expires'], '2024-09');
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+});

@@ -2,7 +2,7 @@
 .row {
   display: grid;
   gap: 0.15rem;
-  padding-block: 14px;
+  padding-block: 16px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -12,8 +12,10 @@
 
 .label {
   color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .value {
@@ -25,13 +27,13 @@
 /* The same look as the secondary buttons of the hero. */
 .button {
   min-height: 2.75rem;
-  padding: 12px 20px;
+  padding: 10px 22px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
   color: var(--fg);
   font-family: inherit;
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;

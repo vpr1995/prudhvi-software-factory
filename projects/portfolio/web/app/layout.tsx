@@ -1,11 +1,12 @@
 import { GeistMono } from 'geist/font/mono';
-import { GeistSans } from 'geist/font/sans';
 import type { Metadata, Viewport } from 'next';
+import { Plus_Jakarta_Sans, Space_Grotesk } from 'next/font/google';
 
 import './globals.css';
 
 import { ThemeToggle } from '../components/theme-toggle';
 import { content } from '../lib/content';
+import { externalLinkProps } from '../lib/links';
 import { THEME_COLORS, THEME_SCRIPT } from '../lib/theme';
 
 import styles from './layout.module.css';
@@ -15,11 +16,29 @@ import styles from './layout.module.css';
  */
 const SECTION_LINKS: readonly { readonly href: string; readonly label: string }[] = [
   { href: '#experience', label: 'Experience' },
+  { href: '#skills', label: 'Skills' },
   { href: '#awards', label: 'Awards' },
+  { href: '#certifications', label: 'Certifications' },
   { href: '#open-source', label: 'Open source' },
   { href: '#writing', label: 'Writing' },
   { href: '#contact', label: 'Contact' },
 ];
+
+/** The display font. next/font downloads it at build time and serves it from this site. */
+const displayFont = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-display',
+});
+
+/** The body font, served the same way. */
+const bodyFont = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-body',
+});
 
 const OG_IMAGES = content.site.ogImage === undefined ? undefined : [content.site.ogImage];
 
@@ -64,7 +83,10 @@ type RootLayoutProps = {
  */
 export default function RootLayout(props: RootLayoutProps): React.JSX.Element {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${displayFont.variable} ${bodyFont.variable} ${GeistMono.variable}`}
+    >
       <head>
         <script>{THEME_SCRIPT}</script>
       </head>
@@ -73,7 +95,7 @@ export default function RootLayout(props: RootLayoutProps): React.JSX.Element {
           Skip to main content
         </a>
         <header className={styles['topBar']}>
-          <div className={styles['topBarInner']}>
+          <div className={styles['pill']}>
             <a className={styles['siteName']} href="#top">
               {content.profile.name}
             </a>
@@ -88,7 +110,14 @@ export default function RootLayout(props: RootLayoutProps): React.JSX.Element {
                 ))}
               </ul>
             </nav>
-            <div className={styles['toggle']}>
+            <div className={styles['actions']}>
+              <a
+                className={styles['email']}
+                href={`mailto:${content.contact.email}`}
+                {...externalLinkProps(`mailto:${content.contact.email}`)}
+              >
+                Email
+              </a>
               <ThemeToggle />
             </div>
           </div>

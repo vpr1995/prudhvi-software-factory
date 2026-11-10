@@ -6,7 +6,7 @@ import { THEME_STORAGE_KEY } from '../lib/theme';
 
 import { siteContent } from './site-content';
 
-const { profile, experience, awards, contact } = siteContent;
+const { profile, experience, awards, contact, skills, certifications } = siteContent;
 const LOCATION_LINE = `Open to relocation: ${[profile.location.primary, ...profile.location.also].join(' · ')}`;
 
 /** Sets the theme choice before the page scripts run. Storage can be blocked, so it is guarded. */
@@ -61,7 +61,9 @@ test.describe('home page', () => {
 
     for (const [name, id] of [
       ['Experience', 'experience'],
+      ['Skills', 'skills'],
       ['Awards', 'awards'],
+      ['Certifications', 'certifications'],
       ['Open source', 'open-source'],
       ['Writing', 'writing'],
       ['Contact', 'contact'],
@@ -70,6 +72,22 @@ test.describe('home page', () => {
       await expect.poll(() => new URL(page.url()).hash).toBe(`#${id}`);
       await expect(page.getByRole('heading', { level: 2, name })).toBeInViewport();
     }
+  });
+
+  test('shows the skills and the certifications with the sample content', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { level: 2, name: 'Skills' })).toBeVisible();
+    await expect(page.locator('section#skills li li').first()).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 3, name: skills[0]?.category ?? '' }),
+    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Certifications' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 3, name: certifications[0]?.name ?? '' }),
+    ).toBeVisible();
+    const credential = page.locator('section#certifications a[href^="https://"]').first();
+    await expect(credential).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   for (const scheme of ['light', 'dark'] as const) {
@@ -114,6 +132,15 @@ test.describe('home page with JavaScript off', () => {
     await expect(page.getByRole('link', { name: contact.linkedin, exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: contact.github, exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: contact.medium, exact: true })).toBeVisible();
+  });
+
+  test('still shows the skills and the certifications with their items', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { level: 2, name: 'Skills' })).toBeVisible();
+    await expect(page.locator('section#skills li li').first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Certifications' })).toBeVisible();
+    await expect(page.locator('section#certifications li').first()).toBeVisible();
   });
 
   test('still shows the open source and the writing sections with their items', async ({

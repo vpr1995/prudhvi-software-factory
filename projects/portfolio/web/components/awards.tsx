@@ -20,19 +20,18 @@ export function Awards(props: AwardsProps): React.JSX.Element {
   const awards = props.awards ?? siteContent.awards;
   return (
     <section id="awards" aria-labelledby="awards-heading" className="section">
-      <h2 id="awards-heading">Awards</h2>
+      <div className="section-header">
+        <p className="section-eyebrow">Recognition</p>
+        <h2 id="awards-heading">Awards</h2>
+      </div>
       <ul className={styles['list']}>
         {awards.map((award) => (
-          <li key={`${award.title}-${award.year}`} className={styles['item']}>
+          <li key={`${award.title}-${award.year}`} className={styles['card']}>
+            <time className={styles['year']} dateTime={award.year}>
+              {award.year}
+            </time>
             <h3 className={styles['title']}>{award.title}</h3>
-            <p className={styles['meta']}>
-              <time className={styles['year']} dateTime={award.year}>
-                {award.year}
-              </time>
-              {award.issuer === undefined ? null : (
-                <span className={styles['issuer']}>{award.issuer}</span>
-              )}
-            </p>
+            {award.issuer === undefined ? null : <p className={styles['issuer']}>{award.issuer}</p>}
             <a
               className={styles['source']}
               href={award.source}

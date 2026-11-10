@@ -1,8 +1,10 @@
 import { Awards } from '../components/awards';
+import { Certifications } from '../components/certifications';
 import { Contact } from '../components/contact';
 import { Experience } from '../components/experience';
 import { Hero } from '../components/hero';
 import { OpenSource } from '../components/open-source';
+import { Skills } from '../components/skills';
 import { Writing } from '../components/writing';
 
 /**
@@ -15,7 +17,9 @@ export default function HomePage(): React.JSX.Element {
     <>
       <Hero />
       <Experience />
+      <Skills />
       <Awards />
+      <Certifications />
       <OpenSource />
       <Writing />
       <Contact />

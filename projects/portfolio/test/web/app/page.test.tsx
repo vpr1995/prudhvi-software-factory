@@ -13,12 +13,28 @@ describe('HomePage', () => {
     ).toBeInTheDocument();
   });
 
-  it('composes the sections in order: experience, awards, open source, writing, contact', () => {
+  it('composes the sections in order: experience, skills, awards, certifications, open source, writing, contact', () => {
     const { container } = render(<HomePage />);
     const ids = Array.from(container.querySelectorAll('section')).map((section) => section.id);
 
-    expect(ids).toEqual(['experience', 'awards', 'open-source', 'writing', 'contact']);
-    for (const name of ['Experience', 'Awards', 'Open source', 'Writing', 'Contact']) {
+    expect(ids).toEqual([
+      'experience',
+      'skills',
+      'awards',
+      'certifications',
+      'open-source',
+      'writing',
+      'contact',
+    ]);
+    for (const name of [
+      'Experience',
+      'Skills',
+      'Awards',
+      'Certifications',
+      'Open source',
+      'Writing',
+      'Contact',
+    ]) {
       expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
     }
   });

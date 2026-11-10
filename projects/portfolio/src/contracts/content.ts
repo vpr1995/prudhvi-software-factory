@@ -5,6 +5,9 @@ import { z } from 'zod';
 const MAX_SHORT = 200;
 const MAX_LONG = 400;
 const MAX_BULLETS = 6;
+const MAX_SKILL_GROUPS = 8;
+const MAX_SKILLS = 24;
+const MAX_CERTIFICATIONS = 12;
 const MAX_MEDIUM_ITEMS = 10;
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/u;
 const YEAR_PATTERN = /^\d{4}$/u;
@@ -191,6 +194,37 @@ const pinnedRepositorySchema = strictObject(
   'a pinned repo',
 );
 
+const SkillGroupSchema = strictObject(
+  {
+    category: text(),
+    items: z
+      .array(text(), { error: 'Write the skills as a list in [ ].' })
+      .min(1, 'Add at least one skill to the group.')
+      .max(MAX_SKILLS, `Use at most ${String(MAX_SKILLS)} skills in a group.`),
+  },
+  'a skill group',
+);
+
+const CertificationSchema = strictObject(
+  {
+    name: text(),
+    issuer: text(),
+    level: text().optional(),
+    issued: MonthSchema,
+    expires: MonthSchema.optional(),
+    credentialUrl: httpsUrl.optional(),
+  },
+  'a certification',
+).refine(
+  (certification) =>
+    certification.expires === undefined || certification.expires >= certification.issued,
+  {
+    path: ['expires'],
+    message:
+      'Use an expiry month that is not before the issue month. Both months use the form YYYY-MM.',
+  },
+);
+
 const mediumSchema = strictObject(
   {
     handle: text().regex(
@@ -245,7 +279,29 @@ export const ContentSchema = strictObject(
     experience: z
       .array(experienceSchema, { error: 'Write the experience as a list in [ ].' })
       .min(1, 'Add at least one experience entry.'),
+    skills: z
+      .array(SkillGroupSchema, { error: 'Write the skills as a list in [ ].' })
+      .min(1, 'Add at least one skill group.')
+      .max(MAX_SKILL_GROUPS, `Use at most ${String(MAX_SKILL_GROUPS)} skill groups.`)
+      .superRefine((groups, context) => {
+        const seen = new Set<string>();
+        for (const [index, group] of groups.entries()) {
+          const key = group.category.toLowerCase();
+          if (seen.has(key)) {
+            context.addIssue({
+              code: 'custom',
+              path: [index, 'category'],
+              message: `The category "${group.category}" is used twice. Use each category name once.`,
+            });
+          }
+          seen.add(key);
+        }
+      }),
     awards: z.array(awardSchema, { error: 'Write the awards as a list in [ ].' }),
+    certifications: z
+      .array(CertificationSchema, { error: 'Write the certifications as a list in [ ].' })
+      .min(1, 'Add at least one certification.')
+      .max(MAX_CERTIFICATIONS, `Use at most ${String(MAX_CERTIFICATIONS)} certifications.`),
     pinnedRepos: z.array(pinnedRepositorySchema, {
       error: 'Write the pinned repos as a list in [ ].',
     }),

@@ -11,7 +11,7 @@ export type ThemeChoice = (typeof THEME_CHOICES)[number];
 export const THEME_STORAGE_KEY = 'theme';
 
 /** The browser chrome colours. They match the background tokens in globals.css. */
-export const THEME_COLORS = { light: '#f7f8fa', dark: '#0c1116' } as const;
+export const THEME_COLORS = { light: '#f4ede1', dark: '#1a1412' } as const;
 
 /**
  * The script that sets the theme before the first paint. The layout puts it in <head> as a plain
