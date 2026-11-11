@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "comment": "Correct the comments about the DNS and ACM platform parameters",
+      "type": "patch",
+      "packageName": "@vprprudhvi/shared-cdk-constructs"
+    }
+  ],
+  "packageName": "@vprprudhvi/shared-cdk-constructs",
+  "email": "vprprudhvi@gmail.com"
+}
