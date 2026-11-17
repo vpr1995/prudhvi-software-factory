@@ -642,6 +642,10 @@ const dirty = (work) => {
 
 const logsFolder = (work) => stateFile(work, '7', 'logs');
 const patches = (work) => listFolder(logsFolder(work)).filter((name) => name.endsWith('.patch'));
+const EXCERPT_END = '-excerpt.txt';
+const excerpts = (work) =>
+  listFolder(logsFolder(work)).filter((name) => name.endsWith(EXCERPT_END));
+const excerptText = (work) => readFileSync(path.join(logsFolder(work), excerpts(work)[0]), 'utf8');
 
 test('R-12: the steps run in order, push needs no guard, and nothing opens a PR', () => {
   const { remote, work } = makeRepository();
@@ -726,7 +730,7 @@ test('R-12: the steps run in order, push needs no guard, and nothing opens a PR'
   );
 });
 
-test('R-12: the posted comment has the marker, reason, branch, patch name, and a redacted excerpt', () => {
+test('R-12: the posted comment has the marker, reason, branch, patch name and excerpt file name, and no excerpt line', () => {
   const { work } = makeRepository();
   seedTicket(work);
   seedLog(work, [logLine(T0)]);
@@ -740,12 +744,18 @@ test('R-12: the posted comment has the marker, reason, branch, patch name, and a
   assert.ok(body.includes(REASON));
   assert.ok(body.includes('feat/7-x'));
   assert.ok(body.includes(patches(work)[0]));
-  assert.ok(body.includes('~/code/a.js'));
-  assert.ok(!body.includes('/Users/bob') && !body.includes('hunter2'));
-  assert.ok(body.includes('last line'));
+  const [file] = excerpts(work);
+  assert.match(file, /^hardstop-\d{8}T\d{6}Z-excerpt\.txt$/);
+  assert.ok(body.includes(`Error excerpt: ${file} (in the ticket logs of the agent machine)`));
+  for (const line of ['failure at', 'a.js', 'hunter2', 'last line', '/Users/bob']) {
+    assert.ok(!body.includes(line), `${line} must not be in the comment`);
+  }
+  // The excerpt file is redacted (second layer) and holds each line.
+  assert.equal(excerptText(work), 'failure at ~/code/a.js\n[redacted]\nlast line\n');
+  assert.equal(file.slice(0, -EXCERPT_END.length), patches(work)[0].replace(/\.patch$/, ''));
 });
 
-test('R-12: the excerpt keeps the last 40 lines and says how many were cut', () => {
+test('R-12: the excerpt file keeps the last 40 lines, and the comment holds none of them', () => {
   const { work } = makeRepository();
   seedTicket(work);
   seedLog(work, [logLine(T0)]);
@@ -753,11 +763,54 @@ test('R-12: the excerpt keeps the last 40 lines and says how many were cut', () 
   const { calls, overrides } = hardstopOverrides(work, { overrides: { stdin: () => excerpt } });
   assert.equal(runFactory(['hardstop', '7', REASON], overrides).code, 0);
   const [{ body }] = comments(calls);
-  const rows = body.split('\n').filter((line) => /^row \d+$/.test(line));
+  assert.ok(!/^row \d+$/m.test(body), 'no excerpt line in the comment');
+  assert.equal(excerpts(work).length, 1);
+  const rows = excerptText(work).trimEnd().split('\n');
   assert.equal(rows.length, 40);
   assert.equal(rows[0], 'row 61');
   assert.equal(rows.at(-1), 'row 100');
-  assert.match(body, /last 40 of 100 lines/);
+});
+
+test('R-12: the excerpt file has mode 0600', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedLog(work, [logLine(T0)]);
+  const { overrides } = hardstopOverrides(work, { overrides: { stdin: () => 'boom' } });
+  const previous = process.umask(0o022);
+  try {
+    assert.equal(runFactory(['hardstop', '7', REASON], overrides).code, 0);
+  } finally {
+    process.umask(previous);
+  }
+  assert.equal(statSync(path.join(logsFolder(work), excerpts(work)[0])).mode & 0o777, 0o600);
+});
+
+test('R-12: an empty stdin saves no excerpt file, and the comment says none', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedLog(work, [logLine(T0)]);
+  const { calls, overrides } = hardstopOverrides(work, { overrides: { stdin: () => '\n  \n' } });
+  assert.equal(runFactory(['hardstop', '7', REASON], overrides).code, 0);
+  assert.deepEqual(excerpts(work), []);
+  assert.match(comments(calls)[0].body, /^Error excerpt: none$/m);
+});
+
+test('R-12: a secret form the redaction misses stays out of each gh call and body file', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedLog(work, [logLine(T0)]);
+  dirty(work);
+  const secret = String.raw`{\"token\":\"ab\\\"cd\"}`;
+  assert.equal(redactText(secret), secret, 'the redaction misses this form');
+  const { calls, overrides } = hardstopOverrides(work, { overrides: { stdin: () => secret } });
+  assert.equal(runFactory(['hardstop', '7', REASON], overrides).code, 0);
+  assert.ok(calls.length > 0);
+  const pieces = [secret, String.raw`ab\"cd`, String.raw`\"token\"`];
+  for (const { args, body } of calls) {
+    const seen = `${args.join('\n')}\n${body ?? ''}`;
+    for (const piece of pieces) assert.ok(!seen.includes(piece), `${piece} in ${args.join(' ')}`);
+  }
+  assert.equal(excerptText(work), `${secret}\n`);
 });
 
 test('R-12: a reason that ends in token: cannot swallow the closing fence', () => {
@@ -768,16 +821,15 @@ test('R-12: a reason that ends in token: cannot swallow the closing fence', () =
   const { calls, overrides } = hardstopOverrides(work, { overrides: { stdin: () => excerpt } });
   assert.equal(runFactory(['hardstop', '7', 'bad token:'], overrides).code, 0);
   const lines = comments(calls)[0].body.split('\n');
-  const mention = lines.indexOf('@vprprudhvi/tooling-repo-checks');
-  assert.ok(mention > 0);
+  assert.ok(!lines.some((line) => line.includes('@vprprudhvi')), 'no excerpt line in the comment');
   const fences = lines
     .map((line, index) => (line === '```' ? index : -1))
     .filter((position) => position >= 0);
-  assert.equal(fences.length, 4, 'reason fence pair and excerpt fence pair');
-  assert.ok(fences[2] < mention && mention < fences[3], 'the @name sits inside the excerpt fence');
+  assert.equal(fences.length, 2, 'the reason fence pair only');
+  assert.ok(lines.indexOf('Branch: `feat/7-x`') > fences[1], 'text after the reason stays');
 });
 
-test('R-12: a private key that starts early in a long excerpt is gone, also the lines after the cut', () => {
+test('R-12: a private key that starts early in a long excerpt is gone from the excerpt file, also the lines after the cut', () => {
   const { work } = makeRepository();
   seedTicket(work);
   seedLog(work, [logLine(T0)]);
@@ -788,7 +840,9 @@ test('R-12: a private key that starts early in a long excerpt is gone, also the 
   assert.equal(runFactory(['hardstop', '7', REASON], overrides).code, 0);
   const { body: posted } = comments(calls)[0];
   assert.ok(!posted.includes('KEYBODY'), 'no key line in the comment');
-  assert.ok(posted.includes('[redacted]'));
+  const saved = excerptText(work);
+  assert.ok(!saved.includes('KEYBODY'), 'no key line in the excerpt file');
+  assert.ok(saved.includes('[redacted]'));
   const unterminated = hardstopOverrides(work);
   assert.equal(runFactory(['hardstop', '7', `x ${header}`], unterminated.overrides).code, 0);
   assert.match(
@@ -798,21 +852,21 @@ test('R-12: a private key that starts early in a long excerpt is gone, also the 
   );
 });
 
-test('R-12: a fence in the excerpt cannot close the code block, and @names sit inside the fence', () => {
+test('R-12: a fence in the reason cannot close the code block, and @names sit inside the fence', () => {
   const { work } = makeRepository();
   seedTicket(work);
   seedLog(work, [logLine(T0)]);
-  const excerpt = '```\n@vprprudhvi/tooling-repo-checks failed\n````';
-  const { calls, overrides } = hardstopOverrides(work, { overrides: { stdin: () => excerpt } });
-  assert.equal(runFactory(['hardstop', '7', REASON], overrides).code, 0);
+  const reason = '```\n@vprprudhvi/tooling-repo-checks failed\n````';
+  const { calls, overrides } = hardstopOverrides(work, { overrides: { stdin: () => 'boom' } });
+  assert.equal(runFactory(['hardstop', '7', reason], overrides).code, 0);
   const [{ body }] = comments(calls);
-  const fence = body.split('\n').find((line) => /^`{5,}$/.test(line));
-  assert.ok(fence !== undefined, 'fence longer than any backtick run in the excerpt');
   const lines = body.split('\n');
+  const fence = lines.find((line) => /^`{5,}$/.test(line));
+  assert.ok(fence !== undefined, 'fence longer than any backtick run in the reason');
   const open = lines.indexOf(fence);
   const close = lines.lastIndexOf(fence);
-  assert.ok(open < lines.indexOf('@vprprudhvi/tooling-repo-checks failed'));
-  assert.ok(close > lines.indexOf('@vprprudhvi/tooling-repo-checks failed'));
+  const mention = lines.findIndex((line) => line.includes('@vprprudhvi/tooling-repo-checks'));
+  assert.ok(open < mention && mention < close);
   assert.ok(!lines.slice(0, open).some((line) => line.includes('@vprprudhvi')));
 });
 
@@ -907,26 +961,30 @@ test('R-12: with no change and no untracked file there is no patch and the comme
   assert.match(comments(calls)[0].body, /Patch: none/);
 });
 
-test('R-12: a second run changes nothing: no gh write, no second patch, same files', () => {
+test('R-12: a second run changes nothing: no gh write, no second patch, no second excerpt, same files', () => {
   const { remote, work } = makeRepository();
   seedTicket(work);
   seedLog(work, [logLine(T0)]);
   dirty(work);
-  const first = hardstopOverrides(work);
+  const stdin = () => 'boom\nfailed at step 2';
+  const first = hardstopOverrides(work, { overrides: { stdin } });
   assert.equal(runFactory(['hardstop', '7', REASON], first.overrides).code, 0);
   assert.equal(comments(first.calls).length, 1);
   const before = {
     ticket: readFileSync(stateFile(work, '7', 'ticket.json'), 'utf8'),
     patches: patches(work),
+    excerpts: excerpts(work),
     remote: git(remote, 'rev-parse', 'feat/7-x'),
     status: git(work, 'status', '--porcelain', '--untracked-files=all'),
   };
-  const second = hardstopOverrides(work);
+  const second = hardstopOverrides(work, { overrides: { stdin } });
   const result = runFactory(['hardstop', '7', REASON], second.overrides);
   assert.equal(result.code, 0, result.errors);
   assert.deepEqual(writes(second.calls), []);
   assert.deepEqual(second.calls, [], 'step 1 and step 4 make no gh call at all');
   assert.deepEqual(patches(work), before.patches);
+  assert.equal(before.excerpts.length, 1);
+  assert.deepEqual(excerpts(work), before.excerpts, 'no second excerpt file');
   assert.equal(readFileSync(stateFile(work, '7', 'ticket.json'), 'utf8'), before.ticket);
   assert.equal(git(remote, 'rev-parse', 'feat/7-x'), before.remote);
   assert.equal(git(work, 'status', '--porcelain', '--untracked-files=all'), before.status);

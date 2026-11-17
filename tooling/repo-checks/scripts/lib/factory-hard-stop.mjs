@@ -2,7 +2,9 @@
 // error excerpt comes from stdin. The steps run in this order, and each one is safe to run again:
 //   1 labels   set needs-human, remove agent:in-progress (through the stage move, board Backlog)
 //   2 push     push HEAD when the branch has a commit that is not on the base (no test guard)
-//   3 patch    save the uncommitted changes and the untracked files as a patch in <n>/logs/
+//   3 patch    save the error excerpt and the uncommitted changes (and the untracked files as a
+//              patch) in <n>/logs/. The excerpt stays on the agent machine: no GitHub comment
+//              holds it, because no regex can redact free-form error text for sure (owner, 2026-11-17)
 //   4 comment  post one ticket comment (the flag is `hardStop.commentKey` in ticket.json)
 //   5 metrics  named no-op until task 5 (#100)
 //   6 report   named no-op until task 2c (#107)
@@ -27,7 +29,8 @@ import { fileSize, listFolder, readOptional, writeAtomic } from './fs-io.mjs';
 
 const EXCERPT_LINES = 40;
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
-const PATCH_MODE = 0o600;
+const FILE_MODE = 0o600;
+const EXCERPT_SUFFIX = '-excerpt.txt';
 const NEXT = 'Next: node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>"';
 const USAGE = 'Usage: hardstop <n> "<reason>"   (error excerpt on stdin)';
 const STATE_FOLDER = ['.claude', 'factory'].join('/');
@@ -129,31 +132,58 @@ const skippedNote = (skipped) =>
         `; skipped ${String(skipped.length)} ${skipped.length === 1 ? 'file' : 'files'} over 1 MiB: ${skipped.join(', ')}`,
       );
 
-// An earlier patch with the same text is reused: a second run saves no second patch.
-function findPatch(context, ticket, text) {
+// An earlier file with the same suffix and text is reused: a second run saves no second file.
+function findSaved(context, ticket, { suffix, text }) {
   const folder = logsOf(context, ticket);
   return listFolder(folder).find(
     (name) =>
       name.startsWith('hardstop-') &&
-      name.endsWith('.patch') &&
+      name.endsWith(suffix) &&
       readOptional(path.join(folder, name)) === text,
   );
 }
 
-function stepPatch(context, hs) {
+function savePatch(context, hs, stamp) {
   const { ticket } = hs;
   const { text, skipped } = patchText(context);
   const note = skippedNote(skipped);
   if (text.trim() === '') return `nothing to save${note}`;
-  const existing = findPatch(context, ticket, text);
+  const existing = findSaved(context, ticket, { suffix: '.patch', text });
   if (existing !== undefined) {
     hs.patch = existing;
     return `already saved: ${existing}${note}`;
   }
-  const stamp = timestamp(context.now()).replaceAll(/[-:]/g, '');
   hs.patch = `hardstop-${stamp}.patch`;
-  writeAtomic(path.join(logsOf(context, ticket), hs.patch), text, PATCH_MODE);
+  writeAtomic(path.join(logsOf(context, ticket), hs.patch), text, FILE_MODE);
   return `saved ${hs.patch}${note}`;
+}
+
+// The last lines of the excerpt, redacted. The redaction is a second layer: the text stays local.
+function excerptText(excerpt) {
+  // Redact the whole excerpt before the cut: a key block must not lose its header to the cut.
+  const clean = redactText(excerpt);
+  if (clean.trim() === '') return '';
+  return `${clean.replace(/\s+$/, '').split('\n').slice(-EXCERPT_LINES).join('\n')}\n`;
+}
+
+function saveExcerpt(context, hs, stamp) {
+  const text = excerptText(hs.excerpt);
+  if (text === '') return 'no excerpt';
+  const existing = findSaved(context, hs.ticket, { suffix: EXCERPT_SUFFIX, text });
+  if (existing !== undefined) {
+    hs.excerptFile = existing;
+    return `excerpt already saved: ${existing}`;
+  }
+  hs.excerptFile = `hardstop-${stamp}${EXCERPT_SUFFIX}`;
+  writeAtomic(path.join(logsOf(context, hs.ticket), hs.excerptFile), text, FILE_MODE);
+  return `excerpt saved ${hs.excerptFile}`;
+}
+
+// One time stamp for the patch and the excerpt. The excerpt goes first: a failed patch keeps it.
+function stepPatch(context, hs) {
+  const stamp = timestamp(context.now()).replaceAll(/[-:]/g, '');
+  const excerpt = saveExcerpt(context, hs, stamp);
+  return `${savePatch(context, hs, stamp)}; ${excerpt}`;
 }
 
 // Step 4
@@ -168,16 +198,8 @@ const fenced = (text) => {
   return [fence, text, fence];
 };
 
-/** @returns {string[]} Lines of the comment. Reason and excerpt sit in code fences, so a `@name` pings nobody. */
-function commentLines({ ticket, reason, excerpt, branch, patch }) {
-  // Redact the whole excerpt before the cut: a key block must not lose its header to the cut.
-  const clean = redactText(excerpt);
-  const rows = clean.trim() === '' ? [] : clean.replace(/\s+$/, '').split('\n');
-  const kept = rows.slice(-EXCERPT_LINES);
-  const cut =
-    rows.length > kept.length
-      ? `last ${String(kept.length)} of ${String(rows.length)} lines`
-      : `${String(rows.length)} lines`;
+/** @returns {string[]} Lines of the comment. The reason sits in a code fence, so a `@name` pings nobody. No excerpt line is in it. */
+function commentLines({ ticket, reason, excerptFile, branch, patch }) {
   return [
     `Hard stop on #${ticket}. Needs a human.`,
     '',
@@ -188,10 +210,9 @@ function commentLines({ ticket, reason, excerpt, branch, patch }) {
     patch === undefined
       ? 'Patch: none'
       : `Patch: \`${patch}\` (in the ticket logs of the agent machine)`,
-    '',
-    ...(kept.length === 0
-      ? ['Error excerpt: none']
-      : [`Error excerpt (${cut}):`, ...fenced(kept.join('\n'))]),
+    excerptFile === undefined
+      ? 'Error excerpt: none'
+      : `Error excerpt: ${excerptFile} (in the ticket logs of the agent machine)`,
   ];
 }
 
@@ -257,7 +278,13 @@ export function hardstopCommand(words, context) {
   if (reasonWord === undefined || reasonWord.trim() === '' || extra.length > 0) fail(USAGE);
   const excerpt = readInput(context);
   return withLock(context, () => {
-    runSteps(context, { ticket, reason: oneLine(reasonWord), excerpt, patch: undefined });
+    runSteps(context, {
+      ticket,
+      reason: oneLine(reasonWord),
+      excerpt,
+      patch: undefined,
+      excerptFile: undefined,
+    });
     return '';
   });
 }
