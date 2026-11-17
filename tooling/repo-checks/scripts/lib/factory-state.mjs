@@ -19,6 +19,7 @@ import {
   withLock,
 } from './factory-base.mjs';
 import { listFindings, findingsCommand, roundCommand } from './factory-findings.mjs';
+import { isSafeBranch } from './factory-queue-rules.mjs';
 import { BOARD } from './factory.config.mjs';
 import { appendText, readOptional, writeAtomic } from './fs-io.mjs';
 
@@ -122,7 +123,7 @@ function stackOfNext(root, ticket) {
   if (text === undefined) return {};
   const step = parseJson(text, 'run.json')?.next;
   const stack = step?.kind === 'ticket' && step.ticket === Number(ticket) ? step.stack : undefined;
-  return typeof stack?.branch === 'string' && Number.isInteger(stack.pr)
+  return isSafeBranch(stack?.branch) && Number.isInteger(stack.pr)
     ? { base: stack.branch, stackedOn: stack.pr }
     : {};
 }

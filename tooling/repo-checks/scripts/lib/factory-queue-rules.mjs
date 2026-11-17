@@ -216,3 +216,23 @@ export const issuePath = (number, suffix = '') =>
 /** @returns {boolean} True when the login is the owner. The case does not count. */
 export const isOwner = (login, owner) =>
   typeof login === 'string' && login.toLowerCase() === owner.toLowerCase();
+
+// Letters, digits, ".", "_", "-" and "/", and no leading "-", "+" or ".".
+const BRANCH = /^[A-Za-z0-9][\w./-]*$/;
+// git refuses a path component that starts with ".": "/." covers it.
+const BAD_BRANCH_PARTS = ['..', '//', '.lock/', '/.'];
+
+/**
+ * @param {string} name - A branch name. It can come from GitHub (`headRefName`).
+ * @returns {boolean} True when the name is safe in a git command: it cannot start with `-`, so git
+ *   never reads it as an option.
+ */
+export function isSafeBranch(name) {
+  return (
+    typeof name === 'string' &&
+    BRANCH.test(name) &&
+    !BAD_BRANCH_PARTS.some((part) => `${name}/`.includes(part)) &&
+    !name.endsWith('/') &&
+    !name.endsWith('.')
+  );
+}

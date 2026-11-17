@@ -21,8 +21,15 @@
 // into a branch other than main. The run report prints `stackMergeLine`.
 import { fail, ticketNumber, withLock } from './factory-base.mjs';
 import { failureReason, hardStop } from './factory-github.mjs';
-import { mergeRemote, pushBranch } from './factory-push.mjs';
-import { closedBy, hasNeedsHuman, isOwner, issuePath, prDepth } from './factory-queue-rules.mjs';
+import { checkBranch, mergeRemote, pushBranch } from './factory-push.mjs';
+import {
+  closedBy,
+  hasNeedsHuman,
+  isOwner,
+  isSafeBranch,
+  issuePath,
+  prDepth,
+} from './factory-queue-rules.mjs';
 import {
   CHECK_FIELDS,
   checksGreen,
@@ -70,6 +77,10 @@ function stackOn(env, blocker) {
   if (pr === undefined) return { skip: `${name}: no open PR (R-6)` };
   if (hasNeedsHuman(blocker.labels) || hasNeedsHuman(pr.labels)) {
     return { skip: `${name}: needs-human (R-6)` };
+  }
+  // The branch name is GitHub text and goes into git commands later: only a safe name is a base.
+  if (!isSafeBranch(pr.headRefName)) {
+    return { skip: `${name}: branch name of PR #${String(pr.number)} is not safe (R-6)` };
   }
   const checks = ghJson(env.context, ['pr', 'checks', String(pr.number), '--json', CHECK_FIELDS]);
   if (!checksGreen(checks)) {
@@ -123,6 +134,9 @@ function parentState(context, ticket, pr) {
 
 /** R-41 for `next`: a hard stop when the blocker PR of a ticket that is still stacked closed with no merge. */
 export function checkStackParent(context, ticket, state) {
+  // A ticket that stopped (needs-human) is not checked again: it would stop every later `next`.
+  // A restart clears its stack (applyRestart), so it is planned fresh.
+  if (state.stage === 'needs-human') return;
   if (typeof state.base === 'string' && Number.isInteger(state.stackedOn)) {
     parentState(context, ticket, state.stackedOn);
   }
@@ -181,10 +195,12 @@ function readyPr(context, branch) {
   return `PR #${number} is ready for review, base ${MAIN}`;
 }
 
+// An explicit refspec: the ref is never read as an option. It also updates origin/<ref>.
 function fetchBranch(context, ref, ticket) {
-  context.print(`git fetch origin ${ref}\n`);
+  const args = ['fetch', 'origin', `refs/heads/${ref}:refs/remotes/origin/${ref}`];
+  context.print(`git ${args.join(' ')}\n`);
   try {
-    context.git(['fetch', 'origin', ref]);
+    context.git(args);
   } catch (error) {
     hardStop(`fetch of origin/${ref} failed: ${failureReason(error)}`, ticket);
   }
@@ -202,6 +218,7 @@ function restack(context, ticket) {
   const merged = parentState(context, ticket, state.stackedOn) === 'MERGED';
   if (!merged && typeof state.base !== 'string') fail(`#${ticket}: ticket state has no stack base`);
   const ref = merged ? MAIN : state.base;
+  checkBranch(ref);
   fetchBranch(context, ref, ticket);
   mergeRemote(context, ref, ticket);
   // The stack ends before the push: the test guard of the push uses origin/main from now on.

@@ -101,7 +101,8 @@ function answerApi(world, args) {
   const [number, ...rest] = args[1].split('/issues/')[1].split('/');
   const issue = world.issues.get(Number(number));
   const suffix = rest.join('/');
-  if (suffix === 'events') return JSON.stringify([[readyEvent]]);
+  if (suffix === 'events')
+    return JSON.stringify([world.events?.get(Number(number)) ?? [readyEvent]]);
   if (suffix === 'dependencies/blocked_by') return JSON.stringify(issue?.blockedBy ?? []);
   return JSON.stringify({ [SUMMARY]: { total: 0 } });
 }
@@ -739,4 +740,111 @@ test('R-40: a stacked PR merged into main is not in the report', () => {
   factory(['next'], { root, gh });
   const report = readFileSync(stateFile(root, 'runs', `${OLD_RUN}-report.md`), 'utf8');
   assert.doesNotMatch(report, /Stacked PRs merged outside main/);
+});
+
+// Review round 1: an unsafe branch name, and a needs-human ticket with a closed blocker PR
+
+const UNSAFE = '--upload-pack=touch /tmp/x';
+
+test('R-36: a blocker PR with a branch name that starts with - is not a stack base', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld({ prs: [makePr(70, { headRefName: UNSAFE })] });
+  const result = factory(['stack', 'plan', '8'], { root, gh });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /^#8: skip: blocked by #7: branch name of PR #70 is not safe/m);
+  assert.doesNotMatch(result.out, /stack on|base: --/);
+});
+
+test('R-36: next does not start a ticket on a blocker PR with an unsafe branch name', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld({ prs: [makePr(70, { headRefName: UNSAFE })] });
+  seedRun(root);
+  const result = factory(['next'], { root, gh });
+  assert.match(result.out, /next: done/);
+});
+
+test('R-37: an unsafe stack branch in the next step is not stored in ticket.json', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  seedRun(root, {
+    next: {
+      kind: 'ticket',
+      ticket: 8,
+      resume: false,
+      stack: { blocker: 7, pr: 70, branch: UNSAFE },
+    },
+  });
+  assert.equal(factory(['stage', '8', 'building'], { root, gh }).code, 0);
+  const ticket = readJson(root, '8', 'ticket.json');
+  assert.equal(ticket.base, null);
+  assert.equal(ticket.stackedOn, null);
+});
+
+test('R-38: restack refuses an unsafe stored base and runs no git fetch', () => {
+  const { work } = makeRepository();
+  seedTicket(work, 90, { ...STACKED, base: UNSAFE });
+  const { gh } = restackWorld({ parent: 'OPEN' });
+  const { exec, calls: gitCalls } = recordingGit(work);
+  const result = factory(['restack', '90'], { root: work, gh, git: exec, guard: () => [] });
+  assert.equal(result.code, 2);
+  assert.match(result.errors, /refused branch name/);
+  assert.ok(!gitCalls.some((args) => args[0] === 'fetch'));
+});
+
+test('R-38: restack fetches with an explicit refspec, so a ref is never read as an option', () => {
+  const { work } = makeRepository();
+  seedTicket(work, 90, STACKED);
+  const { gh } = restackWorld({ parent: 'OPEN' });
+  const { exec, calls: gitCalls } = recordingGit(work);
+  const result = factory(['restack', '90'], { root: work, gh, git: exec, guard: () => [] });
+  assert.equal(result.code, 0, result.errors);
+  const fetch = gitCalls.find((args) => args[0] === 'fetch');
+  assert.deepEqual(fetch, [
+    'fetch',
+    'origin',
+    'refs/heads/feat/92-x:refs/remotes/origin/feat/92-x',
+  ]);
+});
+
+test('R-41: a ticket that stopped for a closed blocker PR does not block next for another ticket', () => {
+  const root = temporaryFolder();
+  const { gh, world } = makeWorld();
+  world.issues.set(8, makeIssue(8, { labels: [] }));
+  world.issues.set(9, makeIssue(9));
+  world.board = [9];
+  seedTicket(root, 8, { stage: 'needs-human', base: 'feat/70-x', stackedOn: 70 });
+  world.prState.set(70, 'CLOSED');
+  seedRun(root);
+  const result = factory(['next'], { root, gh });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: start #9\b/);
+});
+
+test('R-41: a restart of that ticket clears its stack, so it is planned fresh', () => {
+  const root = temporaryFolder();
+  const { gh, world } = makeWorld();
+  const labeled = (name, at) => ({
+    event: 'labeled',
+    label: { name },
+    actor: { login: OWNER },
+    [CREATED]: at,
+  });
+  world.events = new Map([
+    [
+      8,
+      [
+        labeled('needs-human', '2026-11-16T09:00:00Z'),
+        labeled('agent:ready', '2026-11-17T09:00:00Z'),
+      ],
+    ],
+  ]);
+  world.prState.set(70, 'CLOSED');
+  seedTicket(root, 8, { stage: 'needs-human', base: 'feat/70-x', stackedOn: 70 });
+  seedRun(root);
+  const result = factory(['next'], { root, gh });
+  assert.equal(result.code, 0, result.errors);
+  const ticket = readJson(root, '8', 'ticket.json');
+  assert.equal(ticket.resumes, 1, 'the restart ran');
+  assert.equal(ticket.base, null);
+  assert.equal(ticket.stackedOn, null);
 });

@@ -7,26 +7,19 @@
 //   { root, git(args) -> stdout, guard(base) -> findings, print(text), pid }
 import { fail, ticketNumber, withLock } from './factory-base.mjs';
 import { failureReason, hardStop } from './factory-github.mjs';
-import { baseRef } from './factory-queue-rules.mjs';
+import { baseRef, isSafeBranch } from './factory-queue-rules.mjs';
 import { loadTicket, saveTicket } from './factory-state.mjs';
 import { CHECK_CONFIG_MESSAGE } from './test-guard-rules.mjs';
 
 const PROTECTED_BRANCHES = ['main', 'master'];
-// Letters, digits, ".", "_", "-" and "/", and no leading "-", "+" or ".".
-const BRANCH = /^[A-Za-z0-9][\w./-]*$/;
-// git refuses a path component that starts with ".": "/." covers it.
-const BAD_BRANCH_PARTS = ['..', '//', '.lock/', '/.'];
 // git prints `! [rejected] HEAD -> <branch> (fetch first)` or `(non-fast-forward)`.
 const NON_FAST_FORWARD = /\[rejected\].*\((?:fetch first|non-fast-forward)\)/;
 
 /** Refuses a branch name that is not safe in `git push origin HEAD:<branch>`. */
 export function checkBranch(name) {
-  const bad =
-    !BRANCH.test(name) ||
-    BAD_BRANCH_PARTS.some((part) => `${name}/`.includes(part)) ||
-    name.endsWith('/') ||
-    name.endsWith('.');
-  if (bad) fail(`refused branch name "${name}": use letters, digits, ".", "_", "-" and "/" only`);
+  if (!isSafeBranch(name)) {
+    fail(`refused branch name "${name}": use letters, digits, ".", "_", "-" and "/" only`);
+  }
 }
 
 const findingKey = (finding) => `${finding.file}: ${finding.message}`;
