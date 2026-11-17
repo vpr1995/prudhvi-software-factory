@@ -52,7 +52,7 @@ import { reportCommand, stopCommand } from './lib/factory-report.mjs';
 import { parseSize, route, routingLine } from './lib/factory-route.mjs';
 import { COMMANDS, FactoryError, loadTicket, saveTicket, SYNOPSES } from './lib/factory-state.mjs';
 import { waitCommand } from './lib/factory-wait.mjs';
-import { isRunOff, transcriptRoot } from './lib/factory.config.mjs';
+import { currentSessionId, isRunOff, transcriptRoot } from './lib/factory.config.mjs';
 import { readStdin } from './lib/fs-io.mjs';
 import { readDiff } from './lib/test-guard-diff.mjs';
 import { CHECK_CONFIG_MESSAGE } from './lib/test-guard-rules.mjs';
@@ -173,6 +173,7 @@ function commandContext(overrides) {
     now: () => new Date(),
     pid: process.pid,
     runOff: isRunOff,
+    sessionId: currentSessionId,
     stdin: readStdin,
     transcriptRoot,
     print: (text) => process.stdout.write(text),
@@ -202,7 +203,7 @@ function runCommand(command, input, overrides) {
 
 /**
  * @param {string[]} argv - Process arguments.
- * @param {object} [overrides] - Parts of the command context (root, claudeVersion, gh, git, guard, now, pid, runOff, stdin, transcriptRoot, print, err).
+ * @param {object} [overrides] - Parts of the command context (root, claudeVersion, gh, git, guard, now, pid, runOff, sessionId, stdin, transcriptRoot, print, err).
  * @returns {number} Exit code: 0 done, 2 refused or failed, 3 hard stop.
  */
 export function main(argv = process.argv, overrides = {}) {

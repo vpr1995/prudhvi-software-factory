@@ -14,3 +14,12 @@ export const isRunOff = () => process.env.FACTORY_RUN?.trim().toLowerCase() === 
  */
 export const transcriptRoot = () =>
   path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(homedir(), '.claude'), 'projects');
+
+/**
+ * @returns {string | undefined} The ID of the current Claude Code session (`CLAUDE_CODE_SESSION_ID`:
+ *   the name of its transcript), or undefined when it is not set.
+ */
+export const currentSessionId = () => {
+  const id = process.env.CLAUDE_CODE_SESSION_ID?.trim();
+  return id === '' ? undefined : id;
+};

@@ -23,6 +23,7 @@ const MILLION = 1_000_000;
 const OPUS = 'claude-opus-5-5';
 const SONNET = 'claude-sonnet-5-5';
 const HAIKU = 'claude-haiku-5-5';
+const LOGIN = 'factory-bot';
 const roots = [];
 
 after(() => {
@@ -180,6 +181,7 @@ function makeGh({ comments = [], runs = [] } = {}) {
     const [first, second] = args;
     const list = /^repos\/\{owner\}\/\{repo\}\/issues\/(\d+)\/comments$/.exec(second ?? '');
     const edit = /^repos\/\{owner\}\/\{repo\}\/issues\/comments\/(\d+)$/.exec(second ?? '');
+    if (first === 'api' && second === 'user') return `${LOGIN}\n`;
     if (first === 'api' && list !== null) {
       return JSON.stringify([store.filter((entry) => entry.target === list[1])]);
     }
@@ -188,7 +190,7 @@ function makeGh({ comments = [], runs = [] } = {}) {
       return '';
     }
     if ((first === 'issue' || first === 'pr') && second === 'comment') {
-      store.push({ id: nextId, target: args[2], body });
+      store.push({ id: nextId, target: args[2], body, user: { login: LOGIN } });
       nextId += 1;
       return '';
     }
@@ -212,6 +214,7 @@ function runMetrics(setup, overrides = {}, words = ['metrics', '7']) {
     stdin: () => '',
     claudeVersion: () => '2.1.300 (Claude Code)\n',
     transcriptRoot: () => setup.transcripts,
+    sessionId: () => '',
     ...overrides.context,
     print: (text) => out.push(text),
     err: (text) => errors.push(text),
@@ -446,9 +449,9 @@ test('R-32: a version 1 comment with no marker is found by its block and edited'
     '```factory-metrics\n{"issue":7,"pr":12,"cost":1,"turns":2,"review_rounds":1,"ci_rounds":0,"outcome":"green"}\n```';
   const ghParts = makeGh({
     comments: [
-      { id: 70, target: '12', body: 'Looks good to me' },
-      { id: 77, target: '12', body: v1 },
-      { id: 80, target: '7', body: v1 },
+      { id: 70, target: '12', body: 'Looks good to me', user: { login: LOGIN } },
+      { id: 77, target: '12', body: v1, user: { login: LOGIN } },
+      { id: 80, target: '7', body: v1, user: { login: LOGIN } },
     ],
   });
   const result = runMetrics(setup, { ghParts });
@@ -491,7 +494,7 @@ test('R-32: the outcome is needs-human for a stopped ticket, and green for green
 
 test('R-32: a ticket that has not ended or has no state is refused, and nothing is posted', () => {
   const setup = fullSetup();
-  for (const stage of ['building', 'reviewing']) {
+  for (const stage of ['building', 'reviewing', 'ci']) {
     seedTicket(setup.work, { stage });
     const ghParts = makeGh();
     const result = runMetrics(setup, { ghParts });
@@ -561,4 +564,83 @@ test('R-33: haiku 5.5 has a price, and a prompt above 100,000 tokens has the hig
   const metrics = metricsOf(postedBody(result));
   assert.equal(metrics.cost, 3.705);
   assert.equal(result.errors, '');
+});
+
+// Review round 1
+
+const BLOCK_BODY = `${MARKER}\n\`\`\`factory-metrics\n{"issue":7,"pr":12,"v":2}\n\`\`\`\n`;
+
+test('R-33: a run with no session id still gets a cost from the current session, counted once', () => {
+  const setup = fullSetup();
+  seedRun(setup.work, { sessionIds: [] });
+  const result = runMetrics(setup, { context: { sessionId: () => 'sess-a' } });
+  assert.equal(result.code, 0, result.errors);
+  assert.equal(metricsOf(postedBody(result)).cost, 11.8);
+  assert.doesNotMatch(result.errors, /no session id/);
+  seedRun(setup.work, { sessionIds: ['sess-a'] });
+  const again = runMetrics(setup, { context: { sessionId: () => 'sess-a' } });
+  assert.equal(metricsOf(again.store.at(-1).body).cost, 11.8, 'the same id is not counted twice');
+});
+
+test('R-33: a current session id that is not valid is not read', () => {
+  const setup = fullSetup();
+  seedRun(setup.work, { sessionIds: [] });
+  const result = runMetrics(setup, { context: { sessionId: () => '../sess-a' } });
+  assert.equal(result.code, 0, result.errors);
+  assert.equal(metricsOf(postedBody(result)).cost, null);
+  assert.match(result.errors, /run\.json has no session id/);
+});
+
+test('R-32: a gh run list that fails gives ci_runs null, ci_rounds null, a fixed warning, and the comment', () => {
+  const setup = fullSetup();
+  const base = makeGh();
+  const gh = (args) => {
+    if (args[0] === 'run') throw new Error('boom token=abc123');
+    return base.gh(args);
+  };
+  const result = runMetrics(setup, { ghParts: { ...base, gh } });
+  assert.equal(result.code, 0, result.errors);
+  const metrics = metricsOf(postedBody(result));
+  assert.equal(metrics.ci_runs, null);
+  assert.equal(metrics.ci_rounds, null);
+  assert.match(result.errors, /warning: CI runs not readable: no CI count\n/);
+  assert.ok(!result.errors.includes('abc123'));
+  const notList = runMetrics(setup, {
+    ghParts: { ...base, gh: (args) => (args[0] === 'run' ? '{"a":1}' : base.gh(args)) },
+  });
+  assert.equal(notList.code, 0, notList.errors);
+  assert.match(notList.errors, /CI runs not readable/);
+});
+
+test('R-32: a metrics block of another author is not edited, the comment is created', () => {
+  const setup = fullSetup();
+  const ghParts = makeGh({
+    comments: [
+      { id: 60, target: '12', body: BLOCK_BODY, user: { login: 'mallory' } },
+      { id: 61, target: '12', body: BLOCK_BODY.replace(`${MARKER}\n`, ''), user: { login: 'eve' } },
+    ],
+  });
+  const result = runMetrics(setup, { ghParts });
+  assert.equal(result.code, 0, result.errors);
+  assert.equal(patches(ghParts.calls).length, 0);
+  assert.equal(creates(ghParts.calls).length, 1);
+  assert.equal(ghParts.store.find((entry) => entry.id === 60).body, BLOCK_BODY);
+  assert.match(result.out, /metrics comment created/);
+});
+
+test('R-32: a block of the logged-in user is edited, and the login is read once', () => {
+  const setup = fullSetup();
+  const ghParts = makeGh({
+    comments: [{ id: 62, target: '12', body: BLOCK_BODY, user: { login: LOGIN } }],
+  });
+  const result = runMetrics(setup, { ghParts });
+  assert.equal(result.code, 0, result.errors);
+  assert.equal(patches(ghParts.calls).length, 1);
+  assert.equal(ghParts.calls.filter(({ args }) => args[1] === 'user').length, 1);
+  assert.deepEqual(ghParts.calls.find(({ args }) => args[1] === 'user').args, [
+    'api',
+    'user',
+    '--jq',
+    '.login',
+  ]);
 });

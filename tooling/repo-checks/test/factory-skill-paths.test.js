@@ -142,6 +142,15 @@ test('the skill uses the commands of the loop, the hard stop and the CI wait', (
   }
 });
 
+test('step 10 sets the stage green, then runs metrics, and has no "until task 5" skip', () => {
+  const { text } = stepWith(WORK, 'factory.mjs stage <n> green');
+  assert.ok(COMMAND_NAMES.has('metrics'));
+  const metrics = text.indexOf('factory.mjs metrics <n>');
+  assert.notEqual(metrics, -1, 'the step runs metrics');
+  assert.ok(text.indexOf('factory.mjs stage <n> green') < metrics, 'metrics runs after green');
+  assert.doesNotMatch(text, /built in task|Until that task|skip it/);
+});
+
 // Entry: the run lives in the factory worktree
 
 test('the entry finds the factory worktree for status, stop and --dry-run', () => {
