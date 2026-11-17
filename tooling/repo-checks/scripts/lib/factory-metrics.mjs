@@ -18,7 +18,7 @@ import { fail, parseJson, stateFolder, ticketNumber, withLock } from './factory-
 import { FAILED, logLines } from './factory-caps.mjs';
 import { buildComment, postComment } from './factory-comment.mjs';
 import { readCost } from './factory-cost.mjs';
-import { MARKER, METRICS_BLOCK } from './factory-github.mjs';
+import { MARKER, METRICS_BLOCK, openPr } from './factory-github.mjs';
 import { currentSession, loadRun } from './factory-run.mjs';
 import { loadTicket } from './factory-state.mjs';
 import { listFolder, removeFile, writeAtomic } from './fs-io.mjs';
@@ -143,7 +143,7 @@ const reviewRounds = (context, ticket) =>
   ).length;
 
 /** @returns {object} The version 2 metrics. The keys with "_" come from a list: the lint naming rule. */
-function buildMetrics(context, { ticket, state, outcome, warnings }) {
+function buildMetrics(context, { ticket, state, pr, outcome, warnings }) {
   const slice = sliceOf(context, ticket);
   const usage = readUsage(context, { ticket, slice, warnings });
   const ci = ciCounts(context, state, warnings);
@@ -151,7 +151,7 @@ function buildMetrics(context, { ticket, state, outcome, warnings }) {
   return Object.fromEntries([
     ['v', 2],
     ['issue', Number(ticket)],
-    ['pr', positive(state.pr)],
+    ['pr', pr],
     ['cost', usage.cost],
     ['turns', usage.turns],
     ['review_rounds', reviewRounds(context, ticket)],
@@ -219,6 +219,19 @@ function editComment(context, { ticket, id }, body) {
   }
 }
 
+/** @returns {number | null} The PR of the ticket: the stored one, else the open PR of the branch. Null, with a warning when `gh` fails, gives the issue as the place. */
+function prOf(context, state, warnings) {
+  const stored = positive(state.pr);
+  if (stored !== null) return stored;
+  try {
+    return positive(openPr(context, state));
+  } catch {
+    // An error text is not printed: it can hold anything of the host.
+    warnings.push('open PR not readable: the comment goes on the issue');
+    return null;
+  }
+}
+
 /**
  * Creates or edits the metrics comment. The caller holds the lock.
  *
@@ -229,14 +242,15 @@ function editComment(context, { ticket, id }, body) {
 export function postMetrics(context, { ticket, outcome }) {
   const state = loadTicket(context.root, ticket) ?? fail(`#${ticket} has no ticket state`);
   const warnings = [];
+  const pr = prOf(context, state, warnings);
   const metrics = buildMetrics(context, {
     ticket,
     state,
+    pr,
     outcome: outcome ?? (state.stage === 'needs-human' ? 'needs-human' : 'green'),
     warnings,
   });
   const body = `${MARKER}\n${FENCE}factory-metrics\n${JSON.stringify(metrics)}\n${FENCE}\n`;
-  const pr = positive(state.pr);
   const place = pr === null ? ticket : String(pr);
   const id = findComment(context, place, warnings);
   if (id === undefined) postComment(context, { ticket, pr: pr === null ? undefined : place }, body);
