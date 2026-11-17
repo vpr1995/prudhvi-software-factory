@@ -9,6 +9,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { main } from '../scripts/factory.mjs';
+import { findForbidden, scanFolders } from '../scripts/lib/factory-skill-scan.mjs';
 import {
   checkSummary,
   execute,
@@ -18,7 +19,6 @@ import {
 } from '../scripts/lib/factory-state.mjs';
 import {
   exists,
-  listFilesRecursive,
   listFolder,
   readOptional,
   readRepositoryFile,
@@ -27,7 +27,6 @@ import {
 
 import { pathFromEnv } from './test-env.config.js';
 
-const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const FACTORY = fileURLToPath(new URL('../scripts/factory.mjs', import.meta.url));
 const STATE = '.claude/factory';
 const LOCK = `${STATE}/lock`;
@@ -317,9 +316,9 @@ function storedTicket(stageName) {
   return context;
 }
 
-function reconcileWith(stageName, github) {
+function reconcileWith(stageName, github, items = ITEMS) {
   const context = storedTicket(stageName);
-  const gh = makeContext({ answers: githubAnswers(github) }).gh;
+  const gh = makeContext({ answers: githubAnswers(github), items }).gh;
   context.out.length = 0;
   context.calls.length = 0;
   const result = reconcile({ ...context, gh, ticket: '7' });
@@ -377,6 +376,53 @@ test('R-23: the same stage on both sides prints nothing', () => {
   const { context, result } = reconcileWith('needs-human', { labels: ['needs-human'] });
   assert.equal(result, 'needs-human');
   assert.deepEqual(context.out, []);
+});
+
+const boardItems = (status) => ({ items: [{ id: 'I_7', status, content: { number: 7 } }] });
+const READY = { labels: ['agent:ready'] };
+
+test('R-57: agent:ready with no stage expects board Status Ready; a mismatch prints both values', () => {
+  const { context, result } = reconcileWith('needs-human', READY, boardItems('Backlog'));
+  assert.equal(result, 'needs-human');
+  assert.match(context.out.join(''), /Backlog/);
+  assert.match(context.out.join(''), /Ready/);
+  assert.match(context.out.join(''), /using github/);
+  assert.equal(ticketState(context).stage, 'needs-human');
+  assert.deepEqual(writeCalls(context), []);
+  assert.deepEqual(logLines(context).at(-1), {
+    ts: '2026-11-16T14:02:11Z',
+    ticket: 7,
+    event: 'reconcile',
+    from: 'needs-human',
+    to: 'needs-human',
+    detail: 'github: board Backlog, expected Ready',
+  });
+});
+
+test('R-57: agent:ready with board Status Ready prints nothing', () => {
+  const { context, result } = reconcileWith('needs-human', READY, boardItems('Ready'));
+  assert.equal(result, 'needs-human');
+  assert.deepEqual(context.out, []);
+  assert.equal(logLines(context).length, 1);
+});
+
+test('R-57: agent:ready on a ticket that is not on the board is a mismatch', () => {
+  const { context } = reconcileWith('needs-human', READY, { items: [] });
+  assert.match(context.out.join(''), /board=none/);
+});
+
+test('R-57: agent:ready does not hide a stage that GitHub gives (open PR, needs-human)', () => {
+  const open = [{ number: 96, state: 'OPEN' }];
+  const pass = [{ name: 'a', state: 'SUCCESS', bucket: 'pass' }];
+  const backlog = boardItems('Backlog');
+  assert.equal(
+    reconcileWith('building', { ...READY, prs: open, checks: pass }, backlog).result,
+    'green',
+  );
+  assert.equal(
+    reconcileWith('building', { labels: ['agent:ready', 'needs-human'] }, backlog).result,
+    'needs-human',
+  );
 });
 
 test('R-23: a ticket with no local state has nothing to reconcile', () => {
@@ -684,22 +730,6 @@ test('CLI: note reads stdin, and main reports a refusal through the error stream
 
 // R-25
 
-const FORBIDDEN = [
-  { rule: 'names the state folder', pattern: /\.claude\/factory/ },
-  { rule: 'calls gh pr comment or gh issue comment', pattern: /gh\s+(?:pr|issue)\s+comment/ },
-];
-
-/** @returns {{ file: string, line: number, rule: string }[]} Each line of the text that breaks a rule. */
-function findForbidden(file, text) {
-  return text.split('\n').flatMap((line, index) =>
-    FORBIDDEN.filter(({ pattern }) => pattern.test(line)).map(({ rule }) => ({
-      file,
-      line: index + 1,
-      rule,
-    })),
-  );
-}
-
 test('R-25: the scan flags the state folder and direct comments, with file and line', () => {
   assert.deepEqual(findForbidden('a.md', 'ok\nread `.claude/factory/7/ticket.json`\n'), [
     { file: 'a.md', line: 2, rule: 'names the state folder' },
@@ -714,16 +744,23 @@ test('R-25: the scan flags the state folder and direct comments, with file and l
   );
 });
 
-test('R-25: no skill or agent file names .claude/factory or calls gh pr comment or gh issue comment', () => {
-  const files = ['.claude/skills', '.claude/agents'].flatMap((folder) =>
-    listFilesRecursive(path.join(ROOT, folder)),
+test('R-25: a folder scan reports each bad file with file:line and passes a clean file', () => {
+  const root = temporaryFolder();
+  const files = {
+    '.claude/skills/state/SKILL.md': 'intro\nRead `.claude/factory/7/ticket.json` now.\n',
+    '.claude/skills/pr/SKILL.md': 'gh pr comment 5 --body x\n',
+    '.claude/agents/issue.md': 'a\nb\nc\ngh issue comment 6 --body y\n',
+    '.claude/agents/clean.md': 'node tooling/repo-checks/scripts/factory.mjs note 5 x\n',
+  };
+  for (const [file, text] of Object.entries(files)) writeAtomic(path.join(root, file), text);
+  const hits = scanFolders(root, ['.claude/skills', '.claude/agents']).map(
+    ({ file, line, rule }) => `${file}:${String(line)} ${rule}`,
   );
-  assert.ok(files.length > 0);
-  const hits = files.flatMap((file) =>
-    findForbidden(path.relative(ROOT, file), readRepositoryFile(ROOT, path.relative(ROOT, file))),
-  );
-  assert.deepEqual(
-    hits.map(({ file, line, rule }) => `${file}:${String(line)} ${rule}`),
-    [],
-  );
+  assert.deepEqual(hits.toSorted(), [
+    '.claude/agents/issue.md:4 calls gh pr comment or gh issue comment',
+    '.claude/skills/pr/SKILL.md:1 calls gh pr comment or gh issue comment',
+    '.claude/skills/state/SKILL.md:2 names the state folder',
+  ]);
 });
+
+// The real-repo scan is in test/factory-skill-paths.test.js (task 4a, #108), with the work-ticket delete.
