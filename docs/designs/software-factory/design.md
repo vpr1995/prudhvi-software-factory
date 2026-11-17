@@ -122,12 +122,12 @@ The owner picks the findings to fix. Then a design PR with `risk:low`. The owner
 - Tasks above size 5 are split.
 - The agent never adds `agent:ready`. The owner does (Ticket Workflow rule 3).
 
-### 6.5 Implement (`/work-ticket <n>`)
+### 6.5 Implement (`/factory`)
 
-- Phase 1 (local): the owner runs `/work-ticket <n>`. It claims the ticket (`agent:in-progress`), branches, runs `implement-feature`, and stops at the caps.
+- Phase 1 (local): the owner runs `/factory` (see `.claude/skills/factory/SKILL.md`). It works the `agent:ready` tickets one at a time: claim (`agent:in-progress`), branch, build, `pre-pr`, PR, and stop at the caps. Details: [factory-daily-run design](../factory-daily-run/design.md).
 - Caps: 3 review rounds (rule 12), 2 CI fix rounds. At a cap: label `needs-human`, comment the blocker, stop.
 - `pre-pr` gets a first pass: spec compliance against the R-IDs (the `spec-reviewer` agent, Opus, with the issue, diff, and tests; it flags hard-coded or special-cased logic). The existing quality pass runs second.
-- Each run posts one `factory-metrics` comment on the PR (on the issue if no PR): issue, PR, cost, turns, review rounds, CI rounds, outcome. Cost and turns are null until Phase 2.
+- Each run posts one `factory-metrics` comment on the PR (on the issue if no PR): issue, PR, cost, turns, review rounds, CI rounds, outcome. Cost and turns come from the session transcripts (`factory.mjs metrics`).
 - Phase 2 (later, opt-in): `claude-code-action` on `issues: labeled` (`agent:ready`), concurrency 1, `--max-turns`, `--max-budget-usd`, `timeout-minutes`. Needs a GitHub App token, because commits made with `GITHUB_TOKEN` do not trigger CI [P]. Only issues by the owner run. No `--bare` mode: it disables hooks [P].
 
 ### 6.6 Gates (deterministic)

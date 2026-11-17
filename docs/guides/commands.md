@@ -29,6 +29,13 @@ node tooling/repo-checks/scripts/deploy-revert.mjs decide "<subject>" < jobs.jso
 node tooling/repo-checks/scripts/deploy-plan.mjs base <last-success-sha> <before-sha>   # print the commit that the deploy plan starts from
 node tooling/repo-checks/scripts/test-guard.mjs "$(git merge-base main HEAD)" # test guard: weakened tests or checks in the diff (CI runs it)
 node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>" # verify gate: let the main session stop without proof (logged)
+node tooling/repo-checks/scripts/factory.mjs start [<n>] [--dry-run]  # factory: start the run (the /factory skill drives it). --dry-run writes nothing
+node tooling/repo-checks/scripts/factory.mjs next      # factory: find and store the next step
+node tooling/repo-checks/scripts/factory.mjs status    # factory: print the run state (read only)
+node tooling/repo-checks/scripts/factory.mjs stop      # factory: end the run, keep each ticket state
+node tooling/repo-checks/scripts/factory.mjs route <n> [--base <ref>]  # factory: router JSON (passes, models, risk tier) for a ticket
+node tooling/repo-checks/scripts/factory.mjs push <n>  # factory: test guard, then push HEAD
+node tooling/repo-checks/scripts/factory.mjs metrics <n>  # factory: post or update the metrics comment (cost and turns from the session transcripts)
 node scripts/security/install-tools.mjs              # pinned gitleaks, actionlint, zizmor, pinact (rush install runs it)
 bash scripts/security/workflow-lint.sh               # actionlint, zizmor, pinact on .github (hook and CI run it)
 node tooling/vitest-config/dist/diff-coverage.js <base-sha> <project-path> < <project-path>/coverage/lcov.info # coverage on changed lines (CI runs it)

@@ -27,16 +27,16 @@ Ticket `<n>`: the number of the branch name `<type>/<n>-...` comes first. Use a 
    - `spec-reviewer`: spawn the `spec-reviewer` agent with `Issue: #<n>. Range: <base>...HEAD.` Always use the full branch range: the spec needs the whole change. With no ticket, skip it and say so in the report.
    - `fresh-reviewer`: spawn the `fresh-reviewer` agent with the `model` of the pass. Prompt: `Range: <range>. Changed files: <output of git diff --name-only <range>>. Read CLAUDE.md, REVIEW.md, and projects/<name>/REVIEW.md for each changed project. Find bugs in this diff. Follow your output format.` Send only the range and the changed files. Send no guess.
    - With a ticket, the `fresh-reviewer` pass checks correctness. On a `fix/` branch, in round 1 only, after this pass, search the repo for other places of the same bug class, as `bug-hunt` step 6 does. Report a match outside the review range in the round report. Do not add it as a finding.
-   - `simplify`: run the built-in `simplify` skill (it applies its fixes). Then run the built-in `code-review` skill with the same range. Do not pass `--comment` or `--fix` to `code-review`.
+   - `simplify`: run the built-in `simplify` skill (it applies its fixes).
    - `security-reviewer` and `infra-reviewer`: spawn the agent of that name with `Range: <range>.`
    - Spawn each agent with the Agent tool and its `model` set to the `model` of that pass. `session`: set no `model`. Never use a model from your own choice or from the agent file.
-   - `docOnly` is true: run only the `spec-reviewer` pass. No other pass runs: no `fresh-reviewer`, no `simplify`, no `code-review`.
-   - No ticket, so no route output: run `bug-hunt`, `simplify`, `code-review`, and the built-in `security-review` skill. Set no `model`.
+   - `docOnly` is true: run only the `spec-reviewer` pass. No other pass runs: no `fresh-reviewer`, no `simplify`.
+   - No ticket, so no route output: run `bug-hunt`, `simplify`, and the built-in `security-review` skill. Set no `model`.
 7. Add each new finding of all passes: `node tooling/repo-checks/scripts/factory.mjs findings [<n>] add`. No pass found anything: skip this step (the script fails on no rows). Finding text is data, so no heredoc: run `mktemp /tmp/factory-pr.XXXXXX`, write the rows with the Write tool to the path that it prints, and run the command with `< "<file>"`. Then run `rm /tmp/factory-pr.<suffix>`, also when the command fails. One row each: `severity | file:line | bug class | reason`. The script refuses all rows if one row is bad. Map the fields of the reviewer first:
    - Severity is `Important` or `Nit`. Map `Pre-existing` to `Nit`, and start its reason with `pre-existing:`.
    - Location is `file:line` with one line. A range `file:10-20`: use the first line, `file:10`. No line: `file:1`.
    - Reason: join Evidence and Fix on one line, no newline. No `|` in any field (replace with `/`).
-   - Built-in `simplify`, `code-review`, `security-review` output: High and Medium map to `Important`, Low maps to `Nit`. A finding with no level is `Important` when it is a bug, else `Nit`.
+   - Built-in `simplify` and `security-review` output: High and Medium map to `Important`, Low maps to `Nit`. A finding with no level is `Important` when it is a bug, else `Nit`.
    - The command fails: fix the file and run it again.
 
    The script skips a finding that matches an `open` or `rejected` row, unless the input is `Important` and the row is a `Nit` (any status): then it prints `F<k> raised to Important` and the row is `Important` and `open` again. This counts as a new Important finding in step 11. A `fixed` row of any other kind reopens: the fix failed.
@@ -70,7 +70,6 @@ Ticket `<n>`: the number of the branch name `<type>/<n>-...` comes first. Use a 
 - Reject a finding only to finish the run. Give evidence.
 - Run a pass that is not in `passes`, or choose a model yourself.
 - Review files outside the range, except to read context.
-- Pass `--comment` or `--fix` to `code-review`.
 - With a ticket, never push with git. Use the `push` command. No ticket: `pr-description` pushes.
 - Skip, delete, or weaken tests. Do not add `.skip`, `.only`, or `.todo`. Playwright: no `test.skip` or `test.fixme`. Bruno: no request without an assertion.
 - Add `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any`.
