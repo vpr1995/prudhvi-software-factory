@@ -69,6 +69,27 @@ test('#112 R-36: the PR of a stacked ticket is a draft that targets the blocker 
   assert.match(text, /gh pr create --base main --title/, 'a plain ticket still targets main');
 });
 
+test('#112 round 1: step 8 decides "stacked" from the route base, so a resume opens the right PR', () => {
+  const text = workStep('gh pr create');
+  assert.match(text, /`base` of the `route <n>` JSON[^\n]*other than `origin\/main`/);
+  assert.match(text, /stack plan <n>/, 'the PR number of the blocker comes from stack plan');
+  assert.match(text, /stacked on PR #<m>/);
+  assert.doesNotMatch(text, /the `next` line said `stacked on`/, 'the next line is not the source');
+});
+
+test('#112 round 1: a restart with a branch restacks, then goes back to the step of the stage', () => {
+  const bullet = sectionLines(FACTORY, 'Work a ticket').find((line) =>
+    line.startsWith('   - A name exists, and the `next` line said `stacked on`'),
+  );
+  assert.ok(bullet !== undefined, 'step 2 has the existing-branch stacked bullet');
+  assert.ok(bullet.includes(`${CALL} restack <n>`), 'it runs restack');
+  assert.match(bullet, /step 4 of "Restack"/);
+  assert.match(bullet, /Go to the step of the stage/);
+  assert.doesNotMatch(bullet, /step 5/, 'it skips step 5 of Restack');
+  const five = steps(FACTORY, 'Restack').find((step) => step.startsWith('5. '));
+  assert.match(five ?? '', /only for a ticket that has a PR already/);
+});
+
 test('#112 R-38 R-39: the skill restacks, runs verify, and goes back through CI', () => {
   assert.ok(COMMAND_NAMES.has('restack'), 'factory.mjs has the command restack');
   assert.ok(COMMAND_NAMES.has('stack'), 'factory.mjs has the command stack');
