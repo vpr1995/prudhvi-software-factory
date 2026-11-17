@@ -7,7 +7,8 @@ import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { fileAt } from '../scripts/lib/test-guard-diff.mjs';
+import { fileAt, readDiff } from '../scripts/lib/test-guard-diff.mjs';
+import { guardDiff, guardRepository } from '../scripts/test-guard.mjs';
 
 import { pathFromEnv } from './test-env.config.js';
 
@@ -87,6 +88,13 @@ test('a clean diff passes', () => {
   );
   assert.equal(result.status, 0, result.output);
   assert.match(result.output, /test-guard: ok/);
+});
+
+test('guardDiff on a read diff gives the findings of guardRepository', () => {
+  const { root, sha } = repository({ 'test/a.test.ts': SPEC(2) }, { 'test/a.test.ts': null });
+  const findings = guardRepository(root, sha);
+  assert.equal(findings.length, 1);
+  assert.deepEqual(guardDiff(root, readDiff(root, sha)), findings);
 });
 
 test('a deleted test file fails', () => {

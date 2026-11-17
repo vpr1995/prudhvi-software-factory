@@ -4,9 +4,17 @@ import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import {
+  buildRoute,
+  changedFiles,
+  COMMAND_TIMEOUT_MS,
+  parseRouteArguments,
+  run,
+} from '../scripts/factory.mjs';
 import { matches, parseSize, route, tierOf } from '../scripts/lib/factory-route.mjs';
 import { routing } from '../scripts/lib/factory-routing.mjs';
 import { readRepositoryFile } from '../scripts/lib/fs-io.mjs';
+import { CHECK_CONFIG_MESSAGE } from '../scripts/lib/test-guard-rules.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const FACTORY = fileURLToPath(new URL('../scripts/factory.mjs', import.meta.url));
@@ -149,6 +157,22 @@ test('parseSize reads the Size line at a line start only', () => {
   assert.equal(parseSize('text `Size: 3` in a line'), undefined);
 });
 
+test('parseSize: the number stays on the Size line and ends the token', () => {
+  assert.equal(parseSize('Size:\n3'), undefined);
+  assert.equal(parseSize('Size: 3.5'), undefined);
+  assert.equal(parseSize('Size: 3'), 3);
+  assert.equal(parseSize('Size:\t3 (raw 8)'), 3);
+});
+
+test('an invalid Size line gives the missing-size budget and a warning', () => {
+  for (const body of ['Size:\n3', 'Size: 3.5']) {
+    const result = routeFiles(['projects/a/src/x.ts'], { size: parseSize(body) });
+    assert.equal(result.budget, 800, body);
+    assert.match(result.warnings[0], /size missing/, body);
+  }
+  assert.equal(routeFiles(['projects/a/src/x.ts'], { size: parseSize('Size: 3') }).budget, 500);
+});
+
 test('test files, the lockfile and generated files are not counted', () => {
   const result = route({
     base: 'origin/main',
@@ -228,6 +252,62 @@ test('R-22: each path of risk-tiers.md sections 2 and 2.1 has the same tier in t
   assert.deepEqual(mismatches(tiers, routing), []);
 });
 
+// Prose lines of section 2.1 with paths: `x` stays high risk, or `x` are at least `risk:medium`.
+function proseExpectations() {
+  const text = readRepositoryFile(ROOT, 'docs/standards/risk-tiers.md');
+  const section = text.slice(text.indexOf('### 2.1'), text.indexOf('## 3.'));
+  return section
+    .split('\n')
+    .filter((line) => line !== '' && !line.startsWith('|') && !line.startsWith('#'))
+    .map((line) => ({ line, globs: backticked(line).filter((glob) => !glob.startsWith('risk:')) }))
+    .filter((entry) => entry.globs.length > 0)
+    .map(({ line, globs }) => {
+      if (line.includes('stays high risk')) return { globs, want: 'high' };
+      if (line.includes('are at least `risk:medium`')) return { globs, want: 'medium' };
+      throw new Error(`risk-tiers.md 2.1: prose line with paths has no known tier: ${line}`);
+    });
+}
+
+// A sample path of a glob that ends in .md for a folder glob, so a lost glob shows as doc-only.
+const proseSample = (glob) =>
+  glob.endsWith('/**') ? `${sample(glob.slice(0, -'/**'.length))}/sample.md` : sample(glob);
+
+/** Each prose path whose tier in the table is lower than the tier of the doc ("at least" for medium). */
+function proseMismatches(table) {
+  const rank = { low: 0, medium: 1, high: 2 };
+  // A lost CLAUDE.md or REVIEW.md glob is not seen here: the path is not doc-only, so it is medium.
+  return proseExpectations()
+    .flatMap(({ globs, want }) => globs.map((glob) => ({ glob, want, path: proseSample(glob) })))
+    .filter(({ path, want }) => rank[tierOf(path, table)] < rank[want])
+    .map(({ glob }) => glob);
+}
+
+test('R-22: the prose paths of section 2.1 have their tier in the table', () => {
+  const globs = proseExpectations().flatMap((entry) => entry.globs);
+  assert.deepEqual(globs, [
+    'projects/*/cdk.json',
+    'CLAUDE.md',
+    'REVIEW.md',
+    'docs/guides/**',
+    'docs/standards/**',
+  ]);
+  assert.deepEqual(proseMismatches(routing), []);
+});
+
+test('R-22: the prose compare finds a path that the table lost', () => {
+  const without = (tier, lost) => ({
+    ...routing,
+    tiers: { ...routing.tiers, [tier]: routing.tiers[tier].filter((glob) => !lost.includes(glob)) },
+  });
+  assert.deepEqual(proseMismatches(without('high', ['projects/*/cdk.json'])), [
+    'projects/*/cdk.json',
+  ]);
+  assert.deepEqual(proseMismatches(without('medium', ['docs/guides/**'])), ['docs/guides/**']);
+  assert.deepEqual(proseMismatches(without('medium', ['docs/standards/**'])), [
+    'docs/standards/**',
+  ]);
+});
+
 test('R-22: the known prose rows are the rows of the doc with prose', () => {
   const rows = Object.values(documentTiers()).flat();
   const prose = rows.filter((row) => backticked(row).length === 0 || PROSE_WITH_PATH.has(row));
@@ -262,4 +342,79 @@ test('factory.mjs: route with a bad ticket number exits non-zero', () => {
   const result = spawnSync(process.execPath, [FACTORY, 'route', 'abc'], { encoding: 'utf8' });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Usage:/);
+});
+
+test('parseRouteArguments: ticket, default base, --base value', () => {
+  assert.deepEqual(parseRouteArguments(['98']), { ticket: '98', base: 'origin/main' });
+  assert.deepEqual(parseRouteArguments(['98', '--base', 'abc123']), {
+    ticket: '98',
+    base: 'abc123',
+  });
+});
+
+test('parseRouteArguments: bad input gives undefined', () => {
+  const bad = [
+    [],
+    ['abc'],
+    ['98', 'extra'],
+    ['98', '--base'],
+    ['98', '--base', ''],
+    ['98', '--base', '-x'],
+    ['98', '--base', '--output=x'],
+    ['98', '--other', 'main'],
+    ['98', '--base', 'main', 'extra'],
+  ];
+  for (const words of bad) assert.equal(parseRouteArguments(words), undefined, words.join(' '));
+});
+
+test('factory.mjs: a --base value that starts with - exits 2 with usage', () => {
+  const result = spawnSync(process.execPath, [FACTORY, 'route', '98', '--base', '-x'], {
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /^Usage: /m);
+});
+
+test('factory.mjs: extra arguments exit 2 with usage', () => {
+  const result = spawnSync(process.execPath, [FACTORY, 'route', '98', 'extra'], {
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /^Usage: /m);
+});
+
+test('buildRoute: a check-config finding gives tier high', () => {
+  const input = { base: 'origin/main', files: [file('projects/a/src/x.ts')], body: 'Size: 2' };
+  assert.equal(buildRoute({ ...input, findings: [] }).tier, 'medium');
+  const other = [{ file: 'a', line: 1, message: 'test file deleted' }];
+  assert.equal(buildRoute({ ...input, findings: other }).tier, 'medium');
+  const config = [{ file: 'a', line: 1, message: CHECK_CONFIG_MESSAGE }];
+  const result = buildRoute({ ...input, findings: config });
+  assert.equal(result.tier, 'high');
+  assert.equal(result.budget, 300);
+});
+
+test('changedFiles: counts lines of the patch, renames use the old path', () => {
+  const entries = [
+    { status: 'M', path: 'a.ts', oldPath: 'a.ts' },
+    { status: 'R', path: 'new.ts', oldPath: 'old.ts' },
+    { status: 'A', path: 'none.ts', oldPath: 'none.ts' },
+  ];
+  const patch = new Map([
+    ['a.ts', { added: [{}, {}], removed: [{}] }],
+    ['old.ts', { added: [{}], removed: [] }],
+  ]);
+  assert.deepEqual(changedFiles({ entries, patch }), [
+    { path: 'a.ts', oldPath: 'a.ts', added: 2, deleted: 1 },
+    { path: 'new.ts', oldPath: 'old.ts', added: 1, deleted: 0 },
+    { path: 'none.ts', oldPath: 'none.ts', added: 0, deleted: 0 },
+  ]);
+});
+
+test('run: the command timeout is 30 seconds and stops a slow command', () => {
+  assert.equal(COMMAND_TIMEOUT_MS, 30_000);
+  assert.throws(
+    () => run(process.execPath, ['-e', 'setTimeout(() => {}, 10000)'], 100),
+    (error) => error.code === 'ETIMEDOUT',
+  );
 });
