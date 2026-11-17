@@ -10,6 +10,7 @@
 import { fail, IN_FLIGHT, relative, withLock } from './factory-base.mjs';
 import { redactText } from './factory-comment.mjs';
 import { clearRun, isOpenRun, loadRun, onlyOf, saveRun, warnBadOnly } from './factory-run.mjs';
+import { stackMergeLine } from './factory-stack.mjs';
 import { loadTicket, runLogFile, writeRunLog } from './factory-state.mjs';
 import { readOptional, writeAtomic } from './fs-io.mjs';
 
@@ -119,6 +120,8 @@ function sections(context, run, stopped) {
   const done = worked.filter(({ state }) => state.stage === 'green' || state.stage === 'done');
   const pr = ({ state }) => (Number.isInteger(state.pr) ? state.pr : undefined);
   const current = currentTicket(context, run);
+  // R-40: only when it happened: a stacked PR that merged into a branch other than main.
+  const stray = worked.filter(({ state }) => typeof state.mergedInto === 'string');
   const resume = [resumeCommand(run)];
   if (stopped !== undefined) {
     resume.push(
@@ -154,6 +157,14 @@ function sections(context, run, stopped) {
         stopped === undefined ? [] : [`#${String(stopped.ticket)}: ${redactText(stopped.reason)}`],
       ),
     ],
+    ...(stray.length === 0
+      ? []
+      : [
+          [
+            'Stacked PRs merged outside main',
+            list(stray.map(({ ticket, state }) => stackMergeLine(ticket, state))),
+          ],
+        ]),
     ['Tickets skipped', list(skipped(lines))],
     [
       'Hard-stop steps that failed',

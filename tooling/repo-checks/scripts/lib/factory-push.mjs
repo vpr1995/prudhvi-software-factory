@@ -7,26 +7,19 @@
 //   { root, git(args) -> stdout, guard(base) -> findings, print(text), pid }
 import { fail, ticketNumber, withLock } from './factory-base.mjs';
 import { failureReason, hardStop } from './factory-github.mjs';
+import { baseRef, isSafeBranch } from './factory-queue-rules.mjs';
 import { loadTicket, saveTicket } from './factory-state.mjs';
 import { CHECK_CONFIG_MESSAGE } from './test-guard-rules.mjs';
 
-const DEFAULT_BASE = 'origin/main';
 const PROTECTED_BRANCHES = ['main', 'master'];
-// Letters, digits, ".", "_", "-" and "/", and no leading "-", "+" or ".".
-const BRANCH = /^[A-Za-z0-9][\w./-]*$/;
-// git refuses a path component that starts with ".": "/." covers it.
-const BAD_BRANCH_PARTS = ['..', '//', '.lock/', '/.'];
 // git prints `! [rejected] HEAD -> <branch> (fetch first)` or `(non-fast-forward)`.
 const NON_FAST_FORWARD = /\[rejected\].*\((?:fetch first|non-fast-forward)\)/;
 
 /** Refuses a branch name that is not safe in `git push origin HEAD:<branch>`. */
 export function checkBranch(name) {
-  const bad =
-    !BRANCH.test(name) ||
-    BAD_BRANCH_PARTS.some((part) => `${name}/`.includes(part)) ||
-    name.endsWith('/') ||
-    name.endsWith('.');
-  if (bad) fail(`refused branch name "${name}": use letters, digits, ".", "_", "-" and "/" only`);
+  if (!isSafeBranch(name)) {
+    fail(`refused branch name "${name}": use letters, digits, ".", "_", "-" and "/" only`);
+  }
 }
 
 const findingKey = (finding) => `${finding.file}: ${finding.message}`;
@@ -67,7 +60,7 @@ function isNonFastForward(error) {
 // R-55: a merge that fails stops the run. The reason is the merge failure. A merge that stopped with a
 // conflict is in progress (MERGE_HEAD): it is aborted, and the conflict paths are listed. A merge that
 // failed before it started (a dirty tree, a hook) has no MERGE_HEAD and nothing to abort.
-function mergeRemote(context, branch, ticket) {
+export function mergeRemote(context, branch, ticket) {
   const failure = tryGit(context, ['merge', '--no-edit', 'FETCH_HEAD']);
   if (failure === undefined) return;
   const reason = `merge of origin/${branch} failed (${failureReason(failure)}).`;
@@ -122,8 +115,7 @@ function pushTarget(context, ticket) {
       `refused: "${branch}" is a base branch (${protectedNames.join(', ')}). Push a ticket branch`,
     );
   }
-  const base = typeof state?.base === 'string' ? `origin/${state.base}` : DEFAULT_BASE;
-  return { branch, base };
+  return { branch, base: baseRef(state) };
 }
 
 // R-17: each other finding gets one fix round. A key stays when its count is above 0 and not lower

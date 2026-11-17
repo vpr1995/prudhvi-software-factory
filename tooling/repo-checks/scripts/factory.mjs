@@ -18,6 +18,11 @@
 // hard stop "CI timeout") after 60 minutes (R-49). Code: lib/factory-wait.mjs. The Stop hook is the
 // separate entry scripts/factory-stop-check.mjs: it loads no other factory code until a run is open (R-56).
 //
+// stack plan <n>: print the stack plan of ticket <n> and its base branch (R-36, R-42, R-41, R-6). Read
+// only. restack <n>: merge the stack base (or main after the blocker PR merged) into the branch, push,
+// and mark the PR ready (R-38, R-39). R-37: `route` and `push` use the stack base of `ticket.json`.
+// Code: lib/factory-stack.mjs.
+//
 // push <n>: the local test guard, then `git push origin HEAD:<branch>` (task 2a2, R-17, R-54).
 // stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
 //
@@ -51,9 +56,11 @@ import { hardstopCommand } from './lib/factory-hard-stop.mjs';
 import { metricsCommand } from './lib/factory-metrics.mjs';
 import { nextCommand, statusCommand } from './lib/factory-next.mjs';
 import { pushCommand } from './lib/factory-push.mjs';
+import { baseRef, MAIN_REF } from './lib/factory-queue-rules.mjs';
 import { startCommand } from './lib/factory-queue.mjs';
 import { reportCommand, stopCommand } from './lib/factory-report.mjs';
 import { parseSize, route, routingLine } from './lib/factory-route.mjs';
+import { restackCommand, stackCommand } from './lib/factory-stack.mjs';
 import { COMMANDS, FactoryError, loadTicket, saveTicket, SYNOPSES } from './lib/factory-state.mjs';
 import { waitCommand } from './lib/factory-wait.mjs';
 import { currentSessionId, isRunOff, transcriptRoot } from './lib/factory.config.mjs';
@@ -68,7 +75,7 @@ const EXIT_PASS = 0;
 const EXIT_ERROR = 2;
 const EXIT_HARD_STOP = 3;
 const FIRST_USER_ARGUMENT = 2;
-const DEFAULT_BASE = 'origin/main';
+const DEFAULT_BASE = MAIN_REF;
 const TICKET = /^\d+$/;
 const USAGE = [
   'start [<n>] [--dry-run]',
@@ -78,6 +85,8 @@ const USAGE = [
   'report',
   'route <n> [--base <ref>]',
   'push <n>',
+  'stack plan <n>',
+  'restack <n>',
   'wait <n>',
   'comment <n> <hard-stop|reply> [<reply-to-id>]   (body on stdin)',
   'comments <n>',
@@ -127,7 +136,9 @@ function storeRoute(context, ticket, result) {
   });
 }
 
-function routeCommand({ ticket, base }, context) {
+// R-37: with no `--base` (the default), a stacked ticket uses its stack base.
+function routeCommand({ ticket, base: requested }, context) {
+  const base = requested === DEFAULT_BASE ? baseRef(loadTicket(context.root, ticket)) : requested;
   const { body } = parseJson(
     context.gh(['issue', 'view', ticket, '--json', 'body']),
     'gh issue view',
@@ -158,7 +169,9 @@ const HANDLERS = new Map([
   ['next', nextCommand],
   ['push', pushCommand],
   ['report', reportCommand],
+  ['restack', restackCommand],
   ['route', routeCommand],
+  ['stack', stackCommand],
   ['start', startCommand],
   ['status', statusCommand],
   ['stop', stopCommand],

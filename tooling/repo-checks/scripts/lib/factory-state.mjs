@@ -19,6 +19,7 @@ import {
   withLock,
 } from './factory-base.mjs';
 import { listFindings, findingsCommand, roundCommand } from './factory-findings.mjs';
+import { isSafeBranch } from './factory-queue-rules.mjs';
 import { BOARD } from './factory.config.mjs';
 import { appendText, readOptional, writeAtomic } from './fs-io.mjs';
 
@@ -115,15 +116,28 @@ export function saveTicket(root, ticket, state) {
   writeAtomic(ticketFile(root, ticket), `${JSON.stringify(state, undefined, 2)}\n`);
 }
 
+// R-37: `next` stored the stack of a ticket that starts stacked in run.json `next`. The state of the
+// ticket then keeps the stack base (`base`, a branch name) and the blocker PR (`stackedOn`).
+function stackOfNext(root, ticket) {
+  const text = readOptional(path.join(stateFolder(root), 'run.json'));
+  if (text === undefined) return {};
+  const step = parseJson(text, 'run.json')?.next;
+  const stack = step?.kind === 'ticket' && step.ticket === Number(ticket) ? step.stack : undefined;
+  return isSafeBranch(stack?.branch) && Number.isInteger(stack.pr)
+    ? { base: stack.branch, stackedOn: stack.pr }
+    : {};
+}
+
 function newTicket(context, ticket, stage) {
   const branch = context.git(['branch', '--show-current']).trim();
+  const { base = null, stackedOn = null } = stackOfNext(context.root, ticket);
   return {
     issue: Number(ticket),
     stage,
     branch: branch === '' ? null : branch,
-    base: null,
+    base,
     pr: null,
-    stackedOn: null,
+    stackedOn,
     restartedAt: null,
     threadReplies: {},
     handledComments: [],

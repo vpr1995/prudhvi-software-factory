@@ -16,30 +16,22 @@ import { applyRestart } from './factory-caps.mjs';
 import {
   activeScopes,
   bodyNamesForbiddenPath,
-  closedBy,
   hasAcceptance,
-  hasNeedsHuman,
+  isOwner,
+  issuePath,
   labelActor,
   namesForbiddenPath,
   pathsOf,
-  prDepth,
 } from './factory-queue-rules.mjs';
 import { parseSize, route, routingLine } from './factory-route.mjs';
 import { beginRun, logAdoption } from './factory-run.mjs';
-import {
-  CHECK_FIELDS,
-  checksGreen,
-  ghJson,
-  loadTicket,
-  reconcile,
-  writeRunLog,
-} from './factory-state.mjs';
+import { blockerVerdict, noteStackMerge } from './factory-stack.mjs';
+import { ghJson, loadTicket, reconcile, writeRunLog } from './factory-state.mjs';
 import { BOARD } from './factory.config.mjs';
 import { listFolder } from './fs-io.mjs';
 
 const READY = 'agent:ready';
 const IN_PROGRESS = 'agent:in-progress';
-const MAX_STACK_DEPTH = 2;
 const USAGE = 'Usage: start [<n>] [--dry-run]';
 const LIMIT = '1000';
 const TICKET_FOLDER = /^[1-9]\d*$/;
@@ -59,19 +51,15 @@ export function parseStartArguments(words) {
 // Rules (R-43, R-7). Each is `[reason, test(view)]`. The first test that is true skips the ticket.
 // A test can call gh, so the cheap ones come first. A `resume` ticket is checked for closed only.
 
-const isOwner = (login, owner) =>
-  typeof login === 'string' && login.toLowerCase() === owner.toLowerCase();
-const apiPath = (number, suffix = '') => `repos/{owner}/{repo}/issues/${String(number)}${suffix}`;
-
 // A parent issue, or a count that is missing or not a number, skips the ticket: fail closed.
 function isParent({ env, number }) {
-  const issue = ghJson(env.context, ['api', apiPath(number)]);
+  const issue = ghJson(env.context, ['api', issuePath(number)]);
   const total = issue.sub_issues_summary?.total;
   return typeof total !== 'number' || !Number.isFinite(total) || total > 0;
 }
 
 function addedByOther({ env, number }) {
-  const pages = ghJson(env.context, ['api', apiPath(number, '/events'), '--paginate', '--slurp']);
+  const pages = ghJson(env.context, ['api', issuePath(number, '/events'), '--paginate', '--slurp']);
   return !isOwner(labelActor(Array.isArray(pages) ? pages.flat() : [], READY), env.owner);
 }
 
@@ -93,64 +81,6 @@ const NEW_RULES = [
   ['parent issue, or sub-issue count not readable', isParent],
   ['agent:ready was not added by the owner (R-7)', addedByOther],
 ];
-
-// Blockers (R-6, R-36). R-42 (wait for a pending CI) belongs to `next`: here a pending CI skips.
-
-// The list has every open PR: a stack is as deep as the whole chain, whoever owns a link.
-const openPrs = (env) => {
-  env.prs ??= ghJson(env.context, [
-    'pr',
-    'list',
-    '--state',
-    'open',
-    '--json',
-    'number,headRefName,baseRefName,body,labels,author,isCrossRepository',
-    '--limit',
-    LIMIT,
-  ]);
-  return env.prs;
-};
-
-// Only a PR of this repository by the owner is a stack base (R-7): a fork or a PR of another
-// author is as if it did not exist as a base.
-const isOwnerPr = (env, pr) =>
-  pr.isCrossRepository === false && isOwner(pr.author?.login, env.owner);
-
-function stackOn(env, blocker) {
-  const prs = openPrs(env);
-  const pr = prs.find(
-    (entry) => isOwnerPr(env, entry) && closedBy(entry.body).includes(blocker.number),
-  );
-  const name = `blocked by #${String(blocker.number)}`;
-  if (pr === undefined) return { skip: `${name}: no open PR (R-6)` };
-  if (hasNeedsHuman(blocker.labels) || hasNeedsHuman(pr.labels)) {
-    return { skip: `${name}: needs-human (R-6)` };
-  }
-  const checks = ghJson(env.context, ['pr', 'checks', String(pr.number), '--json', CHECK_FIELDS]);
-  if (!checksGreen(checks)) {
-    const pending = checks.some((check) => check.bucket === 'pending');
-    return {
-      skip: `${name}: CI of PR #${String(pr.number)} is ${pending ? 'pending' : 'not green'} (R-6)`,
-    };
-  }
-  const depth = prDepth(pr, prs) + 1;
-  if (depth > MAX_STACK_DEPTH)
-    return {
-      skip: `${name}: stack depth ${String(depth)} is over ${String(MAX_STACK_DEPTH)} (R-6)`,
-    };
-  return { stack: { blocker: blocker.number, pr: pr.number, branch: pr.headRefName, depth } };
-}
-
-function blockerVerdict(env, number) {
-  const blockers = ghJson(env.context, ['api', apiPath(number, '/dependencies/blocked_by')]);
-  const open = blockers.filter((blocker) => blocker.state === 'open');
-  if (open.length === 0) return {};
-  if (open.length > 1) {
-    const list = open.map((blocker) => `#${String(blocker.number)}`).join(', ');
-    return { skip: `blocked by ${list}: cannot stack on more than one blocker (R-6)` };
-  }
-  return stackOn(env, open[0]);
-}
 
 // Plan
 
@@ -179,7 +109,13 @@ function judge(env, number) {
   const hit = rules.find(([, test]) => test(view));
   if (hit !== undefined) return { number, skip: hit[0] };
   const blocked = resume ? {} : blockerVerdict(env, number);
-  if (blocked.skip !== undefined) return { number, skip: blocked.skip };
+  if (blocked.skip !== undefined) {
+    return {
+      number,
+      skip: blocked.skip,
+      ...(blocked.wait === undefined ? {} : { wait: blocked.wait }),
+    };
+  }
   return {
     number,
     kind: resume ? 'resume' : 'new',
@@ -301,6 +237,7 @@ export function syncTickets(context, only) {
   for (const ticket of localTickets(context.root, only)) {
     applyRestart(context, ticket); // R-51 first: reconcile can move a restarted ticket on
     reconcile({ ...context, ticket });
+    noteStackMerge(context, ticket); // R-40: after reconcile, which can move a merged ticket to done
   }
 }
 

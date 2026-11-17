@@ -68,6 +68,8 @@ export function applyRestart(context, ticket) {
     ...state,
     restartedAt: new Date(ready).toISOString().replace(/\.\d+Z$/, 'Z'),
     resumes: (Number.isInteger(state.resumes) ? state.resumes : 0) + 1,
+    base: null, // R-41: the stack ends. The ticket is planned fresh (R-6 skip or a new stack).
+    stackedOn: null,
     threadReplies: {}, // R-31: a restart gives each thread 3 new replies. `handledComments` stays.
   };
   saveTicket(context.root, ticket, next);

@@ -13,17 +13,19 @@
 //
 // R-30: a new owner comment on the open PR of a green ticket comes before a new ticket, and after the
 // resume of a ticket in flight (lib/factory-comments.mjs).
-// Seam for task 7a (R-42): a blocker with a CI that runs gives a `wait` step. Today `buildPlan` skips
-// that ticket.
+// R-42: a ticket with a blocker PR whose CI runs gives a `wait` step for that PR, when no other
+// ticket can start (board order of the others is kept). `start` still lists that ticket as skipped.
+// R-41: a hard stop when the blocker PR of a stacked ticket in flight closed with no merge.
 //
 // `status` only reads: it takes no lock and writes no file and makes no `gh` write.
 import { fail, IN_FLIGHT, relative, withLock } from './factory-base.mjs';
 import { peekCaps } from './factory-caps.mjs';
 import { findCommentStep } from './factory-comments.mjs';
-import { buildPlan, syncTickets } from './factory-queue.mjs';
+import { buildPlan, localTickets, syncTickets } from './factory-queue.mjs';
 import { currentTicket, readRunLog, STATUS_DONE, writeReport } from './factory-report.mjs';
 import { clearRun, liveWait, loadRun, onlyOf, saveRun, warnBadOnly } from './factory-run.mjs';
-import { writeRunLog } from './factory-state.mjs';
+import { checkStackParent } from './factory-stack.mjs';
+import { loadTicket, writeRunLog } from './factory-state.mjs';
 
 const none = (name, words) => {
   if (words.length > 0) fail(`Usage: ${name}`);
@@ -82,6 +84,13 @@ function logNewSkips(context, skippedEntries) {
   }
 }
 
+// R-41: each ticket that is still stacked has a blocker PR that did not close with no merge.
+function checkStackParents(context, only) {
+  for (const ticket of localTickets(context.root, only)) {
+    checkStackParent(context, ticket, loadTicket(context.root, ticket));
+  }
+}
+
 function chooseNext(context, run) {
   // R-49: a live CI wait (by `wait`) is the next step. No gh call. `nextCommand` clears a dead one.
   if (run.waiting !== null && run.waiting !== undefined) {
@@ -89,6 +98,7 @@ function chooseNext(context, run) {
   }
   const only = onlyOf(run, { strict: true });
   syncTickets(context, only);
+  checkStackParents(context, only);
   // R-30: a new owner comment on the PR of a green ticket comes before a new ticket, but not while a
   // ticket is in flight (it gives nothing then). A hard stop (R-31) is thrown here.
   const comment = findCommentStep(context, only);
@@ -100,7 +110,12 @@ function chooseNext(context, run) {
     (candidate) => candidate.kind !== 'resume' || IN_FLIGHT.has(candidate.stage),
   );
   const entry = startable.find((candidate) => candidate.kind === 'resume') ?? startable[0];
-  return { step: entry === undefined ? { kind: 'done' } : entryStep(entry), skipped };
+  // A ticket that waits for a blocker CI is not skipped: the next `next` plans it again.
+  const logged = skipped.filter((candidate) => candidate.wait === undefined);
+  if (entry !== undefined) return { step: entryStep(entry), skipped: logged };
+  const waiting = skipped.find((candidate) => candidate.wait !== undefined);
+  const step = waiting === undefined ? { kind: 'done' } : { kind: 'wait', pr: waiting.wait };
+  return { step, skipped: logged };
 }
 
 /** @returns {string} The text to print. */
