@@ -21,7 +21,7 @@ import {
 import { HardStopError } from './factory-github.mjs';
 import { currentTicket } from './factory-report.mjs';
 import { loadRun, saveRun } from './factory-run.mjs';
-import { checksGreen, ghJson, loadTicket, writeRunLog } from './factory-state.mjs';
+import { CHECK_FIELDS, checksGreen, ghJson, loadTicket, writeRunLog } from './factory-state.mjs';
 import { listFolder } from './fs-io.mjs';
 
 export const POLL_MS = 30_000;
@@ -69,7 +69,7 @@ const ended = (checks) =>
 function poll(context, pr, timing) {
   const started = context.now().getTime();
   for (;;) {
-    const checks = ghJson(context, ['pr', 'checks', String(pr), '--json', 'name,state,bucket']);
+    const checks = ghJson(context, ['pr', 'checks', String(pr), '--json', CHECK_FIELDS]);
     if (!Array.isArray(checks)) fail('gh pr checks: not a list');
     if (ended(checks)) return checksGreen(checks) ? 'passed' : 'failed';
     if (context.now().getTime() - started >= timing.timeoutMs) return 'timeout';

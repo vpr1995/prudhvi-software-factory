@@ -381,6 +381,33 @@ test('R-49: wait reports a CI that ended with a failure', () => {
   assert.equal(readJson(root, 'run.json').waiting, null);
 });
 
+test('R-49: wait passes when a cancelled duplicate ci check has a later pass (PR 114)', () => {
+  const root = setup({ sessionId: 's1' });
+  seedPr(root);
+  const ci = {
+    state: 'SUCCESS',
+    bucket: 'pass',
+    startedAt: '2026-11-17T05:29:18Z',
+    workflow: 'ci',
+  };
+  const checks = [
+    { ...ci, name: 'ci-result', startedAt: '2026-11-17T05:30:20Z' },
+    { ...ci, name: 'knip' },
+    { ...ci, name: 'CodeQL', workflow: '' },
+    {
+      ...ci,
+      name: 'matrix.project.name',
+      state: 'CANCELLED',
+      bucket: 'cancel',
+      startedAt: '2026-11-17T05:29:09Z',
+    },
+  ];
+  const world = waitWorld(root, () => checks);
+  assert.equal(runWait(world), 0);
+  assert.equal(world.polls, 1);
+  assert.match(world.printed, /passed/);
+});
+
 test('R-49: wait on a CI that never ends exits "timeout" after 60 minutes', () => {
   const root = setup({ sessionId: 's1' });
   seedPr(root);
