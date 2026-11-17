@@ -133,21 +133,37 @@ function newTicket(context, ticket, stage) {
   };
 }
 
-/** @returns {boolean} True when a cancelled check has a later pass in the same workflow. */
-function supersededCancel(check, checks) {
-  const { workflow, startedAt } = check;
-  if (typeof workflow !== 'string' || typeof startedAt !== 'string') return false;
-  return checks.some(
-    (other) =>
-      other.bucket === 'pass' &&
-      other.workflow === workflow &&
-      typeof other.startedAt === 'string' &&
-      other.startedAt > startedAt,
-  );
+/** @returns {string|null} The Actions run id in a check link, or null. */
+function runId(check) {
+  const { link } = check;
+  if (typeof link !== 'string') return null;
+  return /\/actions\/runs\/(\d+)\//.exec(link)?.[1] ?? null;
 }
 
 /**
- * A cancelled duplicate run (same workflow, earlier start) does not block.
+ * @returns {boolean} True when a cancelled check has a later pass of the same named workflow
+ * in a different run.
+ */
+function supersededCancel(check, checks) {
+  const { workflow, startedAt } = check;
+  const cancelRun = runId(check);
+  if (typeof workflow !== 'string' || workflow === '' || cancelRun === null) return false;
+  if (typeof startedAt !== 'string') return false;
+  return checks.some((other) => {
+    const otherRun = runId(other);
+    return (
+      other.bucket === 'pass' &&
+      other.workflow === workflow &&
+      otherRun !== null &&
+      otherRun !== cancelRun &&
+      typeof other.startedAt === 'string' &&
+      other.startedAt > startedAt
+    );
+  });
+}
+
+/**
+ * A cancelled check does not block when a later run of its workflow passed.
  * @returns {boolean} True when a CI check list has a pass and no check that fails or runs.
  */
 export function checksGreen(checks) {
@@ -159,7 +175,7 @@ export function checksGreen(checks) {
 }
 
 /** The --json field list for `gh pr checks`. */
-export const CHECK_FIELDS = 'name,state,bucket,startedAt,workflow';
+export const CHECK_FIELDS = 'name,state,bucket,startedAt,workflow,link';
 
 // GitHub: labels and board Status (R-57)
 
