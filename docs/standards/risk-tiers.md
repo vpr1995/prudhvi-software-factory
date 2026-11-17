@@ -16,6 +16,8 @@ Review rules: see section 3.
 
 A PR that changes any path below is `risk:high`.
 
+The code copy of the tables in sections 2 and 2.1 is [factory-routing.mjs](../../tooling/repo-checks/scripts/lib/factory-routing.mjs). A unit test fails when the code copy and these tables do not agree.
+
 | Path or change                                                     | Why                                                                                               |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | Authentication and authorization code                              | Access control.                                                                                   |
@@ -52,6 +54,8 @@ Changes to `CLAUDE.md` files, `REVIEW.md` files, `docs/guides/**`, and `docs/sta
 1. The agent checks the changed paths against section 2.
 2. The agent sets one label: `risk:low`, `risk:medium`, or `risk:high`. The tier is the highest tier that matches a changed path.
 3. The agent writes the reason in the PR template.
+
+A stacked ticket (see [git-workflow.md](git-workflow.md) section 9) uses its stack base, not `main`. The changed paths, the tier, and the diff count come from `origin/<base>...HEAD`. `<base>` is the branch of the lower PR.
 
 ## 5. Choosing the tier for a PR you write
 

@@ -34,7 +34,7 @@ Design source: [design.md](../../../docs/designs/software-factory/design.md) sec
    - Blocked-by link: `gh api -X POST repos/<repo>/issues/<n>/dependencies/blocked_by -F issue_id=<blocker database id>`. Add the label `blocked` to each child with an open blocker.
    - Board: `gh project item-add 2 --owner vpr1995 --url <issue url>` for each issue.
    - If a call fails: stop. List what exists and what is missing. Do not retry blindly. Do not create duplicates.
-7. Report a table: issue number, title, score, blocked by. Tell the owner: add `agent:ready` to each ticket you accept (GATE 3). Never tell the owner to add it to an owner task. The next stage is `/work-ticket`. Do not start it here.
+7. Report a table: issue number, title, score, blocked by. Tell the owner: add `agent:ready` to each ticket you accept (GATE 3). Never tell the owner to add it to an owner task. The next stage is `/factory <n>`. Do not start it here.
 
 ## Done when
 

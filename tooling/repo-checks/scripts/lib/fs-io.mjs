@@ -3,15 +3,18 @@
 import {
   appendFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  readSync,
   realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { isatty } from 'node:tty';
 
 /**
  * @param {string} root - Repo root.
@@ -22,9 +25,38 @@ export function readRepositoryFile(root, file) {
   return readFileSync(path.join(root, file), 'utf8');
 }
 
-/** @returns {string} All of stdin. */
-export function readStdin() {
-  return readFileSync(0, 'utf8');
+const RETRY_WAIT_MS = 10;
+
+function readChunk(buffer) {
+  try {
+    return readSync(0, buffer);
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? error.code : undefined;
+    if (code === 'EOF' || code === 'EBADF') return 0;
+    if (code !== 'EAGAIN') throw error;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RETRY_WAIT_MS);
+    return -1;
+  }
+}
+
+/**
+ * @param {number} [maxBytes] - Stop after this many bytes. No limit when left out.
+ * @returns {string} Stdin, or its first maxBytes bytes. '' when stdin is a terminal or closed.
+ */
+export function readStdin(maxBytes = Infinity) {
+  if (isatty(0)) return '';
+  const chunks = [];
+  let total = 0;
+  while (total < maxBytes) {
+    const buffer = Buffer.alloc(Math.min(65_536, maxBytes - total));
+    const count = readChunk(buffer);
+    if (count === 0) break;
+    if (count > 0) {
+      chunks.push(buffer.subarray(0, count));
+      total += count;
+    }
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 /**
@@ -83,12 +115,21 @@ export function appendText(file, text) {
  *
  * @param {string} file - Absolute path.
  * @param {string} text - New file text.
+ * @param {number} [mode] - File mode of a new file, for example 0o600. The umask still applies.
  */
-export function writeAtomic(file, text) {
+export function writeAtomic(file, text, mode) {
   mkdirSync(path.dirname(file), { recursive: true });
   const temporary = `${file}.${String(process.pid)}.tmp`;
-  writeFileSync(temporary, text);
+  writeFileSync(temporary, text, mode === undefined ? undefined : { mode });
   renameSync(temporary, file);
+}
+
+/**
+ * @param {string} file - Absolute path.
+ * @returns {number} Size in bytes. A symbolic link gives the size of the link, not of its target.
+ */
+export function fileSize(file) {
+  return lstatSync(file).size;
 }
 
 /**
@@ -106,4 +147,49 @@ export function appendToFile(file, text) {
  */
 export function removeFile(file) {
   rmSync(file, { force: true });
+}
+
+/**
+ * Renames a file. The rename is atomic: only one caller moves a given file.
+ *
+ * @param {string} from - Absolute path.
+ * @param {string} to - Absolute path.
+ * @returns {boolean} True when it moved the file. False when the file does not exist.
+ */
+export function renameIfExists(from, to) {
+  try {
+    renameSync(from, to);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/**
+ * Creates a file with an exclusive create (flag wx). Creates the folder first.
+ *
+ * @param {string} file - Absolute path.
+ * @param {string} text - File text.
+ * @returns {boolean} True when it created the file. False when the file already exists.
+ */
+export function createExclusive(file, text) {
+  mkdirSync(path.dirname(file), { recursive: true });
+  try {
+    writeFileSync(file, text, { flag: 'wx' });
+    return true;
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST') return false;
+    throw error;
+  }
+}
+
+/**
+ * @param {string} folder - Absolute path.
+ * @returns {string[]} Absolute paths of all files under the folder, subfolders included.
+ */
+export function listFilesRecursive(folder) {
+  return readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(entry.parentPath, entry.name));
 }
