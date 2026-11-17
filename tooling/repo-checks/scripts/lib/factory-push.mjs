@@ -64,11 +64,15 @@ function isNonFastForward(error) {
   return NON_FAST_FORWARD.test(text);
 }
 
-// R-55: a merge that fails aborts and stops the run. The reason is the merge failure. The conflict
-// paths are listed when there are some. The merge may fail with no conflict (dirty tree, hook).
+// R-55: a merge that fails stops the run. The reason is the merge failure. A merge that stopped with a
+// conflict is in progress (MERGE_HEAD): it is aborted, and the conflict paths are listed. A merge that
+// failed before it started (a dirty tree, a hook) has no MERGE_HEAD and nothing to abort.
 function mergeRemote(context, branch, ticket) {
   const failure = tryGit(context, ['merge', '--no-edit', 'FETCH_HEAD']);
   if (failure === undefined) return;
+  const reason = `merge of origin/${branch} failed (${failureReason(failure)}).`;
+  const merging = tryGit(context, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']) === undefined;
+  if (!merging) hardStop(reason, ticket);
   const paths = attempt(context, ['diff', '--name-only', '--diff-filter=U'])
     .output.split('\n')
     .map((line) => line.trim())
@@ -77,10 +81,7 @@ function mergeRemote(context, branch, ticket) {
   const abortText =
     aborted === undefined ? 'Merge aborted.' : `Merge abort failed: ${failureReason(aborted)}.`;
   const conflicts = paths.length > 0 ? ` Conflicts: ${paths.join(', ')}` : '';
-  hardStop(
-    `merge of origin/${branch} failed (${failureReason(failure)}). ${abortText}${conflicts}`,
-    ticket,
-  );
+  hardStop(`${reason} ${abortText}${conflicts}`, ticket);
 }
 
 /** @returns {boolean} True when the push needed the fetch and merge. A second failure throws. */
@@ -129,6 +130,7 @@ function pushTarget(context, ticket) {
 // than the stored count: no progress. Fixing 1 of 2 findings of one message is progress.
 function checkGuard(context, plan) {
   const { ticket, base, round } = plan;
+  if (plan.skipGuard) return;
   const findings = context.guard(base);
   const blocking = findings.filter((finding) => finding.message !== CHECK_CONFIG_MESSAGE);
   const counts = {};
@@ -157,16 +159,43 @@ function checkGuard(context, plan) {
   }
 }
 
+/**
+ * Pushes HEAD of the ticket branch. The caller holds the lock. The hard stop passes
+ * `forHardStop`: the push then skips the local test guard (before the push and after a merge) and
+ * does nothing when the branch has no commit that is not on the base (R-12 step 2). Only the
+ * hard stop code sets it: no CLI flag reaches it.
+ *
+ * @param {object} context - Command context.
+ * @param {string} ticket - Ticket number as text.
+ * @param {{ forHardStop?: boolean }} [options] - Hard stop mode.
+ */
+export function pushBranch(context, ticket, { forHardStop = false } = {}) {
+  const { branch, base } = pushTarget(context, ticket);
+  if (forHardStop) {
+    const ahead = Number(context.git(['rev-list', '--count', `${base}..HEAD`]).trim());
+    if (ahead === 0) {
+      context.print(`#${ticket}: no commit that is not on ${base}: nothing to push\n`);
+      return;
+    }
+  }
+  const plan = {
+    ticket,
+    branch,
+    base,
+    round: loadRound(context.root, ticket),
+    skipGuard: forHardStop,
+  };
+  checkGuard(context, plan);
+  const merged = pushWithRecovery(context, plan);
+  context.print(`#${ticket}: pushed ${branch}${merged ? ' after fetch and merge' : ''}\n`);
+}
+
 /** @returns {string} Empty text: each step prints its own line. */
 export function pushCommand([ticketWord, ...extra], context) {
   const ticket = ticketNumber(ticketWord);
   if (extra.length > 0) fail('Usage: push <n>');
   return withLock(context, () => {
-    const { branch, base } = pushTarget(context, ticket);
-    const plan = { ticket, branch, base, round: loadRound(context.root, ticket) };
-    checkGuard(context, plan);
-    const merged = pushWithRecovery(context, plan);
-    context.print(`#${ticket}: pushed ${branch}${merged ? ' after fetch and merge' : ''}\n`);
+    pushBranch(context, ticket);
     return '';
   });
 }

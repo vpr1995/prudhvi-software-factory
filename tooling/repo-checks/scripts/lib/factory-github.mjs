@@ -1,6 +1,6 @@
 // The gh wrapper and the hard stop error of the /factory script (design factory-daily-run 4.1,
-// R-54). Each gh call goes through `gh`: one retry, then a hard stop. The `hardstop` command
-// (task 2b) hooks `HardStopError`: `main` catches it in one place and `ticket` names the ticket.
+// R-54). Each gh call goes through `gh`: one retry, then a hard stop. `main` catches
+// `HardStopError` in one place and exits 3. The agent then runs `hardstop` with the reason.
 import { execFileSync } from 'node:child_process';
 
 import { FactoryError } from './factory-base.mjs';
@@ -8,16 +8,21 @@ import { FactoryError } from './factory-base.mjs';
 export const COMMAND_TIMEOUT_MS = 30_000;
 // git push and git fetch go to the network and run the repo hooks: give them more time.
 export const GIT_TIMEOUT_MS = 120_000;
+// A hard-stop patch can be big: the node default of 1 MiB is too small.
+const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const MAX_REASON_CHARS = 300;
-// `scheme://user:pass@` and `scheme://token@`, then bare tokens of GitHub.
-const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*):\/\/[^\s/@]+@/gi;
+// `scheme://user:pass@` and `scheme://token@`, then bare tokens of GitHub. The scheme has at most 32
+// characters: a longer text of scheme characters (`a-a-a-`) would be quadratic. The match can start
+// inside a longer word: the characters before it stay, the credentials go.
+const URL_CREDENTIALS = /([a-z][a-z0-9+.-]{0,31}):\/\/[^\s/@]+@/gi;
 const TOKENS = /gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}/g;
 
-const redact = (text) => text.replaceAll(URL_CREDENTIALS, '$1://***@').replaceAll(TOKENS, '***');
+export const redact = (text) =>
+  text.replaceAll(URL_CREDENTIALS, '$1://***@').replaceAll(TOKENS, '***');
 
 /** @returns {string} Stdout of the command. A command that runs longer than the timeout throws. */
 export function run(command, args, timeout = COMMAND_TIMEOUT_MS) {
-  return execFileSync(command, args, { encoding: 'utf8', timeout });
+  return execFileSync(command, args, { encoding: 'utf8', timeout, maxBuffer: MAX_OUTPUT_BYTES });
 }
 
 /** A refusal that must stop the run. The message is `hard stop: <reason>`. */

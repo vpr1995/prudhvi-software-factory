@@ -66,7 +66,7 @@ export const STAGES = new Map(
 
 // Run log (R-28)
 
-function runLogFile(root) {
+export function runLogFile(root) {
   const text = readOptional(path.join(stateFolder(root), 'run.json'));
   if (text === undefined) return path.join(stateFolder(root), 'runs', `${AD_HOC}.jsonl`);
   const log = parseJson(text, 'run.json');
@@ -77,9 +77,23 @@ function runLogFile(root) {
   return path.join(stateFolder(root), 'runs', `${runId}.jsonl`);
 }
 
-function logEvent(context, logFile, { ticket, event, from, to, detail }) {
+export function logEvent(context, logFile, { ticket, event, from, to, detail }) {
   const line = { ts: timestamp(context.now()), ticket: Number(ticket), event, from, to, detail };
   appendText(logFile, `${JSON.stringify(line)}\n`);
+}
+
+/**
+ * Writes one run log line. With `context.bestEffortLog` a failure is printed as `log failed: <reason>`
+ * and the caller goes on. Without it the failure is thrown.
+ */
+export function writeRunLog(context, entry) {
+  try {
+    logEvent(context, runLogFile(context.root), entry);
+  } catch (error) {
+    if (context.bestEffortLog !== true) throw error;
+    const reason = error instanceof Error ? error.message : String(error);
+    context.print(`log failed: ${reason.replaceAll(/\s*\n\s*/g, ' ').trim()}\n`);
+  }
 }
 
 // Ticket state
@@ -211,36 +225,48 @@ function checkLegal(from, to) {
   }
 }
 
-function stageCommand([ticketWord, to], context) {
-  const ticket = ticketNumber(ticketWord);
+/**
+ * Moves the stage of a ticket: board and labels first, then the state and the run log. The caller
+ * holds the lock.
+ *
+ * @param {object} context - Command context.
+ * @param {string} ticket - Ticket number as text.
+ * @param {string} to - Name of the target stage.
+ * @returns {string} The line to print.
+ */
+export function moveStage(context, ticket, to) {
   const target =
     STAGES.get(to) ??
     fail(`unknown stage "${String(to)}". Stages: ${[...STAGES.keys()].join(', ')}`);
-  return withLock(context, () => {
-    const logFile = runLogFile(context.root);
-    const state = loadTicket(context.root, ticket);
-    checkLegal(state?.stage, to);
-    const boardArguments = boardEdit(context, ticket, target.status);
-    moveLabels(context, ticket, target.labels);
-    context.gh(boardArguments);
-    saveTicket(context.root, ticket, { ...(state ?? newTicket(context, ticket, to)), stage: to });
-    const labels = [
-      ...target.labels.add.map((label) => `+${label}`),
-      ...target.labels.remove.map((label) => `-${label}`),
-    ];
-    const detail = [
-      ...(labels.length > 0 ? [`labels ${labels.join(' ')}`] : []),
-      `board ${target.status}`,
-    ];
-    logEvent(context, logFile, {
-      ticket,
-      event: 'stage',
-      from: state?.stage ?? null,
-      to,
-      detail: detail.join('; '),
-    });
-    return `#${ticket}: ${state?.stage ?? 'none'} -> ${to}\n`;
+  // A run log that cannot be read refuses the move before any change, unless the caller logs best effort.
+  if (context.bestEffortLog !== true) runLogFile(context.root);
+  const state = loadTicket(context.root, ticket);
+  checkLegal(state?.stage, to);
+  const boardArguments = boardEdit(context, ticket, target.status);
+  moveLabels(context, ticket, target.labels);
+  context.gh(boardArguments);
+  saveTicket(context.root, ticket, { ...(state ?? newTicket(context, ticket, to)), stage: to });
+  const labels = [
+    ...target.labels.add.map((label) => `+${label}`),
+    ...target.labels.remove.map((label) => `-${label}`),
+  ];
+  const detail = [
+    ...(labels.length > 0 ? [`labels ${labels.join(' ')}`] : []),
+    `board ${target.status}`,
+  ];
+  writeRunLog(context, {
+    ticket,
+    event: 'stage',
+    from: state?.stage ?? null,
+    to,
+    detail: detail.join('; '),
   });
+  return `#${ticket}: ${state?.stage ?? 'none'} -> ${to}\n`;
+}
+
+function stageCommand([ticketWord, to], context) {
+  const ticket = ticketNumber(ticketWord);
+  return withLock(context, () => moveStage(context, ticket, to));
 }
 
 // reconcile (R-23). No 2a1 command calls it: `start` (task 2c) does, and holds the lock.

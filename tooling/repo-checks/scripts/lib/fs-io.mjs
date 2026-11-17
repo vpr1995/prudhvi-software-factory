@@ -3,6 +3,7 @@
 import {
   appendFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -114,12 +115,21 @@ export function appendText(file, text) {
  *
  * @param {string} file - Absolute path.
  * @param {string} text - New file text.
+ * @param {number} [mode] - File mode of a new file, for example 0o600. The umask still applies.
  */
-export function writeAtomic(file, text) {
+export function writeAtomic(file, text, mode) {
   mkdirSync(path.dirname(file), { recursive: true });
   const temporary = `${file}.${String(process.pid)}.tmp`;
-  writeFileSync(temporary, text);
+  writeFileSync(temporary, text, mode === undefined ? undefined : { mode });
   renameSync(temporary, file);
+}
+
+/**
+ * @param {string} file - Absolute path.
+ * @returns {number} Size in bytes. A symbolic link gives the size of the link, not of its target.
+ */
+export function fileSize(file) {
+  return lstatSync(file).size;
 }
 
 /**
