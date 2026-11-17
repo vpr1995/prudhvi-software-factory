@@ -9,7 +9,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 
 ## Steps
 
-1. If the caller passes `ticket <n>` (the `/factory` skill step 8 does: it validated the branch already), use `<n>` as the ticket and skip this step and step 2. Else check the branch: `git rev-parse --abbrev-ref HEAD`. If it is `main`, stop. Create a branch `<type>/<short-kebab>` first.
+1. If the caller passes `ticket <n>` (the `/factory` skill step 8 does: it validated the branch already), the number must match `^[1-9][0-9]*$`. Else stop and ask the human. Use `<n>` as the ticket and skip this step and step 2. Else check the branch: `git rev-parse --abbrev-ref HEAD`. If it is `main`, stop. Create a branch `<type>/<short-kebab>` first.
 2. Find the ticket. Skip this step when the caller passed `ticket <n>`. The branch name is `<type>/<n>-...`: run `git branch --show-current | sed -nE 's#^[a-z]+/([0-9]+)-.*#\1#p'`. A number: use it. No number: use `#<n>` or `ticket <n>` of the request, only when the branch has none. Both present and different: stop and ask the human. A branch number that does not match `^[1-9][0-9]*$` (for example `feat/0-x`, `fix/007-x`): stop and ask the human. A request number that does not match is no ticket. No number: no ticket. Say so in the report.
 3. Check the working tree: `git status --short` must be empty. Commit or stash unrelated changes. Do not commit `.claude/state/`.
 4. Check the verify output.
@@ -33,11 +33,11 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    - `## Decisions I made`: with a ticket, run `node tooling/repo-checks/scripts/factory.mjs read <n> decisions`. Copy the bullets. Drop the stored `## Summary` line. If `read` exits 2 (nothing stored), write `None`. No ticket: list each choice you made that the user did not state, or write `None`.
    - `## Over budget`: with a ticket, use `changedLines` and `budget` of step 6. If `overBudget` is true, write `Over budget: <changedLines> lines, limit <budget>.` and `Reason:` with one line on why the change needs the size. Else write `None. <changedLines> of <budget> lines.` No ticket: write `None (no ticket, no size)`.
    - Last line: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
-8. Write the title in Conventional Commits style, under 70 characters. Example: `feat(order-export): add csv export`. The title must not contain `'`, `"`, `$`, a backtick or `\`. Remove them.
+8. Write the title as one line, under 70 characters. It starts with a Conventional Commits type: `<type>(<scope>): ` or `<type>: `. Example: `feat(order-export): add csv export`. The title must not contain `'`, `"`, `$`, a backtick or `\`. Remove them.
 9. Push.
    - With a ticket: skip this step. `pre-pr` or `/factory` pushed already with `node tooling/repo-checks/scripts/factory.mjs push <n>`. That command runs the test guard first.
    - No ticket: `git push -u origin HEAD`. If the pre-push hook fails, read the message and fix the cause. Then retry.
-10. Open the PR with the risk label: `gh pr create --base main --title '<title>' --label risk:<tier> --body-file <path>`. `<tier>` is the tier of step 6. `<path>` is the file of step 7. The stacked `--base` is not built yet (task 7b, #112). Until then the caller sets `--base` and `--draft`. The agent PR uses the owner's GitHub user. Then delete the body file with `rm /tmp/factory-pr.<suffix>` (the path that `mktemp` printed), also when `gh pr create` fails. Run `rm` only when the path matches `^/tmp/factory-pr\.[A-Za-z0-9]{6}$`.
+10. Open the PR with the risk label: `gh pr create --base main --title '<title>' --label risk:<tier> --body-file <path>`. `<tier>` is the tier of step 6. `<path>` is the file of step 7. The stacked `--base` is not built yet (task 7b, #112). Until then the caller sets `--base` and `--draft`. The agent PR uses the owner's GitHub user. Then delete the body file with `rm /tmp/factory-pr.<suffix>` (the path that `mktemp` printed), also when `gh pr create` fails. Run `rm` only when the path matches `^/tmp/factory-pr\.[A-Za-z0-9]{6}$`. No match: do not run `rm`. Report the path.
 11. Report the PR URL.
 
 ## Done when
