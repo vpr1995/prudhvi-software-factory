@@ -3,7 +3,7 @@
 // No test calls the real gh or the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -499,7 +499,7 @@ for (const [name, extra, reason] of SKIPS) {
 test('R-43: Paths can name tooling/ outside repo-checks and .claude outside settings.json', () => {
   const root = temporaryFolder();
   const { gh, add } = makeWorld();
-  add(makeIssue(7, { body: body('Paths: `tooling/repo-checks-x/a.mjs`, `.claude/skills/a.md`') }));
+  add(makeIssue(7, { body: body('Paths: `tooling/eslint-config/a.mjs`, `.claude/skills/a.md`') }));
   const result = start([], { gh, root });
   assert.deepEqual(queued(result.out), ['7']);
 });
@@ -519,7 +519,7 @@ const FORBIDDEN_PATHS = [
   ['a dot segment in settings.json', 'Paths: .claude/./settings.json'],
   ['the parent folder', 'Paths: tooling'],
   ['the .claude folder', 'Paths: `.claude`'],
-  ['the root folder', 'Paths: `.`'],
+  ['a folder that resolves to the root', 'Paths: `src/..`'],
   ['another letter case', 'Paths: Tooling/Repo-Checks/x.mjs'],
 ];
 
@@ -534,11 +534,81 @@ for (const [name, context] of FORBIDDEN_PATHS) {
   });
 }
 
+// Round 3. A false positive of the token check or the body backstop only skips a ticket.
+const QUEUED_PATHS = [
+  ['a backticked path and a final dot', 'Paths: `src/a.ts`.'],
+  ['a slash of prose between two paths', 'Paths: `a` / `b`'],
+  ['two paths with a prose word and a final dot', 'Paths: `a.ts` and `b.ts`.'],
+  ['a bare dot that is no path', 'Paths: `.`'],
+];
+
+for (const [name, context] of QUEUED_PATHS) {
+  test(`R-43: a ticket is queued when Paths has ${name}`, () => {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, { body: body(context) }));
+    assert.deepEqual(queued(start([], { gh, root }).out), ['7'], context);
+  });
+}
+
+const BYPASS_PATHS = [
+  ['a list dash', '- Paths: tooling/repo-checks/x'],
+  ['a quoted value in lower case', 'paths: "tooling/repo-checks/x"'],
+  ['a list on the next lines', 'Paths:\n- tooling/repo-checks/x'],
+  ['angle brackets', '<tooling/repo-checks>'],
+  ['a line anchor', 'See .claude/settings.json#L3'],
+  ['settings.local.json', 'See .claude/settings.local.json'],
+  ['a zero-width space', 'See tooling/repo​-checks/x'],
+  ['a soft hyphen and a BOM', 'See tooling/repo­-che﻿cks/x'],
+  ['a control character', 'See tooling/repo\u0001-checks/x'],
+  ['a full-width hyphen', 'See tooling/repo－checks/x'],
+  ['backslashes', String.raw`See tooling\repo-checks\x`],
+  ['an escaped slash', 'See tooling%2Frepo-checks'],
+  ['an escaped slash in capitals', 'See tooling%2Frepo-checks'.toUpperCase()],
+];
+
+for (const [name, context] of BYPASS_PATHS) {
+  test(`R-43: a ticket is skipped when the body has ${name}`, () => {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, { body: body(context) }));
+    const result = start([], { gh, root });
+    assert.match(result.out, /#7: .*Paths/, JSON.stringify(context));
+    assert.deepEqual(queued(result.out), [], JSON.stringify(context));
+  });
+}
+
+test('R-3: two backticked paths with a prose word route as one doc path: tier low', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(
+    makeIssue(7, { body: body('Paths: `docs/a.md` and `docs/b.md`.') }),
+    makeIssue(8, { body: body('Paths: `docs/a.md`') }),
+  );
+  const lines = start([], { gh, root }).out.split('\n');
+  const routing = (number) => lines[lines.findIndex((line) => line.includes(`#${number} `)) + 1];
+  assert.match(routing(7), /Routing: tier low; passes spec-reviewer/);
+  assert.equal(routing(7), routing(8));
+});
+
+for (const mark of [';', ')']) {
+  test(`R-43: a Paths token with 65000 "${mark}" is cleaned in linear time`, () => {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, { body: body(`Paths: a${mark.repeat(65_000)}x`) }));
+    const began = performance.now();
+    const result = start([], { gh, root });
+    const elapsed = performance.now() - began;
+    assert.deepEqual(queued(result.out), ['7']);
+    assert.ok(elapsed < 500, `took ${String(elapsed)} ms`);
+  });
+}
+
 test('R-43: Paths with a glob or a prose word outside the forbidden paths does not skip', () => {
   const root = temporaryFolder();
   const { gh, add } = makeWorld();
   add(
-    makeIssue(7, { body: body('Paths: `src/a.ts` and docs/b.md, tooling/repo-checks-x/*') }),
+    makeIssue(7, { body: body('Paths: `src/a.ts` and docs/b.md, tooling/other-x/*') }),
     makeIssue(8, { body: body('Paths: tooling/eslint-config/x, `.claude/skills/x`') }),
   );
   assert.deepEqual(queued(start([], { gh, root }).out), ['7', '8']);
@@ -741,6 +811,21 @@ for (const [name, config, reason] of BLOCKED_CASES) {
   });
 }
 
+test('R-36: the stack depth counts PRs of other authors in the chain', () => {
+  const root = temporaryFolder();
+  // Chain: PR 70 (owner) on PR 60 (mallory) on PR 50 (owner) on main. It is 3 deep, plus the ticket.
+  const { gh } = stackWorld({
+    prs: [
+      makePr(70, { baseRefName: 'feat/60-x' }),
+      makePr(60, { baseRefName: 'feat/50-x', author: { login: 'mallory' }, closes: 5 }),
+      makePr(50, { closes: 4 }),
+    ],
+  });
+  const result = start([], { gh, root });
+  assert.match(result.out, /#7: stack depth 4 is over 2/);
+  assert.deepEqual(queued(result.out), []);
+});
+
 // R-50
 
 test('R-50: an active or stalled run is adopted: session cleared, run id kept, "resumed" logged, no label change', () => {
@@ -827,6 +912,28 @@ test('R-50: an adopt whose plan fails leaves the old run.json byte-identical and
     assert.notEqual(result.code, 0);
     assert.deepEqual(snapshot(root), before);
   }
+});
+
+test('R-50: when the restore of run.json also fails, the original error stays and names the restore failure', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7));
+  seedRun(root, { stalled: true, active: false });
+  const broken = (args) => {
+    if (args[0] === 'repo') {
+      // A folder in place of run.json makes the restore (a rename over it) fail.
+      rmSync(stateFile(root, 'run.json'));
+      mkdirSync(stateFile(root, 'run.json'));
+      throw new Error('gh: network down');
+    }
+    return gh(args);
+  };
+  const result = start([], { gh: broken, root });
+  assert.notEqual(result.code, 0);
+  assert.match(
+    result.errors,
+    /unexpected error: gh: network down; run\.json restore also failed: /,
+  );
 });
 
 // R-51 and R-53
