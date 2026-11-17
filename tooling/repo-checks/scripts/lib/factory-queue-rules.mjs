@@ -1,15 +1,18 @@
 // Pure rules of the `start` queue (design factory-daily-run 2: R-7, R-36, R-43; 4.5). No gh, no
 // file system. lib/factory-queue.mjs calls them with data that it read from GitHub.
+import path from 'node:path';
 
 const ACCEPTANCE_HEADING = '### Acceptance';
 const CHECKBOX = /^- \[[ xX]\] /;
-const PATHS_LINE = /^Paths:[ \t]*(.*)$/m;
+const ANY_HEADING = /^#{1,3} /;
+const PATHS_LINE = /^(?:\*\*Paths:\*\*|Paths:)[ \t]*(.*)$/gm;
 const BACKTICKED = /`([^`]+)`/g;
 const SPLIT_WORDS = /[\s,]+/;
+const GLOB_CHARACTER = /[*?[{]/;
 const SCOPE = /'([^']+)'/g;
 const CLOSES = /\bCloses #(\d+)/gi;
-const FORBIDDEN_FOLDER = 'tooling/repo-checks';
-const FORBIDDEN_FILE = '.claude/settings.json';
+// The paths that a ticket must not name (R-43), in lower case: a file system can ignore the case.
+const FORBIDDEN = ['tooling/repo-checks', '.claude/settings.json'];
 const MAIN = 'main';
 // A stack is at most 2 PRs deep (R-36). A chain with a loop stops at this many steps.
 const MAX_CHAIN = 10;
@@ -20,7 +23,7 @@ export function hasAcceptance(body) {
   const start = lines.findIndex((line) => line.trimEnd() === ACCEPTANCE_HEADING);
   if (start === -1) return false;
   for (const line of lines.slice(start + 1)) {
-    if (line.startsWith('### ')) return false;
+    if (ANY_HEADING.test(line)) return false;
     if (CHECKBOX.test(line)) return true;
   }
   return false;
@@ -28,28 +31,58 @@ export function hasAcceptance(body) {
 
 /**
  * @param {string} body - Ticket body.
- * @returns {string[]} The paths of the `Paths:` line: the backticked parts, else the words.
+ * @returns {string[]} The tokens of every `Paths:` line (also `**Paths:**`): the backticked parts
+ *   and the bare words. A token is raw: `namesForbiddenPath` cleans it.
  */
 export function pathsOf(body) {
-  const line = PATHS_LINE.exec(body)?.[1] ?? '';
-  const ticked = [...line.matchAll(BACKTICKED)].map((match) => match[1].trim());
-  const words = line
-    .split(SPLIT_WORDS)
-    .map((word) => word.trim())
-    .filter((word) => word !== '');
-  return ticked.length > 0 ? ticked : words;
+  return [...body.matchAll(PATHS_LINE)].flatMap((match) => {
+    const line = match[1];
+    const ticked = [...line.matchAll(BACKTICKED)].map((tick) => tick[1].trim());
+    const words = line.replaceAll(BACKTICKED, ' ').split(SPLIT_WORDS);
+    return [...ticked, ...words].filter((token) => token !== '');
+  });
 }
 
-/** @returns {boolean} True when a path is under tooling/repo-checks or is .claude/settings.json (R-43). */
+/** @returns {string} The token as a clean path from the repo root: no `./`, `..`, `//`, or `/` at the ends. */
+function cleanPath(token) {
+  // Trailing punctuation goes. A dot after `/` or `.` is a path part (`..`), so it stays.
+  const unpunctuated = token
+    .replace(/^\(+/, '')
+    .replace(/([^./])\.+$/, '$1')
+    .replace(/[,;)]+$/, '')
+    .replace(/([^./])\.+$/, '$1');
+  const clean = path.posix
+    .normalize(unpunctuated.length === 0 ? '.' : unpunctuated)
+    .replace(/^\/+/, '')
+    .replace(/^(?:\.\.\/)+/, '')
+    .replace(/\/+$/, '');
+  return clean === '..' || clean === '' ? '.' : clean.toLowerCase();
+}
+
+const insideOrSame = (file, folder) => file === folder || file.startsWith(`${folder}/`);
+
+function isForbidden(token) {
+  const clean = cleanPath(token);
+  const glob = GLOB_CHARACTER.exec(clean);
+  if (glob !== null) {
+    // The part before the glob is fixed. The glob can reach a forbidden path when that part is a
+    // parent of it, or is inside it.
+    const prefix = clean.slice(0, glob.index);
+    return FORBIDDEN.some((entry) => entry.startsWith(prefix) || insideOrSame(prefix, entry));
+  }
+  return (
+    clean === '.' ||
+    FORBIDDEN.some((entry) => insideOrSame(clean, entry) || insideOrSame(entry, clean))
+  );
+}
+
+/**
+ * @param {string[]} paths - Tokens of `pathsOf`.
+ * @returns {boolean} True when a token names tooling/repo-checks or .claude/settings.json, or a
+ *   parent folder of them, or a glob that can reach them (R-43).
+ */
 export function namesForbiddenPath(paths) {
-  return paths
-    .map((entry) => entry.replace(/^\.\//, ''))
-    .some(
-      (entry) =>
-        entry === FORBIDDEN_FILE ||
-        entry === FORBIDDEN_FOLDER ||
-        entry.startsWith(`${FORBIDDEN_FOLDER}/`),
-    );
+  return paths.some((token) => isForbidden(token));
 }
 
 /**

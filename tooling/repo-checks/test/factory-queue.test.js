@@ -71,6 +71,8 @@ const makePr = (number, extra = {}) => ({
   baseRefName: 'main',
   body: '',
   labels: [],
+  author: { login: OWNER },
+  isCrossRepository: false,
   ...extra,
 });
 const PASS = [{ name: 'ci', state: 'SUCCESS', bucket: 'pass' }];
@@ -97,6 +99,7 @@ function answerApi(world, args) {
   const suffix = rest.join('/');
   if (suffix === 'events') return JSON.stringify([issue.events]);
   if (suffix === 'dependencies/blocked_by') return JSON.stringify(issue.blockedBy);
+  if (issue.rawApi !== undefined) return JSON.stringify(issue.rawApi);
   return JSON.stringify({ [SUMMARY]: { total: issue.subTotal } });
 }
 
@@ -501,6 +504,82 @@ test('R-43: Paths can name tooling/ outside repo-checks and .claude outside sett
   assert.deepEqual(queued(result.out), ['7']);
 });
 
+const FORBIDDEN_PATHS = [
+  ['a bare token after a backticked one', 'Paths: `src/a.ts` and tooling/repo-checks/x.mjs'],
+  ['a second Paths line', 'Paths: `src/a.ts`\nPaths: tooling/repo-checks/x.mjs'],
+  ['a dot dot segment', 'Paths: `src/../tooling/repo-checks/x`'],
+  ['a leading slash', 'Paths: `/tooling/repo-checks/x`'],
+  ['a bold label', '**Paths:** tooling/repo-checks/x'],
+  ['a double slash', 'Paths: tooling//repo-checks/x'],
+  ['trailing punctuation', 'Paths: tooling/repo-checks,'],
+  ['trailing dot and bracket', 'Paths: (tooling/repo-checks/x.mjs).'],
+  ['a glob over the parent folder', 'Paths: tooling/**'],
+  ['a glob over .claude', 'Paths: .claude/*'],
+  ['a glob with a partial name', 'Paths: tooling/repo-*'],
+  ['a dot segment in settings.json', 'Paths: .claude/./settings.json'],
+  ['the parent folder', 'Paths: tooling'],
+  ['the .claude folder', 'Paths: `.claude`'],
+  ['the root folder', 'Paths: `.`'],
+  ['another letter case', 'Paths: Tooling/Repo-Checks/x.mjs'],
+];
+
+for (const [name, context] of FORBIDDEN_PATHS) {
+  test(`R-43: a ticket is skipped when Paths has ${name}`, () => {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, { body: body(context) }));
+    const result = start([], { gh, root });
+    assert.match(result.out, /#7: .*Paths/, context);
+    assert.deepEqual(queued(result.out), [], context);
+  });
+}
+
+test('R-43: Paths with a glob or a prose word outside the forbidden paths does not skip', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(
+    makeIssue(7, { body: body('Paths: `src/a.ts` and docs/b.md, tooling/repo-checks-x/*') }),
+    makeIssue(8, { body: body('Paths: tooling/eslint-config/x, `.claude/skills/x`') }),
+  );
+  assert.deepEqual(queued(start([], { gh, root }).out), ['7', '8']);
+});
+
+test('R-43: a parent issue check that cannot read the sub-issue count skips the ticket', () => {
+  for (const rawApi of [
+    {},
+    { [SUMMARY]: null },
+    { [SUMMARY]: { total: '0' } },
+    { [SUMMARY]: {} },
+  ]) {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, { rawApi }), makeIssue(8));
+    const result = start([], { gh, root });
+    assert.match(result.out, /#7: .*parent/, JSON.stringify(rawApi));
+    assert.deepEqual(queued(result.out), ['8']);
+  }
+});
+
+test('R-43: the Acceptance section ends at any heading of level 1 to 3', () => {
+  for (const heading of ['# Other', '## Other', '### Other']) {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, { body: `### Acceptance\n\n${heading}\n- [ ] x\n` }));
+    const result = start([], { gh, root });
+    assert.match(result.out, /#7: .*Acceptance/, heading);
+  }
+});
+
+test('R-1: a ticket twice on the board is queued once and a skip is logged once', () => {
+  const root = temporaryFolder();
+  const { gh, add, world } = makeWorld();
+  add(makeIssue(7), makeIssue(8), makeIssue(9, { title: '[owner] x' }));
+  world.board = [7, 9, 8, 7, 9];
+  const result = start([], { gh, root });
+  assert.deepEqual(queued(result.out), ['7', '8']);
+  assert.equal(runLog(root).filter((line) => line.event === 'skip' && line.ticket === 9).length, 1);
+});
+
 test('R-43: a skipped ticket shows no title or body text in the plan or the log', () => {
   const root = temporaryFolder();
   const { gh, add } = makeWorld();
@@ -626,6 +705,21 @@ const BLOCKED_CASES = [
     { prs: [makePr(70, { labels: [{ name: 'needs-human' }] })] },
     /#7: needs-human/,
   ],
+  [
+    'the blocker PR is from a fork',
+    { prs: [makePr(70, { isCrossRepository: true })] },
+    /#7: no open PR/,
+  ],
+  [
+    'the blocker PR is not by the owner',
+    { prs: [makePr(70, { author: { login: 'mallory' } })] },
+    /#7: no open PR/,
+  ],
+  [
+    'the blocker PR has no author field',
+    { prs: [makePr(70, { author: undefined })] },
+    /#7: no open PR/,
+  ],
   ['two blockers are open', { blockers: [makeBlocker(7), makeBlocker(6)] }, /more than one/],
   [
     'the blocker PR is already stacked (depth 3)',
@@ -707,6 +801,32 @@ test('R-50: a run.json that is not valid is refused before anything is written',
   assert.equal(result.code, 2);
   assert.match(result.errors, /run\.json/);
   assert.deepEqual(snapshot(root), before);
+});
+
+test('R-50: a start that fails before the plan is built writes no run.json', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  const result = start(['99999'], { gh, root });
+  assert.notEqual(result.code, 0);
+  assert.equal(exists(stateFile(root, 'run.json')), false);
+  assert.equal(exists(stateFile(root, 'lock')), false);
+});
+
+test('R-50: an adopt whose plan fails leaves the old run.json byte-identical and logs no resume', () => {
+  for (const extra of [{ stalled: true, active: false }, { active: true }]) {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7));
+    seedRun(root, extra);
+    const before = snapshot(root);
+    const broken = (args) => {
+      if (args[0] === 'repo') throw new Error('gh: network down');
+      return gh(args);
+    };
+    const result = start([], { gh: broken, root });
+    assert.notEqual(result.code, 0);
+    assert.deepEqual(snapshot(root), before);
+  }
 });
 
 // R-51 and R-53
