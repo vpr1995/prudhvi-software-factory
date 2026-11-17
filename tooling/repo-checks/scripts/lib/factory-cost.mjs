@@ -16,8 +16,10 @@
 //   - Claude Code writes one line for each content block of a message. A message id counts once.
 //   - A synthetic message (`<synthetic>`) has no usage and is no turn.
 //   - A model with no price (lib/factory-prices.mjs) gives `cost: null` and a warning. The turns stay.
-//   - A line that is not valid, a time stamp or a usage number that is not valid, a missing
-//     transcript, and a bad session id give `cost: null`, `turns: null`, and a warning.
+//   - A line that is not valid, a time stamp or a usage number that is not valid, and a bad session
+//     id give `cost: null`, `turns: null`, and a warning.
+//   - A session with no main transcript is skipped, with a fixed warning. The others count. When no
+//     listed session has a transcript, the result is `cost: null`, `turns: null`, and a warning.
 import path from 'node:path';
 
 import { priceOf } from './factory-prices.mjs';
@@ -134,7 +136,7 @@ function priceMessages(messages) {
   };
 }
 
-/** @returns {{ label: string, file: string }[]} The transcripts to read. A problem with a session goes to `state.problems`. */
+/** @returns {{ label: string, file: string }[]} The transcripts to read. A session with no main transcript is skipped with a warning. A bad id goes to `state.problems`. */
 function sessionFiles(folder, sessionIds, state) {
   if (sessionIds.length === 0) state.problems.push('run.json has no session id');
   return sessionIds.flatMap((sessionId, index) => {
@@ -144,8 +146,10 @@ function sessionFiles(folder, sessionIds, state) {
     }
     const files = transcriptsOf(folder, sessionId);
     if (!exists(files[0].file)) {
-      state.problems.push(`transcript of session ${sessionId} not found`);
+      state.skipped.push(`transcript of session ${sessionId} not found: skipped`);
+      return [];
     }
+    state.found += 1;
     return files;
   });
 }
@@ -159,12 +163,18 @@ function sessionFiles(folder, sessionIds, state) {
  */
 export function readCost(context, { sessionIds, from, to }) {
   const folder = path.join(context.transcriptRoot(), projectFolderName(context.root));
-  const state = { messages: new Map(), problems: [] };
+  const state = { messages: new Map(), problems: [], skipped: [], found: 0 };
   for (const transcript of sessionFiles(folder, sessionIds, state)) {
     readTranscript(transcript, { from, to }, state);
   }
+  // No transcript at all is a problem of its own, unless a bad or an empty list already says why.
+  if (state.found === 0 && state.problems.length === 0) state.problems.push('no transcript found');
   const { cost, unknown } = priceMessages(state.messages);
-  const warnings = [...state.problems, ...unknown.map((name) => `unknown model "${name}"`)];
+  const warnings = [
+    ...state.skipped,
+    ...state.problems,
+    ...unknown.map((name) => `unknown model "${name}"`),
+  ];
   if (state.problems.length > 0) return { cost: null, turns: null, warnings };
   return { cost, turns: state.messages.size, warnings };
 }

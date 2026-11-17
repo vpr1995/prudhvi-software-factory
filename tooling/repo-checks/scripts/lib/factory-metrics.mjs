@@ -34,6 +34,7 @@ const LAST_SECOND_MS = 999;
 const SECOND_MS = 1000;
 const NOT_ENDED = new Set(['building', 'reviewing', 'ci']);
 const USAGE = 'Usage: metrics <n>';
+const NO_USER = 'gh user not readable: a new metrics comment is made';
 
 const positive = (value) => (Number.isInteger(value) && value > 0 ? value : null);
 const count = (value) => (Number.isInteger(value) && value >= 0 ? value : 0);
@@ -171,10 +172,12 @@ function buildMetrics(context, { ticket, state, outcome, warnings }) {
 /** @returns {string} The login of the user of `gh`. Empty when it cannot be read: then no comment matches. */
 function loginOf(context, warnings) {
   try {
-    return context.gh(['api', 'user', '--jq', '.login']).trim();
+    const login = context.gh(['api', 'user', '--jq', '.login']).trim();
+    if (login === '') warnings.push(NO_USER);
+    return login;
   } catch {
     // An error text is not printed: it can hold anything of the host.
-    warnings.push('gh user not readable: a new metrics comment is made');
+    warnings.push(NO_USER);
     return '';
   }
 }
