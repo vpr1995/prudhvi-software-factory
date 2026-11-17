@@ -119,3 +119,15 @@ These operations are blocked for agents. A human does them.
 | `git reset --hard` on `main`        | Loses local work.            |
 | Merge a PR with failing checks      | Breaks the merge rule.       |
 | Change a branch ruleset             | Changes the merge rule.      |
+
+## 9. Stacked PRs
+
+A ticket that is blocked by an open PR can stack on that PR. The `/factory` skill does this.
+
+- The stack depth is 2 or less. The base branch of the lower PR is `main`.
+- The upper branch starts from the lower branch. Its PR is a draft that targets the lower branch. The first line of its body is `Stacked on #<m>. Merge #<m> first.`
+- Merge upward. When the lower branch changes, merge it into the upper branch with a merge commit. Then run `verify` again.
+- Do not rebase a stacked branch. Do not force push. Rebase needs a force push, which section 4 blocks.
+- The owner merges bottom first. Never merge the upper PR into the lower branch: the change does not reach `main`.
+- After the lower PR merges, GitHub moves the upper PR to `main`. If it does not, retarget it to `main`. Then merge `main` into the upper branch, push, and mark the PR ready.
+- A conflict in a merge is a hard stop. A human fixes it.

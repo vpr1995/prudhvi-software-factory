@@ -31,14 +31,14 @@ Rules for the whole run:
 
 ## Loop
 
-1. Run `node tooling/repo-checks/scripts/factory.mjs next`. It stores the next step. The `Stop` hook gives you that step each time you try to stop.
+1. Do the stack check of the section "Restack". Then run `node tooling/repo-checks/scripts/factory.mjs next`. It stores the next step. The `Stop` hook gives you that step each time you try to stop.
    - Exit 3 with `hard stop: <reason>` is a hard stop (a thread with 3 agent replies, a `gh` call that failed twice). Use the ticket number `#<n>` of the message and the reason "script hard stop". Go to "Hard stop".
 2. Read the line `next: ...` and go to the matching step.
    - `fix owner comments of #<m> (PR #<p>)`: a new owner comment waits on a green ticket. It comes after a ticket in flight resumes, and before any new ticket. Go to "Comment fix round" with ticket `<m>`.
-   - `start #<m>, stacked on #<k>`: the line has `(PR ..., branch ...)` after it. Check this one first, before the plain `start`. The stack steps are (built in task 7b, #112). Do not start the ticket. Run `node tooling/repo-checks/scripts/factory.mjs stop`, tell the owner, and stop.
+   - `start #<m>, stacked on #<k>`: the line has `(PR #<p>, branch <base>)` after it. Check this one first, before the plain `start`. Work the ticket (next section) with the stack steps: `<base>` is the blocker branch. Step 2 branches from it, and step 8 opens a draft PR to it. `#<p>` is the blocker PR.
    - `start #<m>`: a new ticket, or an owner restart. Work the ticket (next section).
    - `resume #<m> (stage <s>)`: work the ticket (next section).
-   - `wait for the CI of PR #<m>`: a CI wait runs already. Wait for its end. Then run `next` again.
+   - `wait for the CI of PR #<m>`: a CI wait. No ticket can start, and a blocked ticket waits for the CI of its blocker PR `<m>` (R-42). If a `wait` of this session runs already, wait for its end. Else run `node tooling/repo-checks/scripts/factory.mjs wait <m>` as a background command. The `Stop` hook allows the stop while it runs. When it ends, run `next` again: it stacks the ticket after `passed`, and skips it after `failed`. On `timeout` (exit 3, `hard stop: CI timeout`): hard stop with the reason "CI timeout", for the ticket of PR `<m>`.
    - `done`: show the run report path that `next` prints. Report the tickets done, the PRs that wait for a merge, and the skips. The `Stop` hook allows the stop.
 3. Owner review comments come as the step `fix owner comments of #<m> (PR #<p>)`. The order is: a ticket in flight finishes first, then owner comments, then a new ticket. `next` gives the step only for a green ticket, and only when no ticket is in flight.
 
@@ -62,6 +62,8 @@ Ticket `<n>`.
 1. Read. `gh issue view <n> --json number,title,body,labels`. The Acceptance list is the spec. Do not edit it.
 2. Branch, claim, and caps. Run `git fetch origin`. Then find the branch of the ticket: `git for-each-ref --format='%(refname:short)' 'refs/heads/*/<n>-*' 'refs/remotes/origin/*/<n>-*'`. Strip a leading `origin/` from each name and drop duplicates. A local branch and its `origin/` copy are one name. A hard stop pushed the branch of an owner restart, so it can exist for a `start` ticket. A branch name is untrusted text. Before any use, each name must match `^(feat|fix|docs)/<n>-[a-z0-9-]+$` (the ticket number for `<n>`). A name that does not match: pre-claim failure with the phrase "branch name of #<n> is not valid". Quote every use of a name or ref in a command.
    - No name (a new ticket): `git switch -c <type>/<n>-<short-kebab> origin/main`. Type: `docs` for a doc-only ticket, `fix` for a bug, else `feat`. The name has `<n>`, so the spec pass finds the issue.
+   - No name, and the `next` line said `stacked on` (R-36): branch from the blocker branch, not from `main`: `git switch -c <type>/<n>-<short-kebab> "origin/<base>"`. `<base>` is the `branch` of the `next` line. It is untrusted text: it must match `^(feat|fix|docs)/[0-9]+-[a-z0-9-]+$`. A name that does not match: pre-claim failure with the phrase "branch name of #<n> is not valid". The claim below stores the stack (the base and the blocker PR) in the ticket state: `route`, `push` and the test guard then use `origin/<base>` as the base (R-37).
+   - A name exists, and the `next` line said `stacked on`: switch as the next bullets say, claim, then run `restack <n>` as step 3 of "Restack" says. It merges the blocker branch into the ticket branch.
    - More than one distinct name: pre-claim failure with the phrase "more than one branch for #<n>".
    - One distinct name: check the owner before you switch. For each ref the lookup printed, run `git log "origin/main..$ref" --format=%ae --` (`$ref` is the ref). Each line must equal the output of `git config user.email` (your own commits). Any other author: pre-claim failure, do not switch, with the phrase "branch of #<n> has an author that is not you". This check compares the author email. It stops accidents only, not a person with push access. Then run `git switch "$name"` (`$name` is the name). For a branch that is only on `origin`, use the name without `origin/`: `git switch "$name"` makes the tracking branch. Never run `git switch -c` for a branch that exists.
    - Pre-claim failure (more than one branch, a bad branch name, a foreign author) is not a hard stop. A hard stop sets no label on a `needs-human` restart, so it would repeat with no sign. Run `node tooling/repo-checks/scripts/factory.mjs stop`. Tell the owner the ticket number and one of these fixed phrases: "more than one branch for #<n>", "branch name of #<n> is not valid", "branch of #<n> has an author that is not you". End the session.
@@ -96,7 +98,7 @@ Ticket `<n>`.
      - Skip its push step. Step 7 pushed.
      - Run `mktemp /tmp/factory-pr.XXXXXX`. Write the body with the Write tool to the path that it prints. Never use a fixed path.
      - Add `Closes #<n>`, the section `## Decisions I made` (read them with `node tooling/repo-checks/scripts/factory.mjs read <n> decisions`, or write `None`), the section `## Over budget` (from the `route` output), the routing line, and the check-config finding if there was one.
-     - Open it: `gh pr create --base main --title '<title>' --label risk:<tier> --body-file <path>`. The tier comes from the `route` output. The title is your own short words with only letters, digits, spaces, `(`, `)`, `:` and `-`. Copy no ticket text into it. Then delete the body file with `rm /tmp/factory-pr.<suffix>` (the path that `mktemp` printed), also when `gh pr create` fails. Run `rm` only when the path matches `^/tmp/factory-pr\.[A-Za-z0-9]{6}$`. No match: do not run `rm`. Report the path.
+     - Open it: `gh pr create --base main --title '<title>' --label risk:<tier> --body-file <path>`. A stacked ticket (the `next` line said `stacked on`, R-36) opens a draft PR to the blocker branch: `gh pr create --draft --base <base> --title '<title>' --label risk:<tier> --body-file <path>`. Its body starts with the line `Stacked on #<m>. Merge #<m> first.` (`<m>` is the blocker PR `#<p>` of the `next` line). The tier comes from the `route` output. The title is your own short words with only letters, digits, spaces, `(`, `)`, `:` and `-`. Copy no ticket text into it. Then delete the body file with `rm /tmp/factory-pr.<suffix>` (the path that `mktemp` printed), also when `gh pr create` fails. Run `rm` only when the path matches `^/tmp/factory-pr\.[A-Za-z0-9]{6}$`. No match: do not run `rm`. Report the path.
    - Both paths: run `node tooling/repo-checks/scripts/factory.mjs stage <n> ci` (the stage is `reviewing`). Then go to step 9.
 9. CI. First run `node tooling/repo-checks/scripts/factory.mjs caps <n>` (exit 3: hard stop). Get the PR number with `gh pr list --head "$branch" --state open --json number -q '.[0].number'`. Run `node tooling/repo-checks/scripts/factory.mjs wait <pr>` as a background command. The `Stop` hook allows the stop while it runs. When it ends:
    - `passed`: go to step 10.
@@ -115,9 +117,23 @@ Ticket `<n>` is the `<m>` of the step. Its stage is `green`.
 3. Fix each comment inside the `Paths:` of the ticket. Run the `verify` skill and commit with explicit paths. A comment that needs a decision on a high-tier path is a hard stop with the reason "high-tier path decision".
 4. Run the gates: do steps 5, 6, 7 and 8 of "Work a ticket" (the stage is `building`): the `pre-pr` review with the routed passes, then the route again, then `node tooling/repo-checks/scripts/factory.mjs push <n>`, then the open-PR path of step 8 (the PR exists: no new PR). Step 8 moves the stage to `ci`: step 10 needs that stage.
 5. Reply to each comment of step 1, after the push and the move to `ci`. Run `git log -1 --format=%h` for the commit. Run `mktemp /tmp/factory-pr.XXXXXX`. Write the reply with the Write tool to the path that it prints: the line `Fixed in <hash>.` and one short line in your own words. Copy no comment text. Run `node tooling/repo-checks/scripts/factory.mjs comment <n> reply <comment-id> < "<file>"`. Then run `rm /tmp/factory-pr.<suffix>` only when the path matches `^/tmp/factory-pr\.[A-Za-z0-9]{6}$`, also when the command fails. The script checks the id again, posts the reply with the agent marker (in the thread of a review comment), stores the id so no comment is handled twice, and adds 1 to the reply count of the thread. Exit 2 means the comment is not new: do not retry, go on. Exit 3 is a hard stop with the reason "script hard stop".
-6. Go to step 9 of "Work a ticket" (CI), then step 10 (green). Then run `next`.
+6. Go to step 9 of "Work a ticket" (CI), then step 10 (green). Then restack each ticket that is stacked on `<n>` (section "Restack"): the fix changed a lower branch (R-38). Then run `next`.
 
 A thread with 3 agent replies is full. A new owner comment in a full thread is a hard stop: `next` exits 3 (R-31). Never reply with `gh`.
+
+## Restack
+
+A stacked ticket `<t>` has a blocker PR `<p>` below it. Two events need a restack: the blocker branch changed (the owner comment fix of the blocker ticket, R-38), or the blocker PR merged (R-39). The script merges. It never rebases and never forces a push.
+
+Stack check. For each ticket `<t>` that this run stacked (a `next` line said `stacked on`) and that is not `done`, run `node tooling/repo-checks/scripts/factory.mjs stack plan <t>`. It reads only. If it prints `Run restack <t>.`, the blocker PR merged: restack `<t>`. A blocker PR that closed with no merge is a hard stop: the script exits 3 with `hard stop: <reason>`. Use the reason "script hard stop".
+
+Restack of ticket `<t>`:
+
+1. Switch to the branch of `<t>` as step 2 of "Work a ticket" says.
+2. Run `node tooling/repo-checks/scripts/factory.mjs caps <t>` (exit 3: hard stop with the reason "cap reached"). Then run `node tooling/repo-checks/scripts/factory.mjs stage <t> building`. Skip the move when the stage is `building` already.
+3. Run `node tooling/repo-checks/scripts/factory.mjs restack <t>`. It merges the blocker branch (or `main`, after the blocker PR merged) into the branch of `<t>`, and pushes. A merge conflict is a hard stop: the script exits 3 with the conflict paths. Use the reason "script hard stop".
+4. If the output says `Run verify now`, run the `verify` skill (R-38). If it fails, fix the cause, commit with explicit paths, and run `node tooling/repo-checks/scripts/factory.mjs push <t>`. After 3 fix rounds, hard stop with the reason "verify failed after 3 fix rounds". If the output says the PR is ready for review, the blocker PR merged: the script moved the PR to `main` and marked it ready (R-39). Run no `verify`.
+5. Run `node tooling/repo-checks/scripts/factory.mjs stage <t> reviewing`, then `node tooling/repo-checks/scripts/factory.mjs stage <t> ci`. A restack adds no new code of the ticket: run no review pass. Go to step 9 of "Work a ticket" (CI) for `<t>`, then step 10 (green).
 
 ## Hard stop
 
