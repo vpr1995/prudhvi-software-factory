@@ -3,7 +3,8 @@
 // marks the run active or adopts it, and prints the plan.
 //
 // Under the lock, in this order: write or adopt run.json (the run log needs it), then for each local
-// ticket R-51 `applyRestart` and R-23 `reconcile`, then build the plan and log each skip.
+// ticket R-51 `applyRestart` and R-23 `reconcile`, then build the plan, log `resume` of an adopt, and
+// log each skip. A failure after run.json is written puts run.json back as it was.
 // `--dry-run` runs only the plan builder: all its gh calls read, it takes no lock, and it writes
 // nothing. Its stages are the stored ones, because `reconcile` and `applyRestart` write.
 //
@@ -23,7 +24,7 @@ import {
   prDepth,
 } from './factory-queue-rules.mjs';
 import { parseSize, route, routingLine } from './factory-route.mjs';
-import { beginRun } from './factory-run.mjs';
+import { beginRun, logAdoption } from './factory-run.mjs';
 import { checksGreen, ghJson, loadTicket, reconcile, writeRunLog } from './factory-state.mjs';
 import { BOARD } from './factory.config.mjs';
 import { listFolder } from './fs-io.mjs';
@@ -54,9 +55,11 @@ const isOwner = (login, owner) =>
   typeof login === 'string' && login.toLowerCase() === owner.toLowerCase();
 const apiPath = (number, suffix = '') => `repos/{owner}/{repo}/issues/${String(number)}${suffix}`;
 
+// A parent issue, or a count that is missing or not a number, skips the ticket: fail closed.
 function isParent({ env, number }) {
   const issue = ghJson(env.context, ['api', apiPath(number)]);
-  return Number(issue.sub_issues_summary?.total) > 0;
+  const total = issue.sub_issues_summary?.total;
+  return typeof total !== 'number' || !Number.isFinite(total) || total > 0;
 }
 
 function addedByOther({ env, number }) {
@@ -79,12 +82,14 @@ const NEW_RULES = [
     'Paths: names tooling/repo-checks or .claude/settings.json',
     ({ issue }) => namesForbiddenPath(pathsOf(issue.body)),
   ],
-  ['parent issue', isParent],
+  ['parent issue, or sub-issue count not readable', isParent],
   ['agent:ready was not added by the owner (R-7)', addedByOther],
 ];
 
 // Blockers (R-6, R-36). R-42 (wait for a pending CI) belongs to `next`: here a pending CI skips.
 
+// Only a PR of this repository by the owner is a stack base (R-7): a fork or a PR of another
+// author is as if it did not exist.
 const openPrs = (env) => {
   env.prs ??= ghJson(env.context, [
     'pr',
@@ -92,10 +97,10 @@ const openPrs = (env) => {
     '--state',
     'open',
     '--json',
-    'number,headRefName,baseRefName,body,labels',
+    'number,headRefName,baseRefName,body,labels,author,isCrossRepository',
     '--limit',
     LIMIT,
-  ]);
+  ]).filter((pr) => pr.isCrossRepository === false && isOwner(pr.author?.login, env.owner));
   return env.prs;
 };
 
@@ -193,6 +198,8 @@ function boardOrder(context, repository) {
     .map((item) => item.content.number);
 }
 
+const unique = (numbers) => [...new Set(numbers)];
+
 function labelled(context, label) {
   const issues = ghJson(context, [
     'issue',
@@ -217,7 +224,7 @@ function candidates(context, repository) {
   const wanted = new Set([...labelled(context, READY), ...resumable]);
   const board = boardOrder(context, repository);
   return {
-    ordered: board.filter((number) => wanted.has(number)),
+    ordered: unique(board.filter((number) => wanted.has(number))),
     offBoard: [...wanted].filter((number) => !board.includes(number)),
   };
 }
@@ -281,13 +288,13 @@ function localTickets(root, only) {
   });
 }
 
-function startRun(context, only) {
-  const { run, adopted } = beginRun(context, only);
+function planAndLog(context, only, begun) {
   for (const ticket of localTickets(context.root, only)) {
     applyRestart(context, ticket); // R-51 first: reconcile can move a restarted ticket on
     reconcile({ ...context, ticket });
   }
   const plan = buildPlan(context, only);
+  logAdoption(context, begun);
   for (const entry of plan.skipped) {
     writeRunLog(context, {
       ticket: entry.number,
@@ -297,7 +304,24 @@ function startRun(context, only) {
       detail: entry.skip,
     });
   }
-  return formatPlan(plan, `run ${run.runId}: ${adopted ? 'adopted (resumed)' : 'started'}`);
+  return plan;
+}
+
+// The ticket files that applyRestart and reconcile write are per ticket and safe to run again. A
+// failure puts run.json back as it was: the start did not happen.
+function startRun(context, only) {
+  const begun = beginRun(context, only);
+  let plan;
+  try {
+    plan = planAndLog(context, only, begun);
+  } catch (error) {
+    begun.undo();
+    throw error;
+  }
+  return formatPlan(
+    plan,
+    `run ${begun.run.runId}: ${begun.adopted ? 'adopted (resumed)' : 'started'}`,
+  );
 }
 
 function checkMayStart(context) {
