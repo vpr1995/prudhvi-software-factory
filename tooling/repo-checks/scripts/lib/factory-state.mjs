@@ -82,6 +82,20 @@ export function logEvent(context, logFile, { ticket, event, from, to, detail }) 
   appendText(logFile, `${JSON.stringify(line)}\n`);
 }
 
+/**
+ * Writes one run log line. With `context.bestEffortLog` a failure is printed as `log failed: <reason>`
+ * and the caller goes on. Without it the failure is thrown.
+ */
+export function writeRunLog(context, entry) {
+  try {
+    logEvent(context, runLogFile(context.root), entry);
+  } catch (error) {
+    if (context.bestEffortLog !== true) throw error;
+    const reason = error instanceof Error ? error.message : String(error);
+    context.print(`log failed: ${reason.replaceAll(/\s*\n\s*/g, ' ').trim()}\n`);
+  }
+}
+
 // Ticket state
 
 const ticketFile = (root, ticket) => path.join(stateFolder(root), ticket, 'ticket.json');
@@ -224,7 +238,8 @@ export function moveStage(context, ticket, to) {
   const target =
     STAGES.get(to) ??
     fail(`unknown stage "${String(to)}". Stages: ${[...STAGES.keys()].join(', ')}`);
-  const logFile = runLogFile(context.root);
+  // A run log that cannot be read refuses the move before any change, unless the caller logs best effort.
+  if (context.bestEffortLog !== true) runLogFile(context.root);
   const state = loadTicket(context.root, ticket);
   checkLegal(state?.stage, to);
   const boardArguments = boardEdit(context, ticket, target.status);
@@ -239,7 +254,7 @@ export function moveStage(context, ticket, to) {
     ...(labels.length > 0 ? [`labels ${labels.join(' ')}`] : []),
     `board ${target.status}`,
   ];
-  logEvent(context, logFile, {
+  writeRunLog(context, {
     ticket,
     event: 'stage',
     from: state?.stage ?? null,
@@ -251,9 +266,6 @@ export function moveStage(context, ticket, to) {
 
 function stageCommand([ticketWord, to], context) {
   const ticket = ticketNumber(ticketWord);
-  if (!STAGES.has(to)) {
-    fail(`unknown stage "${String(to)}". Stages: ${[...STAGES.keys()].join(', ')}`);
-  }
   return withLock(context, () => moveStage(context, ticket, to));
 }
 

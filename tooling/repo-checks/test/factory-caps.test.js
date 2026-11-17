@@ -4,13 +4,22 @@
 // or the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 
-import { main } from '../scripts/factory.mjs';
-import { MARKER, redactText } from '../scripts/lib/factory-comment.mjs';
+import { main, run as runProcess } from '../scripts/factory.mjs';
+import { buildComment, MARKER, redactText } from '../scripts/lib/factory-comment.mjs';
 import { HardStopError } from '../scripts/lib/factory-github.mjs';
 import { listFolder, readOptional, writeAtomic } from '../scripts/lib/fs-io.mjs';
 
@@ -69,8 +78,8 @@ function commitFile(cwd, name, text) {
   git(cwd, 'commit', '-qm', `add ${name}`);
 }
 
-/** A work repo on feat/7-x (one commit ahead of main) with a bare remote that holds main. */
-function makeRepository() {
+/** The template: a work repo on feat/7-x (one commit ahead of main) with a bare remote that holds main. */
+function buildTemplate() {
   const folder = temporaryFolder();
   const remote = path.join(folder, 'remote.git');
   const work = path.join(folder, 'work');
@@ -84,6 +93,19 @@ function makeRepository() {
   git(work, 'push', '-q', 'origin', 'main');
   git(work, 'checkout', '-q', '-b', 'feat/7-x');
   commitFile(work, 'src/b.js', 'export const b = 1;\n');
+  return folder;
+}
+
+let template;
+
+/** A copy of the template (built once). The copy has its own bare remote: origin points at it. */
+function makeRepository() {
+  template ??= buildTemplate();
+  const folder = temporaryFolder();
+  cpSync(template, folder, { recursive: true });
+  const remote = path.join(folder, 'remote.git');
+  const work = path.join(folder, 'work');
+  git(work, 'remote', 'set-url', 'origin', remote);
   return { folder, remote, work };
 }
 
@@ -163,11 +185,13 @@ function runFactory(argv, overrides) {
 
 // comment (R-8)
 
-test('R-8: comment posts the body from stdin through a body file, first line is the marker', () => {
-  const { work } = makeRepository();
+const HARD_STOP = 'hard-stop';
+
+test('R-8: comment hard-stop posts the body from stdin through a body file, first line is the marker', () => {
+  const work = temporaryFolder();
   const { gh, calls } = makeGh();
   const body = 'Plain `code` and ```fence``` with $(rm -rf /) and "quotes"\nsecond line';
-  const result = runFactory(['comment', '7'], { root: work, gh, stdin: () => body });
+  const result = runFactory(['comment', '7', HARD_STOP], { root: work, gh, stdin: () => body });
   assert.equal(result.code, 0, result.errors);
   assert.equal(calls.length, 1);
   const [{ args, body: posted }] = calls;
@@ -177,10 +201,20 @@ test('R-8: comment posts the body from stdin through a body file, first line is 
   for (const argument of args) assert.ok(!argument.includes('code'), 'body must not be in argv');
 });
 
-test('R-8: comment --pr posts on the pull request, and a body with the marker gets no second one', () => {
-  const { work } = makeRepository();
+test('R-8: comment hard-stop posts on the issue, also when the ticket has a PR', () => {
+  const work = temporaryFolder();
+  seedTicket(work, { pr: 12 });
   const { gh, calls } = makeGh();
-  const result = runFactory(['comment', '7', '--pr', '12'], {
+  const result = runFactory(['comment', '7', HARD_STOP], { root: work, gh, stdin: () => 'stop' });
+  assert.equal(result.code, 0, result.errors);
+  assert.deepEqual(calls[0].args.slice(0, 4), ['issue', 'comment', '7', '--body-file']);
+});
+
+test('R-8: comment reply posts on the PR of ticket.json, and a body with the marker gets no second one', () => {
+  const work = temporaryFolder();
+  seedTicket(work, { pr: 12 });
+  const { gh, calls } = makeGh();
+  const result = runFactory(['comment', '7', 'reply'], {
     root: work,
     gh,
     stdin: () => `${MARKER}\nalready marked`,
@@ -188,27 +222,122 @@ test('R-8: comment --pr posts on the pull request, and a body with the marker ge
   assert.equal(result.code, 0, result.errors);
   assert.deepEqual(calls[0].args.slice(0, 4), ['pr', 'comment', '12', '--body-file']);
   assert.equal(calls[0].body, `${MARKER}\nalready marked`);
+  assert.match(result.out, /PR #12/);
 });
 
-test('R-8: comment refuses an empty body and a bad --pr value, and calls no gh', () => {
-  const { work } = makeRepository();
+test('R-8: comment reply posts on the issue when ticket.json has no pr, or no ticket state exists', () => {
+  const work = temporaryFolder();
+  const missing = makeGh();
+  assert.equal(
+    runFactory(['comment', '7', 'reply'], { root: work, gh: missing.gh, stdin: () => 'a' }).code,
+    0,
+  );
+  assert.deepEqual(missing.calls[0].args.slice(0, 3), ['issue', 'comment', '7']);
+  seedTicket(work, { pr: null });
+  const empty = makeGh();
+  assert.equal(
+    runFactory(['comment', '7', 'reply'], { root: work, gh: empty.gh, stdin: () => 'a' }).code,
+    0,
+  );
+  assert.deepEqual(empty.calls[0].args.slice(0, 3), ['issue', 'comment', '7']);
+});
+
+test('R-8: comment refuses an empty body, an unknown kind, and a bad argument, and calls no gh', () => {
+  const work = temporaryFolder();
+  seedTicket(work);
   const { gh, calls } = makeGh();
-  const empty = runFactory(['comment', '7'], { root: work, gh });
+  const empty = runFactory(['comment', '7', HARD_STOP], { root: work, gh });
   assert.equal(empty.code, 2);
   assert.match(empty.errors, /comment body is empty/);
-  for (const flags of [['--pr', 'x'], ['--bad'], ['--pr']]) {
+  const usage = /Usage: comment <n> <hard-stop\|reply> \[<reply-to-id>\]/;
+  const cases = [
+    [[], usage],
+    [['--pr', '12'], /unknown kind "--pr"/],
+    [['--pr'], /unknown kind "--pr"/],
+    [['note'], /unknown kind "note"/],
+    [['Reply'], /unknown kind "Reply"/],
+    [['reply', 'x'], usage],
+    [['reply', '0'], usage],
+    [['reply', '-5'], usage],
+    [['reply', '1', '2'], usage],
+    [[HARD_STOP, '55'], usage],
+  ];
+  for (const [flags, message] of cases) {
     const bad = runFactory(['comment', '7', ...flags], { root: work, gh, stdin: () => 'a' });
     assert.equal(bad.code, 2, flags.join(' '));
-    assert.match(bad.errors, /Usage: comment <n> \[--pr <m>\]/, flags.join(' '));
+    assert.match(bad.errors, message, flags.join(' '));
   }
   assert.equal(calls.length, 0);
 });
 
+test('R-8: comment reply with an id stores it in handledComments once, and keeps the other keys', () => {
+  const work = temporaryFolder();
+  seedTicket(work, { pr: 12, handledComments: [55], threadReplies: { 9: 1 } });
+  const first = makeGh();
+  const post = (id, gh) =>
+    runFactory(['comment', '7', 'reply', id], { root: work, gh, stdin: () => 'fixed' });
+  assert.equal(post('56', first.gh).code, 0);
+  assert.deepEqual(readTicket(work).handledComments, [55, 56]);
+  assert.equal(post('56', first.gh).code, 0);
+  assert.equal(post('55', first.gh).code, 0);
+  assert.deepEqual(readTicket(work).handledComments, [55, 56], 'no duplicate');
+  assert.equal(first.calls.length, 3, 'each reply is posted');
+  const state = readTicket(work);
+  assert.equal(state.pr, 12);
+  assert.deepEqual(state.threadReplies, { 9: 1 });
+});
+
+test('R-8: comment reply with an id and no handledComments key creates the list', () => {
+  const work = temporaryFolder();
+  seedTicket(work);
+  const { gh } = makeGh();
+  assert.equal(
+    runFactory(['comment', '7', 'reply', '70'], { root: work, gh, stdin: () => 'x' }).code,
+    0,
+  );
+  assert.deepEqual(readTicket(work).handledComments, [70]);
+});
+
+test('R-8: comment reply with no id stores nothing, and a failed post stores nothing', () => {
+  const work = temporaryFolder();
+  seedTicket(work, { handledComments: [1] });
+  const plain = makeGh();
+  assert.equal(
+    runFactory(['comment', '7', 'reply'], { root: work, gh: plain.gh, stdin: () => 'x' }).code,
+    0,
+  );
+  assert.deepEqual(readTicket(work).handledComments, [1]);
+  const failing = makeGh({
+    'issue comment': () => {
+      throw new HardStopError('gh issue comment failed twice: network');
+    },
+  });
+  const result = runFactory(['comment', '7', 'reply', '2'], {
+    root: work,
+    gh: failing.gh,
+    stdin: () => 'x',
+  });
+  assert.equal(result.code, 3);
+  assert.deepEqual(readTicket(work).handledComments, [1]);
+});
+
+test('R-8: comment reply with an id and no ticket state is refused before it posts', () => {
+  const work = temporaryFolder();
+  const { gh, calls } = makeGh();
+  const result = runFactory(['comment', '7', 'reply', '70'], { root: work, gh, stdin: () => 'x' });
+  assert.equal(result.code, 2);
+  assert.match(result.errors, /no ticket state/);
+  assert.equal(calls.length, 0);
+});
+
 test('R-8: comment redacts and caps the body at 60,000 characters, marker included', () => {
-  const { work } = makeRepository();
+  const work = temporaryFolder();
   const { gh, calls } = makeGh();
   const body = `token=abc123\n${'x'.repeat(70_000)}`;
-  assert.equal(runFactory(['comment', '7'], { root: work, gh, stdin: () => body }).code, 0);
+  assert.equal(
+    runFactory(['comment', '7', HARD_STOP], { root: work, gh, stdin: () => body }).code,
+    0,
+  );
   const { body: posted } = calls[0];
   assert.ok(posted.length <= 60_000, String(posted.length));
   assert.ok(posted.startsWith(`${MARKER}\n[redacted]`));
@@ -257,6 +386,162 @@ test('redaction: tokens and URL credentials that failureReason knows are removed
   const pat = `github_pat_${'x_Y9'.repeat(6)}`;
   const text = redactText(`fetch https://user:pass@github.com/a/b.git ${pat}`);
   for (const secret of ['user:pass', pat]) assert.ok(!text.includes(secret), secret);
+});
+
+// Secret-like test values are built from parts, so the secret scanner of the pre-commit hook does not flag this file.
+const joined = (...parts) => parts.join('');
+
+/** Asserts that the text has [redacted] and no part of the secret. */
+function assertRedacted(input, ...secrets) {
+  const text = redactText(input);
+  for (const secret of secrets) assert.ok(!text.includes(secret), `${input} -> ${text}`);
+  assert.match(text, /\[redacted\]/, input);
+  return text;
+}
+
+test('redaction: a quoted or JSON key is redacted with its value', () => {
+  assertRedacted('{"token": "abc"}', 'abc');
+  assertRedacted('{"password": "x", "user": "u"}', '"x"');
+  assertRedacted(`{'apiKey': 'y'}`, "'y'");
+  assertRedacted('{"password":"hunter2"}', 'hunter2');
+  assert.match(redactText('{"password": "x", "user": "u"}'), /"user": "u"/);
+});
+
+test('redaction: a key that holds the keyword in a longer name is redacted', () => {
+  const secret = joined('wJalrXUtn', 'FEMI/K7MDENG');
+  for (const key of [
+    'AWS_SECRET_ACCESS_KEY=',
+    'secretAccessKey: ',
+    'client_secret=',
+    'access_key=',
+    'passwd=',
+    'GITHUB_TOKEN=',
+    'DB_PASSWORD: ',
+  ]) {
+    assertRedacted(`${key}${secret} end`, secret);
+  }
+});
+
+test('redaction: a Bearer value is redacted whole', () => {
+  const jwt = joined('eyJhbGciOiJIUzI1NiJ9', '.payload.sig');
+  assert.equal(assertRedacted(`token: Bearer ${jwt}`, 'Bearer', jwt), '[redacted]');
+  assert.equal(assertRedacted('Authorization: Bearer abc.def', 'abc.def', 'Bearer'), '[redacted]');
+  assert.equal(
+    assertRedacted('Authorization: Basic dXNlcjpwYXNz', 'dXNlcjpwYXNz', 'Basic'),
+    '[redacted]',
+  );
+  assert.equal(redactText('x token: Bearer\nabc'), 'x [redacted]\nabc', 'same line only');
+});
+
+test('redaction: a quoted value with spaces is redacted whole', () => {
+  assert.equal(assertRedacted('password: "a b c" end', 'b c'), '[redacted] end');
+  assert.equal(assertRedacted(`secret='one two' end`, 'two'), '[redacted] end');
+  assert.equal(assertRedacted('password: "a b c', '"a'), '[redacted] b c', 'no closing quote');
+});
+
+test('redaction: a bare JWT is redacted', () => {
+  const jwt = joined('eyJhbGciOiJIUzI1NiJ9', '.eyJzdWIiOiIxIn0', '.c2ln-_x');
+  assert.equal(assertRedacted(`header ${jwt} end`, jwt), 'header [redacted] end');
+});
+
+test('redaction: --password and --token flag values are redacted', () => {
+  assert.equal(assertRedacted('run --password hunter2 now', 'hunter2'), 'run [redacted] now');
+  assert.equal(assertRedacted('run --token abc now', 'abc'), 'run [redacted] now');
+  assert.equal(assertRedacted('run --token "a b" now', 'a b'), 'run [redacted] now');
+  assert.equal(redactText('run --token\nabc'), 'run --token\nabc', 'same line only');
+  assert.equal(redactText('run --password --verbose'), 'run --password --verbose');
+});
+
+test('redaction: ASIA keys and npm, Slack and Google tokens are redacted', () => {
+  const cases = [
+    joined('ASIA', 'A1B2C3D4E5F6G7H8'),
+    joined('AKIA', 'A1B2C3D4E5F6G7H8'),
+    joined('npm_', 'a1B2'.repeat(9)),
+    joined('xox', 'b-', '1234567890-abcdEFGH'),
+    joined('xox', 'p-', '1234567890-abcdEFGH'),
+    joined('AIza', 'Sy', 'a1B2c3D4'.repeat(5).slice(0, 33)),
+  ];
+  for (const secret of cases) {
+    assert.equal(assertRedacted(`key ${secret} end`, secret), 'key [redacted] end');
+  }
+  assert.equal(
+    redactText('npm_short and xoxb-short and ASIA123'),
+    'npm_short and xoxb-short and ASIA123',
+  );
+});
+
+test('redaction: /root and C:\\Users\\<name> become ~, and /rooted and a/root/b stay', () => {
+  assert.equal(redactText('at /root/code/a.js:1'), 'at ~/code/a.js:1');
+  assert.equal(redactText('HOME=/root'), 'HOME=~');
+  assert.equal(redactText('at C:\\Users\\bob\\code\\a.js'), 'at ~\\code\\a.js');
+  assert.equal(redactText('at c:/Users/bob/x'), 'at ~/x');
+  assert.equal(redactText('/rooted /a/root/b /var/root'), '/rooted /a/root/b /var/root');
+});
+
+test('redaction: no pattern matches across a newline, and a long text is fast', () => {
+  assert.equal(redactText('password:\nvalue'), 'password:\nvalue');
+  assert.equal(redactText('"token":\n"x"'), '"token":\n"x"');
+  assert.equal(redactText('secret=\nnext'), 'secret=\nnext');
+  const started = Date.now();
+  redactText(`${'x'.repeat(200_000)}\n${'_token'.repeat(20_000)}`);
+  assert.ok(Date.now() - started < 2000, 'redaction must not be quadratic');
+});
+
+// mentions (R-8)
+
+const ZWSP = '\u200B';
+
+test('R-8: an @name outside code gets a zero-width space, so nobody is pinged', () => {
+  const posted = buildComment('hi @alice and (@bob), mail a@b.com, @ alone, @_x, @');
+  assert.equal(
+    posted,
+    `${MARKER}\nhi @${ZWSP}alice and (@${ZWSP}bob), mail a@${ZWSP}b.com, @ alone, @_x, @`,
+  );
+});
+
+test('R-8: an @name in a code fence or in inline code stays as it is', () => {
+  // A closer needs the same character and at least the length of the opener.
+  const body = [
+    'out @a',
+    '````',
+    'in fence @b',
+    '```',
+    '~~~~~',
+    'still in @c',
+    '````',
+    'after @d',
+    '~~~js',
+    'tilde @e',
+    '```',
+    '~~~',
+    'end @g `inline @h` and ``two ` @i`` @j',
+  ].join('\n');
+  const lines = buildComment(body).split('\n');
+  assert.deepEqual(lines.slice(1), [
+    `out @${ZWSP}a`,
+    '````',
+    'in fence @b',
+    '```',
+    '~~~~~',
+    'still in @c',
+    '````',
+    `after @${ZWSP}d`,
+    '~~~js',
+    'tilde @e',
+    '```',
+    '~~~',
+    `end @${ZWSP}g \`inline @h\` and \`\`two \` @i\`\` @${ZWSP}j`,
+  ]);
+});
+
+test('R-8: a one-line triple backtick span is inline code, not a fence, and an open fence runs on', () => {
+  const lines = buildComment('```x @a``` then @b\nnext @c').split('\n');
+  assert.equal(lines[1], `\`\`\`x @a\`\`\` then @${ZWSP}b`);
+  assert.equal(lines[2], `next @${ZWSP}c`);
+  assert.equal(
+    buildComment('```\nopen @a\nmore @b').split('\n').slice(1).join('|'),
+    '```|open @a|more @b',
+  );
 });
 
 // hardstop (R-12)
@@ -487,6 +772,57 @@ test('R-12: the patch has changes and untracked files, skips ignored files, and 
   assert.equal(readFileSync(path.join(clone, 'notes.txt'), 'utf8'), 'untracked note\n');
 });
 
+const MIB = 1024 * 1024;
+
+test('R-12: an untracked file above 1 MiB is not in the patch, and the step line names it', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedLog(work, [logLine(T0)]);
+  dirty(work);
+  writeFileSync(path.join(work, 'big.bin'), 'x'.repeat(MIB + 1));
+  writeFileSync(path.join(work, 'huge.bin'), 'y'.repeat(2 * MIB));
+  writeFileSync(path.join(work, 'exact.bin'), 'z'.repeat(MIB));
+  const { overrides } = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  const text = readFileSync(path.join(logsFolder(work), patches(work)[0]), 'utf8');
+  assert.ok(text.includes('untracked note'), 'small untracked file stays');
+  assert.ok(text.includes('diff --git a/exact.bin'), 'a file of exactly 1 MiB stays');
+  assert.ok(!text.includes('big.bin') && !text.includes('huge.bin'), 'big files are skipped');
+  const [line] = result.out.split('\n').filter((row) => row.startsWith('step 3 patch:'));
+  assert.match(line, /^step 3 patch: saved hardstop-\S+\.patch; skipped 2 files over 1 MiB: /);
+  assert.ok(line.includes('big.bin') && line.includes('huge.bin'), line);
+  assert.ok(!line.includes('exact.bin') && !line.includes('notes.txt'), line);
+});
+
+test('R-12: with only a file above 1 MiB there is no patch, and the step line still names the file', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedLog(work, [logLine(T0)]);
+  writeFileSync(path.join(work, 'big.bin'), 'x'.repeat(MIB + 1));
+  const { overrides } = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.deepEqual(patches(work), []);
+  assert.match(result.out, /step 3 patch: nothing to save; skipped 1 file over 1 MiB: big\.bin/);
+});
+
+test('R-12: the patch file has mode 0600', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedLog(work, [logLine(T0)]);
+  dirty(work);
+  const { overrides } = hardstopOverrides(work);
+  const previous = process.umask(0o022);
+  try {
+    assert.equal(runFactory(['hardstop', '7', REASON], overrides).code, 0);
+  } finally {
+    process.umask(previous);
+  }
+  const [name] = patches(work);
+  assert.equal(statSync(path.join(logsFolder(work), name)).mode & 0o777, 0o600);
+});
+
 test('R-12: with no change and no untracked file there is no patch and the comment says none', () => {
   const { work } = makeRepository();
   seedTicket(work);
@@ -628,6 +964,31 @@ test('R-12: a ticket in stage done fails step 1 loudly, and the other steps stil
   assert.equal(comments(calls).length, 1);
 });
 
+test('R-12: a run.json that cannot be read does not stop the steps, and each log failure is printed', () => {
+  const { remote, work } = makeRepository();
+  seedTicket(work);
+  writeAtomic(stateFile(work, 'run.json'), '{broken');
+  dirty(work);
+  const { calls, overrides } = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  const order = [...result.out.matchAll(/^step (\d) (\w+):/gm)].map((match) => match[2]);
+  assert.deepEqual(order, ['labels', 'push', 'patch', 'comment', 'metrics', 'report', 'clear']);
+  assert.ok(!result.out.includes('FAILED'), result.out);
+  assert.match(result.out, /^log failed: run\.json: not valid JSON$/m);
+  assert.equal(
+    result.out.match(/^log failed:/gm).length,
+    8,
+    'the stage move and each of the 7 steps',
+  );
+  assert.equal(readTicket(work).stage, 'needs-human', 'step 1 moved the stage');
+  assert.ok(calls.some(({ args }) => args[1] === 'edit' && args.includes('needs-human')));
+  assert.equal(git(remote, 'rev-parse', 'feat/7-x').trim(), git(work, 'rev-parse', 'HEAD').trim());
+  assert.equal(patches(work).length, 1);
+  assert.equal(comments(calls).length, 1);
+  assert.ok(!existsSync(stateFile(work, 'runs')), 'nothing was logged');
+});
+
 test('R-12: hardstop needs a reason and a ticket number, and runs no step without them', () => {
   const { work } = makeRepository();
   const { overrides, calls } = hardstopOverrides(work);
@@ -697,12 +1058,69 @@ test('R-55: a conflict in step 2 of hardstop is a failed step with the paths, an
   assert.equal(git(work, 'status', '--porcelain', '--untracked-files=no'), '');
 });
 
+/** The remote branch added new.txt. The local branch has a new commit and an untracked new.txt. */
+function makeUntrackedOverwrite() {
+  const repository = makeRepository();
+  const { folder, remote, work } = repository;
+  git(work, 'push', '-q', 'origin', 'feat/7-x');
+  const other = path.join(folder, 'other');
+  git(folder, 'clone', '-q', remote, other);
+  git(other, 'checkout', '-q', 'feat/7-x');
+  commitFile(other, 'new.txt', 'remote\n');
+  git(other, 'push', '-q', 'origin', 'feat/7-x');
+  commitFile(work, 'src/c.js', 'export const c = 3;\n');
+  writeFileSync(path.join(work, 'new.txt'), 'mine\n');
+  return repository;
+}
+
+test('R-55: a merge that fails with no merge started is not aborted, and the reason is the failure', () => {
+  const { work } = makeUntrackedOverwrite();
+  seedTicket(work);
+  const calls = [];
+  const result = runFactory(['push', '7'], {
+    root: work,
+    gh: () => '',
+    guard: () => [],
+    git: (args) => {
+      calls.push(args.join(' '));
+      return runProcess('git', ['-C', work, ...args]);
+    },
+  });
+  assert.equal(result.code, 3);
+  assert.match(result.errors, /^hard stop: merge of origin\/feat\/7-x failed \(.*new\.txt/);
+  assert.ok(!/merge abort/i.test(result.errors), result.errors);
+  assert.ok(calls.includes('rev-parse -q --verify MERGE_HEAD'), calls.join('\n'));
+  assert.ok(!calls.includes('merge --abort'), 'no merge to abort');
+  assert.equal(
+    readFileSync(path.join(work, 'new.txt'), 'utf8'),
+    'mine\n',
+    'untracked file is intact',
+  );
+});
+
+test('R-55: a merge that stops with a conflict is aborted', () => {
+  const { work } = makeConflict();
+  seedTicket(work);
+  const calls = [];
+  const result = runFactory(['push', '7'], {
+    root: work,
+    gh: () => '',
+    guard: () => [],
+    git: (args) => {
+      calls.push(args.join(' '));
+      return runProcess('git', ['-C', work, ...args]);
+    },
+  });
+  assert.equal(result.code, 3);
+  assert.ok(calls.includes('merge --abort'));
+});
+
 // caps (R-15, R-16, R-51)
 
 const run = (conclusion, minutes) => ({ conclusion, createdAt: iso(T0 + minutes * MINUTE) });
 
 function capsFixture({ runs = [], lines = [logLine(T0)], ticket = {}, replies = {} } = {}) {
-  const { work } = makeRepository();
+  const work = temporaryFolder();
   seedTicket(work, ticket);
   if (lines !== null) seedLog(work, lines);
   const { gh, calls } = makeGh({
