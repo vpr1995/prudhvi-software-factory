@@ -377,7 +377,10 @@ test('#109 R-27: an Important finding raises an open Nit row at the same spot to
   ]);
   assert.equal(outputs[1], 'F1 raised to Important\n');
   assert.equal(rows.length, 1, 'one row, no second row');
-  assert.match(rows[0], /^F1 \| 1 \| Important \| src\/a\.ts:5 \| null deref \| open \|/);
+  assert.match(
+    rows[0],
+    /^F1 \| 2 \| Important \| src\/a\.ts:5 \| null deref \| open \| crash on empty input \(was: small\)$/,
+  );
 });
 
 test('#109 R-27: an Important finding raises a rejected Nit row to Important and open', () => {
@@ -390,16 +393,23 @@ test('#109 R-27: an Important finding raises a rejected Nit row to Important and
   );
   assert.equal(outputs[1], 'F1 raised to Important\n');
   assert.equal(rows.length, 1);
-  assert.match(rows[0], /^F1 \| 1 \| Important \| src\/a\.ts:5 \| null deref \| open \|/);
+  assert.match(
+    rows[0],
+    /^F1 \| 2 \| Important \| src\/a\.ts:5 \| null deref \| open \| crash on empty input \(was: small\)$/,
+  );
 });
 
-test('#109 R-27: a fixed Nit still reopens as a Nit, and a Nit never lowers an Important row', () => {
+test('#109 R-27: an Important finding raises a fixed Nit row to Important and open, and a Nit never lowers an Important row', () => {
   const fixed = addInRounds(
     ['Nit | src/a.ts:5 | null deref | small\n', 'Important | src/a.ts:5 | null deref | crash\n'],
     (context) => findingsCommand(['7', 'set', 'F1', 'fixed'], context),
   );
-  assert.equal(fixed.outputs[1], 'F1 reopened\n');
-  assert.match(fixed.rows[0], /^F1 \| 1 \| Nit \| .* \| open \|/);
+  assert.equal(fixed.outputs[1], 'F1 raised to Important\n');
+  assert.equal(fixed.rows.length, 1);
+  assert.match(
+    fixed.rows[0],
+    /^F1 \| 2 \| Important \| src\/a\.ts:5 \| null deref \| open \| crash \(was: small\)$/,
+  );
   const lower = addInRounds([
     'Important | src/a.ts:5 | null deref | crash\n',
     'Nit | src/a.ts:5 | null deref | small\n',
@@ -478,10 +488,60 @@ test('#109: the fresh-reviewer pass checks correctness, a fix branch searches th
   assert.match(pass, /With a ticket, the `fresh-reviewer` pass checks correctness/);
   assert.match(
     pass,
-    /`fix\/` branch, after this pass, search the repo for other places of the same bug class/,
+    /`fix\/` branch, in round 1 only, after this pass, search the repo for other places of the same bug class/,
   );
+  assert.match(pass, /Report a match outside the review range in the round report\./);
+  assert.match(pass, /Do not add it as a finding\./);
   assert.match(pass, /`bug-hunt` step 6/);
   const decide = fileStepWith(PRE_PR, 'round < 3').text;
   assert.match(decide, /Round 3 fixes get only `verify`, no review pass/);
   assert.match(decide, /say it in the report/);
+});
+
+test('#109: an Important input on a Nit row, any status, prints raised to Important and counts as new in step 11', () => {
+  const add = fileStepWith(PRE_PR, `${FACTORY_CALL} findings [<n>] add`).text;
+  assert.match(add, /unless the input is `Important` and the row is a `Nit` \(any status\)/);
+  assert.match(add, /`F<k> raised to Important`/);
+  assert.match(add, /counts as a new Important finding in step 11/);
+  assert.doesNotMatch(
+    add,
+    /The script skips a finding that matches an `open` or `rejected` row\. It/,
+  );
+  const decide = fileStepWith(PRE_PR, 'round < 3').text;
+  assert.match(decide, /no new Important finding \(a `raised to Important` line is new\)/);
+  const doNot = prePrText().slice(prePrText().indexOf('## Do not'));
+  assert.match(
+    doNot,
+    /Re-raise a finding that has an `open` or `rejected` row at the same severity/,
+  );
+  assert.match(doNot, /An Important input on a `Nit` row is not a re-raise/);
+});
+
+test('#109: step 12 sends the /factory hard stop to the stdin steps of the factory skill', () => {
+  const { text } = fileStepWith(PRE_PR, 'Do not start round 4');
+  assert.match(text, /Follow the `\/factory` skill, section Hard stop, for the stdin steps\./);
+  assert.match(text, /hard stop with the reason `3 review rounds`/);
+});
+
+test('#109: a branch number that fails the digits rule stops the run, with a closed-list reason in a /factory run', () => {
+  const sources = [
+    ['pre-pr header', TICKET_LINE() ?? ''],
+    ['pre-pr step 2', STEP_2()],
+    ['implement-feature step 10', IMPL_10()],
+  ];
+  for (const [name, text] of sources) {
+    assert.match(text, /branch number that does not match/, name);
+    assert.ok(text.includes('`feat/0-x`') && text.includes('`fix/007-x`'), `${name}: examples`);
+    assert.match(
+      text,
+      /stop and ask the human \(in a `\/factory` run: hard stop with the reason `question from a sub-skill`\)/,
+      name,
+    );
+  }
+  assert.doesNotMatch(prePrText(), /does not match `\^\[1-9\]\[0-9\]\*\$` is no ticket/);
+  assert.doesNotMatch(prePrText(), /matches `\^\[1-9\]\[0-9\]\*\$`, else no ticket/);
+  assert.ok(
+    factoryText().includes('"question from a sub-skill"'),
+    'the reason is in the closed list',
+  );
 });
