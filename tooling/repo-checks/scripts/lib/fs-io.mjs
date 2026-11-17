@@ -107,3 +107,31 @@ export function appendToFile(file, text) {
 export function removeFile(file) {
   rmSync(file, { force: true });
 }
+
+/**
+ * Creates a file with an exclusive create (flag wx). Creates the folder first.
+ *
+ * @param {string} file - Absolute path.
+ * @param {string} text - File text.
+ * @returns {boolean} True when it created the file. False when the file already exists.
+ */
+export function createExclusive(file, text) {
+  mkdirSync(path.dirname(file), { recursive: true });
+  try {
+    writeFileSync(file, text, { flag: 'wx' });
+    return true;
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST') return false;
+    throw error;
+  }
+}
+
+/**
+ * @param {string} folder - Absolute path.
+ * @returns {string[]} Absolute paths of all files under the folder, subfolders included.
+ */
+export function listFilesRecursive(folder) {
+  return readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(entry.parentPath, entry.name));
+}

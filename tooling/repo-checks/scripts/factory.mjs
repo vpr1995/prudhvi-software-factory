@@ -4,10 +4,14 @@
 // origin/main) and the `Size:` line of ticket <n>. The local test guard gives the check-config
 // finding (R-21). Print only: a later task stores the JSON in the ticket state.
 //
+// stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
+//
 // Run from the repo root: node tooling/repo-checks/scripts/factory.mjs route 98
 import { execFileSync } from 'node:child_process';
 
 import { parseSize, route } from './lib/factory-route.mjs';
+import { COMMANDS, execute, FactoryError, SYNOPSES } from './lib/factory-state.mjs';
+import { readStdin } from './lib/fs-io.mjs';
 import { readDiff } from './lib/test-guard-diff.mjs';
 import { CHECK_CONFIG_MESSAGE } from './lib/test-guard-rules.mjs';
 import { guardDiff } from './test-guard.mjs';
@@ -18,7 +22,9 @@ const FIRST_USER_ARGUMENT = 2;
 export const COMMAND_TIMEOUT_MS = 30_000;
 const DEFAULT_BASE = 'origin/main';
 const TICKET = /^\d+$/;
-const USAGE = 'Usage: node tooling/repo-checks/scripts/factory.mjs route <n> [--base <ref>]\n';
+const USAGE = ['route <n> [--base <ref>]', ...SYNOPSES]
+  .map((synopsis) => `Usage: node tooling/repo-checks/scripts/factory.mjs ${synopsis}\n`)
+  .join('');
 
 /** @returns {string} Stdout of the command. A command that runs longer than the timeout throws. */
 export function run(command, args, timeout = COMMAND_TIMEOUT_MS) {
@@ -66,8 +72,44 @@ function routeCommand({ ticket, base }) {
   return `${JSON.stringify(result, undefined, 2)}\n`;
 }
 
-export function main(argv = process.argv) {
+/** @returns {object} The context of the state commands. A test replaces any part. */
+function stateContext(overrides) {
+  const gh = (args) => run('gh', args);
+  const git = (args) => run('git', args);
+  const context = {
+    gh,
+    git,
+    now: () => new Date(),
+    pid: process.pid,
+    stdin: readStdin,
+    print: (text) => process.stdout.write(text),
+    ...overrides,
+  };
+  return { ...context, root: context.root ?? run('git', ['rev-parse', '--show-toplevel']).trim() };
+}
+
+function stateMain(command, words, overrides) {
+  const writeError = overrides.err ?? ((text) => process.stderr.write(text));
+  try {
+    const context = stateContext(overrides);
+    context.print(execute(command, words, context));
+    return EXIT_PASS;
+  } catch (error) {
+    const known = error instanceof FactoryError;
+    const reason = error instanceof Error ? error.message : String(error);
+    writeError(`factory ${command}: ${known ? '' : 'unexpected error: '}${reason}\n`);
+    return EXIT_ERROR;
+  }
+}
+
+/**
+ * @param {string[]} argv - Process arguments.
+ * @param {object} [overrides] - Parts of the state context (root, gh, git, now, pid, stdin, print, err).
+ * @returns {number} Exit code.
+ */
+export function main(argv = process.argv, overrides = {}) {
   const [command, ...words] = argv.slice(FIRST_USER_ARGUMENT);
+  if (COMMANDS.has(command)) return stateMain(command, words, overrides);
   const routeArguments = command === 'route' ? parseRouteArguments(words) : undefined;
   if (routeArguments === undefined) {
     process.stderr.write(USAGE);
