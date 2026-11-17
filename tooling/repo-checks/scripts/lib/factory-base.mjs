@@ -6,6 +6,8 @@ import path from 'node:path';
 import { createExclusive, readOptional, removeFile, renameIfExists } from './fs-io.mjs';
 
 export class FactoryError extends Error {}
+/** The lock is held by a live process. A caller can retry. */
+export class LockHeldError extends FactoryError {}
 
 export const fail = (message) => {
   throw new FactoryError(message);
@@ -53,7 +55,8 @@ export const timestamp = (date) => date.toISOString().replace(/\.\d+Z$/, 'Z');
 
 // Lock (R-53)
 
-function isAlive(pid) {
+/** @returns {boolean} True when a process with this pid exists (`kill 0`). No signal is sent. */
+export function isAlive(pid) {
   try {
     process.kill(pid, 0);
     return true;
@@ -103,17 +106,47 @@ function acquireLock(context) {
   const holder = readOptional(file)?.trim();
   if (holder !== undefined) {
     if (!/^\d+$/.test(holder)) fail(`lock file has no valid pid: remove ${shown}`);
-    if (isAlive(Number(holder))) fail(`lock held by pid ${holder} (a live process): ${shown}`);
+    if (isAlive(Number(holder))) {
+      throw new LockHeldError(`lock held by pid ${holder} (a live process): ${shown}`);
+    }
   }
   takeOverStale(context, holder);
   return file;
 }
 
-export function withLock(context, action) {
-  const file = acquireLock(context);
+const LOCK_TRIES = 20;
+const LOCK_RETRY_MS = 100;
+
+/** Sleeps in this thread. A background command or a hook has nothing else to do in the thread. */
+export function sleepFor(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+// A live holder: try again every 100 ms, 20 times (about 2 s). `context.sleep` is for tests.
+function acquirePatiently(context) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return acquireLock(context);
+    } catch (error) {
+      if (!(error instanceof LockHeldError) || attempt >= LOCK_TRIES) throw error;
+      (context.sleep ?? sleepFor)(LOCK_RETRY_MS);
+    }
+  }
+}
+
+function runLocked(context, file, action) {
   try {
     return action();
   } finally {
     if (readOptional(file)?.trim() === String(context.pid)) removeFile(file);
   }
+}
+
+export function withLock(context, action) {
+  return runLocked(context, acquireLock(context), action);
+}
+
+/** Like `withLock`, but a lock held by a live process is tried again for about 2 s first. */
+export function withPatientLock(context, action) {
+  return runLocked(context, acquirePatiently(context), action);
 }

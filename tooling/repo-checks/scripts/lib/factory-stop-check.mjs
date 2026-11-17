@@ -7,15 +7,17 @@
 //   - No open run, or the run is `stalled`: allow.
 //   - The run has an owner and it is another session: allow.
 //   - The first check after `start` claims the run: it stores the session id (R-44).
-//   - `next` is `done`, or the run waits for CI (`waiting`): allow (R-44, R-49).
-//   - Else block with the stored next step. A hash of (stage, counts, `next`, last run log line)
+//   - `next` is `done`, or the run waits for CI (`waiting`): allow (R-44, R-49). A wait counts only
+//     while its process is alive and it is less than 60 minutes old (`liveWait`).
+//   - A lock held by a live process: retry for about 2 s, then allow and print a line. Not an error.
+//   - Else block with the stored next step. The reason has no GitHub text (no stack branch name). A hash of (stage, counts, `next`, last run log line)
 //     that stays the same for 3 blocks marks the run `stalled` (R-48).
 import { createHash } from 'node:crypto';
 
-import { fail, parseJson, withLock } from './factory-base.mjs';
+import { fail, LockHeldError, parseJson, withPatientLock } from './factory-base.mjs';
 import { describeNext } from './factory-next.mjs';
 import { currentTicket, readRunLog, writeReport } from './factory-report.mjs';
-import { clearRun, isOpenRun, loadRun, saveRun } from './factory-run.mjs';
+import { clearRun, isOpenRun, liveWait, loadRun, saveRun } from './factory-run.mjs';
 import { writeRunLog } from './factory-state.mjs';
 
 const MAX_SAME_BLOCKS = 3;
@@ -32,7 +34,10 @@ function sessionOf(text) {
 const block = (reason) => JSON.stringify({ decision: 'block', reason });
 
 function reasonOf(next) {
-  const step = next === null || next === undefined ? `run \`${NEXT_COMMAND}\`` : describeNext(next);
+  const step =
+    next === null || next === undefined
+      ? `run \`${NEXT_COMMAND}\``
+      : describeNext(next, { withBranch: false });
   return `Factory run is active. Next step: ${step}. Do it. Run \`${NEXT_COMMAND}\` before you stop.`;
 }
 
@@ -73,7 +78,7 @@ function ownerCheck(context, session) {
     sessionIds: ids.includes(session) ? ids : [...ids, session],
   };
   if (run.next?.kind === 'done') return;
-  if (run.waiting !== null && run.waiting !== undefined) {
+  if (liveWait(context, run)) {
     if (claimed.sessionId !== owner) saveRun(context.root, claimed);
     return;
   }
@@ -93,19 +98,24 @@ function ownerCheck(context, session) {
 
 /**
  * @param {string} text - The hook input (JSON text, with `session_id`).
- * @param {object} context - root, now, pid, runOff, err.
+ * @param {object} context - root, now, pid, runOff, err. `sleep` and `isAlive` are for tests.
  * @returns {string | undefined} The hook output that blocks, or undefined to allow. An error throws.
  */
 export function handleStopCheck(text, context) {
   const session = sessionOf(text);
   const run = loadRun(context.root);
   if (run === undefined) return;
-  if (context.runOff()) {
-    if (isOpenRun(run)) withLock(context, () => clearRun(context));
-    return;
+  try {
+    if (context.runOff()) {
+      if (isOpenRun(run)) withPatientLock(context, () => clearRun(context));
+      return;
+    }
+    if (!isOpenRun(run) || run.stalled === true) return;
+    const owner = run.sessionId ?? null;
+    if (owner !== null && owner !== '' && owner !== session) return;
+    return withPatientLock(context, () => ownerCheck(context, session));
+  } catch (error) {
+    if (!(error instanceof LockHeldError)) throw error;
+    context.err('factory stop check: lock held, stop allowed\n');
   }
-  if (!isOpenRun(run) || run.stalled === true) return;
-  const owner = run.sessionId ?? null;
-  if (owner !== null && owner !== '' && owner !== session) return;
-  return withLock(context, () => ownerCheck(context, session));
 }
