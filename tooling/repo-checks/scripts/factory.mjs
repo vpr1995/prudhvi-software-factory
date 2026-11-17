@@ -25,6 +25,9 @@
 // line (R-8). A reply with an id stores the id in `handledComments` of `ticket.json`.
 // hardstop <n> "<reason>": the R-12 steps, error excerpt on stdin (lib/factory-hard-stop.mjs).
 // caps <n>: derive the cap counts, print JSON, exit 3 when a cap is reached (lib/factory-caps.mjs).
+// metrics <n>: create the `factory-metrics` comment of the ticket, or edit it in place, with the
+// version 2 fields (R-32). The cost script reads the transcripts of the run sessions (R-33). The
+// warnings (a value that is null) go to stderr. Code: lib/factory-metrics.mjs, lib/factory-cost.mjs.
 //
 // A `gh` call that fails twice, or a second push reject, is a hard stop: exit 3 and the message
 // `hard stop: <reason>` (lib/factory-github.mjs).
@@ -41,6 +44,7 @@ import {
   run,
 } from './lib/factory-github.mjs';
 import { hardstopCommand } from './lib/factory-hard-stop.mjs';
+import { metricsCommand } from './lib/factory-metrics.mjs';
 import { nextCommand, statusCommand } from './lib/factory-next.mjs';
 import { pushCommand } from './lib/factory-push.mjs';
 import { startCommand } from './lib/factory-queue.mjs';
@@ -48,7 +52,7 @@ import { reportCommand, stopCommand } from './lib/factory-report.mjs';
 import { parseSize, route, routingLine } from './lib/factory-route.mjs';
 import { COMMANDS, FactoryError, loadTicket, saveTicket, SYNOPSES } from './lib/factory-state.mjs';
 import { waitCommand } from './lib/factory-wait.mjs';
-import { isRunOff } from './lib/factory.config.mjs';
+import { currentSessionId, isRunOff, transcriptRoot } from './lib/factory.config.mjs';
 import { readStdin } from './lib/fs-io.mjs';
 import { readDiff } from './lib/test-guard-diff.mjs';
 import { CHECK_CONFIG_MESSAGE } from './lib/test-guard-rules.mjs';
@@ -74,6 +78,7 @@ const USAGE = [
   'comment <n> <hard-stop|reply> [<reply-to-id>]   (body on stdin)',
   'hardstop <n> "<reason>"   (error excerpt on stdin)',
   'caps <n>',
+  'metrics <n>',
   ...SYNOPSES,
 ]
   .map((synopsis) => `Usage: node tooling/repo-checks/scripts/factory.mjs ${synopsis}\n`)
@@ -143,6 +148,7 @@ const HANDLERS = new Map([
   ['caps', capsCommand],
   ['comment', commentCommand],
   ['hardstop', hardstopCommand],
+  ['metrics', metricsCommand],
   ['next', nextCommand],
   ['push', pushCommand],
   ['report', reportCommand],
@@ -160,13 +166,16 @@ export const COMMAND_NAMES = new Set(HANDLERS.keys());
 function commandContext(overrides) {
   const root = overrides.root ?? run('git', ['rev-parse', '--show-toplevel']).trim();
   return {
+    claudeVersion: () => run('claude', ['--version']),
     gh,
     git: (args) => run('git', ['-C', root, ...args], GIT_TIMEOUT_MS),
     guard: (base) => guardRepository(root, base),
     now: () => new Date(),
     pid: process.pid,
     runOff: isRunOff,
+    sessionId: currentSessionId,
     stdin: readStdin,
+    transcriptRoot,
     print: (text) => process.stdout.write(text),
     err: (text) => process.stderr.write(text),
     ...overrides,
@@ -194,7 +203,7 @@ function runCommand(command, input, overrides) {
 
 /**
  * @param {string[]} argv - Process arguments.
- * @param {object} [overrides] - Parts of the command context (root, gh, git, guard, now, pid, runOff, stdin, print, err).
+ * @param {object} [overrides] - Parts of the command context (root, claudeVersion, gh, git, guard, now, pid, runOff, sessionId, stdin, transcriptRoot, print, err).
  * @returns {number} Exit code: 0 done, 2 refused or failed, 3 hard stop.
  */
 export function main(argv = process.argv, overrides = {}) {

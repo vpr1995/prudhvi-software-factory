@@ -151,6 +151,11 @@ function makeGh(replies = {}) {
     'project item-list': JSON.stringify(ITEMS),
     'project view': JSON.stringify({ id: 'PVT_2' }),
     'repo view': `${REPOSITORY}\n`,
+    // Step 5 of the hard stop (metrics): no comment yet, no CI run.
+    'api user': 'factory-bot\n',
+    'api repos/{owner}/{repo}/issues/7/comments': '[[]]',
+    'api repos/{owner}/{repo}/issues/12/comments': '[[]]',
+    'run list': '[]',
     ...replies,
   };
   const gh = (args) => {
@@ -167,7 +172,11 @@ const writes = (calls) =>
   calls.filter(
     ({ args }) => args[1] === 'edit' || args[1] === 'comment' || args[1] === 'item-edit',
   );
-const comments = (calls) => calls.filter(({ args }) => args[1] === 'comment');
+const isMetrics = ({ body }) => body?.includes('```factory-metrics') === true;
+// The hard-stop and reply comments. The metrics comment of hard-stop step 5 has its own helper.
+const comments = (calls) => calls.filter((call) => call.args[1] === 'comment' && !isMetrics(call));
+const metricsComments = (calls) =>
+  calls.filter((call) => call.args[1] === 'comment' && isMetrics(call));
 
 /** Runs one factory command in process. Returns the exit code and the text of stdout and stderr. */
 function runFactory(argv, overrides) {
@@ -176,6 +185,9 @@ function runFactory(argv, overrides) {
   const code = main(['node', 'factory.mjs', ...argv], {
     stdin: () => '',
     now: () => new Date('2026-11-17T10:00:00Z'),
+    claudeVersion: () => '2.1.300 (Claude Code)\n',
+    transcriptRoot: () => path.join(tmpdir(), 'factory-caps-no-transcripts'),
+    sessionId: () => '',
     guard: () => {
       throw new Error('the local test guard must not run');
     },
@@ -662,7 +674,10 @@ test('R-12: the steps run in order, push needs no guard, and nothing opens a PR'
         seen.push(['labels', git(remote, 'branch', '--list', 'feat/7-x').trim()]);
         return '';
       },
-      'issue comment': () => {
+      'issue comment': (args) => {
+        // The metrics comment of step 5 is also an issue comment: this probe is for the hard-stop comment.
+        const text = readFileSync(args[args.indexOf('--body-file') + 1], 'utf8');
+        if (text.includes('```factory-metrics')) return '';
         seen.push([
           'comment',
           git(remote, 'rev-parse', 'feat/7-x').trim() === git(work, 'rev-parse', 'HEAD').trim(),
@@ -692,7 +707,7 @@ test('R-12: the steps run in order, push needs no guard, and nothing opens a PR'
     '6 report',
     '7 clear',
   ]);
-  assert.match(result.out, /step 5 metrics: not built yet \(task 5\)/);
+  assert.match(result.out, /step 5 metrics: created on the issue/);
   assert.match(result.out, /step 6 report: wrote \.claude\/factory\/runs\/adhoc-report\.md/);
   assert.match(result.out, /step 7 clear: no active run/);
   const report = readFileSync(stateFile(work, 'runs', 'adhoc-report.md'), 'utf8');
@@ -724,13 +739,108 @@ test('R-12: the steps run in order, push needs no guard, and nothing opens a PR'
     .split('\n')
     .map(JSON.parse);
   const detail = events.filter((entry) => entry.event === 'stop').map((entry) => entry.detail);
-  assert.equal(detail.length, 6, 'steps 1 to 4, 6 and 7');
-  assert.match(detail[4], /^step 6 report: wrote /);
-  assert.equal(detail[5], 'step 7 clear: no active run');
-  assert.deepEqual(
-    events.filter((entry) => entry.event === 'skip').map((entry) => entry.detail),
-    ['step 5 metrics: skipped: task 5'],
+  assert.equal(detail.length, 7, 'steps 1 to 7');
+  assert.match(detail[4], /^step 5 metrics: created on the issue/);
+  assert.match(detail[5], /^step 6 report: wrote /);
+  assert.equal(detail[6], 'step 7 clear: no active run');
+  assert.equal(events.filter((entry) => entry.event === 'skip').length, 0, 'no step is skipped');
+});
+
+const METRICS_BLOCK = /```factory-metrics\n([^\n]*)\n```/;
+
+test('R-12 step 5: the hard stop posts the metrics comment with the outcome needs-human, on the PR when there is one', () => {
+  const { work } = makeRepository();
+  seedTicket(work, { pr: 12 });
+  seedLog(work, [logLine(T0)]);
+  const { calls, overrides } = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /step 5 metrics: created on PR #12/);
+  assert.equal(metricsComments(calls).length, 1);
+  const [metrics] = metricsComments(calls);
+  assert.deepEqual(metrics.args.slice(0, 3), ['pr', 'comment', '12']);
+  assert.ok(metrics.body.startsWith(`${MARKER}\n`));
+  const parsed = JSON.parse(METRICS_BLOCK.exec(metrics.body)[1]);
+  assert.equal(parsed.v, 2);
+  assert.equal(parsed.outcome, 'needs-human');
+  assert.equal(parsed.issue, 7);
+  assert.equal(parsed.pr, 12);
+  // The reason text stays in the hard-stop comment: the metrics comment has numbers and names only.
+  assert.ok(!metrics.body.includes(REASON));
+});
+
+test('R-12 step 5: a hard stop of a ticket in stage ci still posts the metrics comment', () => {
+  const { work } = makeRepository();
+  seedTicket(work, { stage: 'ci', pr: 12 });
+  seedLog(work, [logLine(T0)]);
+  const { calls, overrides } = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /step 5 metrics: created on PR #12/);
+  assert.equal(metricsComments(calls).length, 1);
+  assert.equal(
+    JSON.parse(METRICS_BLOCK.exec(metricsComments(calls)[0].body)[1]).outcome,
+    'needs-human',
   );
+});
+
+test('R-12 step 5: a gh user that cannot be read still posts a new metrics comment and the step is not FAILED', () => {
+  const { work } = makeRepository();
+  seedTicket(work, { pr: 12 });
+  seedLog(work, [logLine(T0)]);
+  const replies = {
+    'api user': () => {
+      throw new Error('gh: HTTP 401 ghp_secrettoken');
+    },
+  };
+  const { calls, overrides } = hardstopOverrides(work, { replies });
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /step 5 metrics: created on PR #12;.* warning: gh user not readable/);
+  assert.doesNotMatch(result.out, /step 5 metrics: FAILED/);
+  assert.ok(!result.out.includes('ghp_secrettoken'), 'the error text is not printed');
+  assert.equal(metricsComments(calls).length, 1);
+});
+
+test('R-12 step 5: an empty gh user warns and posts a new metrics comment', () => {
+  const { work } = makeRepository();
+  seedTicket(work, { pr: 12 });
+  seedLog(work, [logLine(T0)]);
+  const replies = { 'api user': () => '\n' };
+  const { calls, overrides } = hardstopOverrides(work, { replies });
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(
+    result.out,
+    /step 5 metrics: created on PR #12;.* warning: gh user not readable: a new metrics comment is made/,
+  );
+  assert.equal(metricsComments(calls).length, 1);
+});
+
+test('R-12 step 5: a second hard stop edits the metrics comment, it does not post a second one', () => {
+  const { work } = makeRepository();
+  seedTicket(work, { pr: 12 });
+  seedLog(work, [logLine(T0)]);
+  const stored = [];
+  const replies = {
+    'api repos/{owner}/{repo}/issues/12/comments': () => JSON.stringify([stored]),
+    'pr comment': (args) => {
+      stored.push({
+        id: 900,
+        body: readFileSync(args[args.indexOf('--body-file') + 1], 'utf8'),
+        user: { login: 'factory-bot' },
+      });
+      return '';
+    },
+  };
+  const first = hardstopOverrides(work, { replies });
+  assert.equal(runFactory(['hardstop', '7', REASON], first.overrides).code, 0);
+  const second = hardstopOverrides(work, { replies });
+  assert.equal(runFactory(['hardstop', '7', REASON], second.overrides).code, 0);
+  assert.equal(stored.length, 1);
+  const edit = second.calls.find(({ args }) => args.includes('PATCH'));
+  assert.equal(edit.args[1], 'repos/{owner}/{repo}/issues/comments/900');
+  assert.equal(metricsComments(second.calls).length, 0, 'no second post');
 });
 
 test('R-12: the posted comment has the marker, reason, branch, patch name and excerpt file name, and no excerpt line', () => {
@@ -970,7 +1080,19 @@ test('R-12: a second run changes nothing: no gh write, no second patch, no secon
   seedLog(work, [logLine(T0)]);
   dirty(work);
   const stdin = () => 'boom\nfailed at step 2';
-  const first = hardstopOverrides(work, { overrides: { stdin } });
+  // A stateful comment list: step 5 finds its own comment from the first run and edits it.
+  const stored = [];
+  const replies = {
+    'api repos/{owner}/{repo}/issues/7/comments': () => JSON.stringify([stored]),
+    'issue comment': (args) => {
+      const body = readFileSync(args[args.indexOf('--body-file') + 1], 'utf8');
+      if (body.includes('```factory-metrics')) {
+        stored.push({ id: 901, body, user: { login: 'factory-bot' } });
+      }
+      return '';
+    },
+  };
+  const first = hardstopOverrides(work, { replies, overrides: { stdin } });
   assert.equal(runFactory(['hardstop', '7', REASON], first.overrides).code, 0);
   assert.equal(comments(first.calls).length, 1);
   const before = {
@@ -980,11 +1102,21 @@ test('R-12: a second run changes nothing: no gh write, no second patch, no secon
     remote: git(remote, 'rev-parse', 'feat/7-x'),
     status: git(work, 'status', '--porcelain', '--untracked-files=all'),
   };
-  const second = hardstopOverrides(work, { overrides: { stdin } });
+  const second = hardstopOverrides(work, { replies, overrides: { stdin } });
   const result = runFactory(['hardstop', '7', REASON], second.overrides);
   assert.equal(result.code, 0, result.errors);
   assert.deepEqual(writes(second.calls), []);
-  assert.deepEqual(second.calls, [], 'step 1 and step 4 make no gh call at all');
+  // Step 5 reads the comments and the CI runs, and edits its own comment in place.
+  const isStepFive = ({ args }) =>
+    (args[0] === 'api' && (args[1].includes('/comments') || args[1] === 'user')) ||
+    (args[0] === 'run' && args[1] === 'list');
+  assert.deepEqual(
+    second.calls.filter((call) => !isStepFive(call)),
+    [],
+    'step 1 and step 4 make no gh call at all',
+  );
+  assert.equal(stored.length, 1, 'no second metrics comment');
+  assert.equal(second.calls.filter(({ args }) => args.includes('PATCH')).length, 1);
   assert.deepEqual(patches(work), before.patches);
   assert.equal(before.excerpts.length, 1);
   assert.deepEqual(excerpts(work), before.excerpts, 'no second excerpt file');

@@ -100,7 +100,7 @@ Ticket `<n>`.
    - `passed`: go to step 10.
    - `failed`: run `caps <n>`. Exit 3 means 3 failed CI runs: hard stop with the reason "3 failed CI runs". Else read the log: `gh pr checks <pr> --json name,bucket,link`, then `gh run view <run-id> --log-failed`. Then follow "After a CI failure".
    - `timeout` (exit 3, `hard stop: CI timeout`): hard stop with the reason "CI timeout".
-10. Green. Run `node tooling/repo-checks/scripts/factory.mjs stage <n> green`. Update the metrics comment with `node tooling/repo-checks/scripts/factory.mjs metrics <n>` (built in task 5, #100). Until that task ships, skip it and say so in the report. Go to the loop and run `next`.
+10. Green. CI passed, so the stage is `ci`. Run `node tooling/repo-checks/scripts/factory.mjs stage <n> green`. Then run `node tooling/repo-checks/scripts/factory.mjs metrics <n>`: it posts the metrics comment, or edits it in place. Warnings on stderr are fine: a value that is `null` stays `null`. Go to the loop and run `next`.
 
 After a CI failure (also for an owner comment): run `node tooling/repo-checks/scripts/factory.mjs stage <n> building` (the stage is `ci`, or `green` for an owner comment), fix the cause, run the `verify` skill, commit, and go to step 5. Steps 5 to 8 move the stage to `reviewing` and then to `ci`, push to update the PR, and edit the tier label. Then step 9 waits for the CI. Never weaken a test or a check to pass.
 

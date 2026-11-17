@@ -189,6 +189,7 @@ function start(words, { gh, root, ...overrides }) {
     now: () => NOW,
     pid: process.pid + 1_000_000,
     stdin: () => '',
+    sessionId: () => '',
     ...overrides,
     print: (text) => out.push(text),
     err: (text) => errors.push(text),
@@ -891,7 +892,82 @@ test('R-50: an ended run gives a new run with a new id and no session', () => {
   const run = readJson(root, 'run.json');
   assert.equal(run.runId, RUN_ID);
   assert.equal(run.sessionId, null);
-  assert.deepEqual(run.sessionIds, []);
+  assert.deepEqual(
+    run.sessionIds,
+    ['session-1'],
+    'no session id is set: only the earlier ids stay',
+  );
+});
+
+test('R-50: a new run carries the earlier session ids and adds the current one', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  seedRun(root, { active: false, stalled: false, sessionIds: ['old-1', 'old-2'] });
+  const result = start([], { gh, root, sessionId: () => 'now-1' });
+  assert.equal(result.code, 0, result.errors);
+  const run = readJson(root, 'run.json');
+  assert.equal(run.runId, RUN_ID);
+  assert.deepEqual(run.sessionIds, ['old-1', 'old-2', 'now-1']);
+});
+
+test('R-50: a new run lists a session id once, also when the earlier run has it', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  seedRun(root, { active: false, stalled: false, sessionIds: ['old-1', 'now-1', 'old-2'] });
+  assert.equal(start([], { gh, root, sessionId: () => 'now-1' }).code, 0);
+  assert.deepEqual(readJson(root, 'run.json').sessionIds, ['old-1', 'now-1', 'old-2']);
+});
+
+const manyIds = (count) => Array.from({ length: count }, (_, index) => `old-${String(index)}`);
+
+test('R-50: a new run keeps the last 50 session ids', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  seedRun(root, { active: false, stalled: false, sessionIds: manyIds(60) });
+  assert.equal(start([], { gh, root, sessionId: () => 'now-1' }).code, 0);
+  const ids = readJson(root, 'run.json').sessionIds;
+  assert.equal(ids.length, 50);
+  assert.equal(ids[0], 'old-11');
+  assert.equal(ids.at(-2), 'old-59');
+  assert.equal(ids.at(-1), 'now-1');
+});
+
+test('R-50: an adopted run keeps the last 50 session ids', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  seedRun(root, { sessionIds: manyIds(60) });
+  assert.equal(start([], { gh, root, sessionId: () => 'now-1' }).code, 0);
+  const ids = readJson(root, 'run.json').sessionIds;
+  assert.equal(ids.length, 50);
+  assert.equal(ids[0], 'old-11');
+  assert.equal(ids.at(-1), 'now-1');
+});
+
+test('R-50: a new run with no earlier run records the current session id', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  assert.equal(start([], { gh, root, sessionId: () => 'now-1' }).code, 0);
+  assert.deepEqual(readJson(root, 'run.json').sessionIds, ['now-1']);
+});
+
+test('R-50: an adopted run adds the current session id once', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  seedRun(root, { sessionIds: ['old-1'] });
+  assert.equal(start([], { gh, root, sessionId: () => 'now-1' }).code, 0);
+  assert.equal(start([], { gh, root, sessionId: () => 'now-1' }).code, 0);
+  assert.deepEqual(readJson(root, 'run.json').sessionIds, ['old-1', 'now-1']);
+});
+
+test('R-50: a session id that is not valid or not set is not recorded', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  seedRun(root, { active: false, stalled: false, sessionIds: ['old-1'] });
+  assert.equal(start([], { gh, root, sessionId: () => '../x' }).code, 0);
+  assert.deepEqual(readJson(root, 'run.json').sessionIds, ['old-1']);
+  seedRun(root, { active: false, stalled: false, sessionIds: [] });
+  assert.equal(start([], { gh, root, sessionId: () => '' }).code, 0);
+  assert.deepEqual(readJson(root, 'run.json').sessionIds, []);
 });
 
 test('R-50: a run.json that is not valid is refused before anything is written', () => {
