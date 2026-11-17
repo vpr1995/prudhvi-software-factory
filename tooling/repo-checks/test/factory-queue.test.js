@@ -1131,7 +1131,38 @@ test('R-23: next reconciles a local ticket with GitHub before it picks', () => {
   const result = factory('next', [], { gh, root });
   assert.match(result.out, /reconcile #7: local=building github=green/);
   assert.equal(readJson(root, '7', 'ticket.json').stage, 'green');
-  assert.equal(readJson(root, 'run.json').next.stage, 'green');
+  // Review round 1, G: a green ticket waits for the owner (design 4.4). `next` does not resume it.
+  assert.doesNotMatch(result.out, /resume #7/);
+  assert.match(result.out, /next: done/);
+  assert.deepEqual(readJson(root, 'run.json').next, { kind: 'done' });
+});
+
+test('R-23: a green ticket with agent:in-progress and a ticket.json does not stop next from giving done', () => {
+  const root = temporaryFolder();
+  const { gh, add, world } = makeWorld();
+  add(makeIssue(7, { labels: ['agent:in-progress'], body: 'x' }));
+  world.branchPrs.set('feat/7-x', [{ number: 70, state: 'OPEN' }]);
+  world.checks.set(70, PASS);
+  seedTicket(root, 7, { stage: 'green', pr: 70 });
+  seedRun(root, NOT_WAITING);
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: done/);
+  assert.doesNotMatch(result.out, /resume/);
+  assert.equal(readJson(root, 'run.json').active, false);
+});
+
+test('R-23: needs-human and done tickets with agent:in-progress are not resumed either', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { labels: ['agent:in-progress'], body: 'x' }));
+  add(makeIssue(6, { labels: ['agent:in-progress'], body: 'x' }));
+  seedTicket(root, 7, { stage: 'needs-human' });
+  seedTicket(root, 6, { stage: 'done' });
+  seedRun(root, NOT_WAITING);
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.doesNotMatch(result.out, /resume/);
 });
 
 test('R-2: next respects only: other ready tickets do not count', () => {
@@ -1422,4 +1453,57 @@ test('next, status, stop and report refuse extra words', () => {
     assert.equal(result.code, 2, command);
     assert.match(result.errors, /Usage/);
   }
+});
+
+// Review round 1: S1 (only), B1 (current ticket of a resume step)
+
+test('S1: run.json only that is not null or a positive integer fails next and report, and writes nothing', () => {
+  for (const only of ['7', 0, -1, 1.5, true, [7], {}]) {
+    const root = temporaryFolder();
+    seedRun(root, { ...NOT_WAITING, only });
+    const before = snapshot(root);
+    for (const command of ['next', 'report']) {
+      const result = factory(command, [], { root });
+      const label = `${command} with only ${JSON.stringify(only)}`;
+      assert.equal(result.code, 2, label);
+      assert.match(result.errors, /run\.json: only must be a positive integer or null/, label);
+      assert.deepEqual(snapshot(root), before, `${label} writes nothing`);
+    }
+  }
+});
+
+test('S1: run.json only as null or a positive integer is accepted by next and report', () => {
+  for (const only of [null, 7]) {
+    const root = temporaryFolder();
+    seedRun(root, { ...NOT_WAITING, only });
+    const report = factory('report', [], { root });
+    assert.equal(report.code, 0, report.errors);
+    assert.match(report.out, only === null ? /Scope: all tickets/ : /Scope: only #7/);
+    const { gh, add } = makeWorld();
+    add(makeIssue(7));
+    assert.equal(factory('next', [], { gh, root }).code, 0);
+  }
+});
+
+test('B1: a resume step in run.json next is the current ticket before any new log line', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(5, { labels: ['agent:in-progress'], body: 'no acceptance here' }));
+  seedTicket(root, 5, { stage: 'building' });
+  seedRun(root, NOT_WAITING);
+  const next = factory('next', [], { gh, root });
+  assert.equal(next.code, 0, next.errors);
+  assert.deepEqual(readJson(root, 'run.json').next, {
+    kind: 'ticket',
+    ticket: 5,
+    resume: true,
+    stage: 'building',
+  });
+  assert.equal(exists(stateFile(root, 'runs', `${OLD_RUN}.jsonl`)), false, 'no log line yet');
+  const status = factory('status', [], { root });
+  assert.equal(status.code, 0, status.errors);
+  assert.match(status.out, /^current: #5, stage building$/m);
+  const stop = factory('stop', [], { root });
+  assert.equal(stop.code, 0, stop.errors);
+  assert.match(readReport(root), /## Current ticket\n+#5, stage building/);
 });

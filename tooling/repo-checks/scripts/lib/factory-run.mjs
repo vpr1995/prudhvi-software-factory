@@ -80,6 +80,17 @@ export function logAdoption(context, { resumed }) {
   writeRunLog(context, { ticket: 0, event: 'resume', from: null, to: null, detail: resumed });
 }
 
+/**
+ * @param {object} run - The parsed run.json.
+ * @returns {number | null} `only` of the run. Fails when it is not null or a positive integer.
+ */
+export function onlyOf(run) {
+  const { only } = run;
+  if (only === null || only === undefined) return null;
+  if (Number.isInteger(only) && only > 0) return only;
+  return fail('run.json: only must be a positive integer or null');
+}
+
 /** @returns {boolean} True when the run is active or stalled: `start` adopts it, `stop` ends it. */
 export const isOpenRun = (run) => run?.active === true || run?.stalled === true;
 

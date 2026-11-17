@@ -1384,6 +1384,28 @@ test('R-15: lines at or before restartedAt give no gap, and a log with no line a
   assert.equal(caps().json.activeMinutes, 0);
 });
 
+test('B2: a skip line of the ticket adds no active time', () => {
+  const { caps } = capsFixture({
+    lines: [
+      logLine(T0, 'skip', 'blocked by #3: no open PR (R-6)'),
+      logLine(T0 + 9 * MINUTE),
+      logLine(T0 + 9 * MINUTE, 'gate'),
+    ],
+  });
+  assert.equal(caps().json.activeMinutes, 0);
+});
+
+test('B2: a hard-stop step line of the ticket still adds active time, also when it is a skip event', () => {
+  const { caps } = capsFixture({
+    lines: [
+      logLine(T0),
+      logLine(T0 + 4 * MINUTE, 'skip', 'step 5 metrics: skipped: task 5'),
+      logLine(T0 + 6 * MINUTE, 'stop', 'step 6 report: wrote x'),
+    ],
+  });
+  assert.equal(caps().json.activeMinutes, 6);
+});
+
 test('R-16: a gh failure gives reached, names the count, and still prints the other count', () => {
   const { caps } = capsFixture({
     lines: [logLine(T0), logLine(T0 + 5 * MINUTE)],
@@ -1628,4 +1650,33 @@ test('R-12: the reason in the report has secret-like strings and home paths remo
   assert.equal(result.code, 0, result.errors);
   assert.doesNotMatch(readRunReport(work), /abc123|bob/);
   assert.doesNotMatch(readFileSync(stateFile(work, 'run.json'), 'utf8'), /abc123|bob/);
+});
+
+const STOP_REASON_LIMIT = 300;
+
+test('S2: a long hard-stop reason is cut at 300 characters plus ... in run.json and in the report', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedActiveRun(work);
+  const { overrides } = hardstopOverrides(work);
+  const long = 'fail '.repeat(200);
+  assert.equal(long.length, 1000);
+  const result = runFactory(['hardstop', '7', long], overrides);
+  assert.equal(result.code, 0, result.errors);
+  const { reason } = readRun(work).stopped;
+  assert.equal(reason, `${long.slice(0, STOP_REASON_LIMIT)}...`);
+  const line = readRunReport(work)
+    .split('\n')
+    .find((text) => text.startsWith('- #7: '));
+  assert.equal(line, `- #7: ${reason}`);
+});
+
+test('S2: a reason of 300 characters or less is stored whole', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedActiveRun(work);
+  const { overrides } = hardstopOverrides(work);
+  const exact = 'x'.repeat(STOP_REASON_LIMIT);
+  assert.equal(runFactory(['hardstop', '7', exact], overrides).code, 0);
+  assert.equal(readRun(work).stopped.reason, exact);
 });
