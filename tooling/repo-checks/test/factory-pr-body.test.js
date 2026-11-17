@@ -427,3 +427,91 @@ test('#110 round 1: implement-feature takes the tier of the router with a ticket
   assert.match(text, /No ticket, the path rules/);
   assert.doesNotMatch(text, /highest tier that matches a changed path/);
 });
+
+// Review round 2 findings (#110)
+
+const GUARD = '^/tmp/factory-pr\\.[A-Za-z0-9]{6}$';
+
+test('#110 round 2: a caller ticket number must match ^[1-9][0-9]*$, else stop and ask the human', () => {
+  const [first] = stepsOfFile(PR_DESCRIPTION);
+  assert.ok(first.includes('`^[1-9][0-9]*$`'), 'step 1 names the number pattern');
+  assert.match(first, /must match `\^\[1-9\]\[0-9\]\*\$`/);
+  assert.match(afterWord(first, 'must match'), /Else stop and ask the human/);
+  assert.match(first, /Use `<n>` as the ticket/);
+  assert.ok(first.indexOf('must match') < first.indexOf('Use `<n>` as the ticket'));
+});
+
+test('#110 round 2: the title is one line and starts with a Conventional Commits type', () => {
+  const title = stepOf('Conventional Commits');
+  assert.match(title, /one line/);
+  assert.ok(title.includes('`<type>(<scope>): `'), 'type and scope form');
+  assert.ok(title.includes('`<type>: `'), 'type only form');
+  assert.match(title, /starts with a Conventional Commits type/);
+  for (const part of ["`'`", '`"`', '`$`', 'a backtick', '`\\`']) {
+    assert.ok(title.includes(part), `the title rule still names ${part}`);
+  }
+});
+
+test('#110 round 2: pr-description step 10 does not run rm on a path that does not match', () => {
+  const create = createStep();
+  assert.ok(create.includes(`\`${GUARD}\``), 'the guard pattern stays');
+  assert.match(
+    afterWord(create, 'Run `rm` only when'),
+    /No match: do not run `rm`\. Report the path\./,
+  );
+});
+
+test('#110 round 2: factory step 8 uses single quotes for the title and the same rm guard', () => {
+  const { text } = fileStepWith(FACTORY_SKILL, 'Open the PR.', '## Work a ticket');
+  assert.ok(text.includes("--title '<title>'"), 'single quotes around the title');
+  assert.doesNotMatch(text, /--title "/, 'no double quotes around the title');
+  const remove = text.indexOf('rm /tmp/factory-pr.<suffix>');
+  assert.ok(remove > text.indexOf('gh pr create'), 'rm follows the create');
+  const guard = afterWord(text, 'Run `rm` only when');
+  assert.ok(guard.includes(`\`${GUARD}\``), 'factory step 8 has the same path pattern');
+  assert.match(guard, /No match: do not run `rm`\. Report the path\./);
+});
+
+test('#110 round 2: the real CLI keeps the Routing line on stderr and the JSON on stdout (no merge)', () => {
+  const folder = scratchFolder();
+  const env = {
+    PATH: `${path.join(folder, 'bin')}${path.delimiter}${pathFromEnv()}`,
+    HOME: folder,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 't',
+    GIT_AUTHOR_EMAIL: 't@t',
+    GIT_COMMITTER_NAME: 't',
+    GIT_COMMITTER_EMAIL: 't@t',
+  };
+  mkdirSync(path.join(folder, 'bin'));
+  writeFileSync(path.join(folder, 'bin', 'gh'), `#!/bin/sh\necho '{"body":"Size: 2"}'\n`);
+  chmodSync(path.join(folder, 'bin', 'gh'), 0o755);
+  const work = path.join(folder, 'work');
+  mkdirSync(path.join(work, 'src'), { recursive: true });
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: work, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
+  };
+  git('init', '-q', '-b', 'main');
+  git('config', 'commit.gpgsign', 'false');
+  git('config', 'core.hooksPath', '/dev/null');
+  writeFileSync(path.join(work, 'README.md'), 'hello\n');
+  git('add', '.');
+  git('commit', '-qm', 'base');
+  git('checkout', '-q', '-b', 'feat/7-x');
+  writeFileSync(path.join(work, 'src', 'a.js'), 'export const a = 1;\n');
+  git('add', '.');
+  git('commit', '-qm', 'change');
+  const split = spawnSync(
+    process.execPath,
+    [path.join(ROOT, 'tooling/repo-checks/scripts/factory.mjs'), 'route', '7', '--base', 'main'],
+    { cwd: work, env, encoding: 'utf8' },
+  );
+  assert.equal(split.status, 0, split.stderr);
+  const result = JSON.parse(split.stdout);
+  assert.doesNotMatch(split.stdout, /^Routing: /m, 'no Routing line on stdout');
+  const routing = split.stderr.split('\n').filter((line) => line.startsWith('Routing: '));
+  assert.equal(routing.length, 1, 'stderr has exactly one "Routing: " line');
+  assert.equal(routing[0], routingLine(result), 'the stderr line is the router line of the JSON');
+});
