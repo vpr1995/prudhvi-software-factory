@@ -7,9 +7,11 @@
 // Every import of its own code is inside a try block, so a load error is an error of the check.
 // With no open run it allows at once: it loads nothing but lib/fs-io.mjs.
 //
-// R-56: an error blocks and names the error, but only while a run is open. After 3 errors in a
-// row it allows the stop and prints the error. The count is in .claude/factory/stop-errors. A good
-// check removes the file.
+// R-56: an error blocks and names the error, but only while a run is open and only the owner of the
+// run. After 3 errors in a row it allows the stop and prints the error. The count is in
+// .claude/factory/stop-errors. A good check of the owner removes the file. Another session (the
+// run has a session id that is not the session of the hook input) is allowed at once and never
+// moves the count. The entry finds the owner with a plain JSON.parse: it loads no lib code.
 //
 // The owner turns the factory off with FACTORY_RUN=off (R-45).
 import path from 'node:path';
@@ -29,9 +31,25 @@ function isOpen(text) {
   }
 }
 
+/** @returns {boolean} True when run.json has an owner session and the hook session is another one. A bad text or input gives false: the core reports it. */
+function isOtherSession(input, text) {
+  try {
+    const owner = JSON.parse(text)?.sessionId;
+    const session = JSON.parse(input)?.session_id;
+    const named = owner !== null && owner !== undefined && owner !== '';
+    return named && typeof session === 'string' && session !== '' && owner !== session;
+  } catch {
+    return false;
+  }
+}
+
+// The hook input, for the error path. The entry reads stdin once.
+const hookInput = { text: '' };
+
 async function check() {
   const { readOptional, readStdin, removeFile } = await import('./lib/fs-io.mjs');
   const input = readStdin();
+  hookInput.text = input;
   const text = readOptional(RUN_FILE);
   let output;
   if (text !== undefined && isOpen(text)) {
@@ -45,7 +63,10 @@ async function check() {
       err: (line) => process.stderr.write(line),
     });
   }
-  removeFile(ERRORS_FILE);
+  // Only the owner (or the claiming session) has a good check. Else the count is not theirs.
+  if (text === undefined || !isOpen(text) || !isOtherSession(input, text)) {
+    removeFile(ERRORS_FILE);
+  }
   return output;
 }
 
@@ -57,6 +78,10 @@ async function onError(error) {
     const text = readOptional(RUN_FILE);
     if (text === undefined || !isOpen(text)) {
       process.stderr.write(`factory stop-check error (no open run): ${message}\n`);
+      return;
+    }
+    if (isOtherSession(hookInput.text, text)) {
+      process.stderr.write(`factory stop-check error (another session, allowed): ${message}\n`);
       return;
     }
     const before = Number.parseInt(readOptional(ERRORS_FILE) ?? '0', 10);

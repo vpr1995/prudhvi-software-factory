@@ -1,16 +1,24 @@
 // `wait <n>` of the /factory script (design factory-daily-run 4.1; R-49). The agent runs it as a
-// background command while CI runs. It stores `waiting: { pr, since }` in run.json, so the Stop
-// hook allows the stop. It polls `gh pr checks` every 30 seconds. It ends when no check is pending
-// and clears `waiting`. It prints `passed` or `failed`. After 60 minutes it prints `timeout` and
-// ends with a hard stop (exit 3, message `hard stop: CI timeout`): the agent then runs `hardstop`.
-// The same rule applies to the blocker wait of R-42.
+// background command while CI runs. It stores `waiting: { pr, since, pid }` in run.json, so the
+// Stop hook allows the stop. It refuses a PR that is not the `pr` of a ticket.json. The hook and
+// `next` ignore a wait of a dead pid, or older than 60 minutes (`liveWait`).
+// It polls `gh pr checks` every 30 seconds. It ends when no check is pending and clears `waiting`.
+// It prints `passed` or `failed`. After 60 minutes it prints `timeout` and ends with a hard stop
+// (exit 3, message `hard stop: CI timeout`): the agent then runs `hardstop`. The same rule applies
+// to the blocker wait of R-42.
 //
 // A test sets `context.sleep` (milliseconds), `context.pollMs`, `context.timeoutMs` and `context.now`.
 // The wait writes a `wait` run log line with detail `start` and one with `end`. `caps` leaves the
 // time between them out of the active time (R-15).
-import { fail, stateFolder, timestamp, withLock } from './factory-base.mjs';
+import {
+  fail,
+  sleepFor,
+  stateFolder,
+  timestamp,
+  withLock,
+  withPatientLock,
+} from './factory-base.mjs';
 import { HardStopError } from './factory-github.mjs';
-import { currentTicket } from './factory-report.mjs';
 import { loadRun, saveRun } from './factory-run.mjs';
 import { checksGreen, ghJson, loadTicket, writeRunLog } from './factory-state.mjs';
 import { listFolder } from './fs-io.mjs';
@@ -19,16 +27,12 @@ export const POLL_MS = 30_000;
 export const TIMEOUT_MS = 60 * 60_000;
 const TICKET_FOLDER = /^[1-9]\d*$/;
 
-/** Sleeps in this thread. The wait runs as a background command: nothing else needs the thread. */
-export function sleepFor(milliseconds) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
-}
-
-// The ticket of the PR: the ticket.json that names it. Else the current ticket. Else 0.
-function ticketOfPr(context, run, pr) {
+// The ticket of the PR: the ticket.json that names it. A PR that no ticket names is refused.
+function ticketOfPr(context, pr) {
   const folders = listFolder(stateFolder(context.root)).filter((name) => TICKET_FOLDER.test(name));
   const match = folders.find((name) => loadTicket(context.root, name)?.pr === pr);
-  return match === undefined ? (currentTicket(context, run)?.ticket ?? 0) : Number(match);
+  if (match === undefined) fail(`PR #${String(pr)} is not a PR of this run`);
+  return Number(match);
 }
 
 const logWait = (context, ticket, detail) =>
@@ -38,15 +42,16 @@ function begin(context, pr) {
   return withLock(context, () => {
     const run = loadRun(context.root);
     if (run?.active !== true) fail('no active run: run `start` first');
-    const ticket = ticketOfPr(context, run, pr);
-    saveRun(context.root, { ...run, waiting: { pr, since: timestamp(context.now()) } });
+    const ticket = ticketOfPr(context, pr);
+    const waiting = { pr, since: timestamp(context.now()), pid: context.pid };
+    saveRun(context.root, { ...run, waiting });
     logWait(context, ticket, 'start');
     return ticket;
   });
 }
 
 function finish(context, pr, ticket) {
-  withLock(context, () => {
+  withPatientLock(context, () => {
     const run = loadRun(context.root);
     // `stop` or a hard stop can clear the wait first. Then there is nothing to do.
     if (run?.waiting?.pr !== pr) return;
