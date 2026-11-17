@@ -153,6 +153,9 @@ const HANDLERS = new Map([
   ['wait', waitCommand],
 ]);
 
+/** The command names of the CLI. The /factory skill test reads them. */
+export const COMMAND_NAMES = new Set(HANDLERS.keys());
+
 /** @returns {object} The context of the commands. A test replaces any part. */
 function commandContext(overrides) {
   const root = overrides.root ?? run('git', ['rev-parse', '--show-toplevel']).trim();
