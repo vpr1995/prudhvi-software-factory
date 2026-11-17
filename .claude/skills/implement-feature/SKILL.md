@@ -29,7 +29,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
    Run `git commit -m "<type>(<scope>): <summary>"`. Keep the Co-Authored-By trailer that Claude Code adds.
 10. Run the `pre-pr` skill. It needs a clean tree, so it runs after step 9. Give it the ticket number: digits only (`^[1-9][0-9]*$`), from the branch name `<type>/<n>-...` first. Use `#<n>` or `ticket <n>` in the request only when the branch has none. Both present and different: stop and ask the human. A branch number that does not match (for example `feat/0-x`, `fix/007-x`): stop and ask the human (in a `/factory` run: hard stop with the reason `question from a sub-skill`). Else there is no ticket. It runs the review rounds, then pushes. Fix all open Important findings.
     - `pre-pr` pushes with `node tooling/repo-checks/scripts/factory.mjs push <n>`. That command runs the test guard first. If you committed after `pre-pr`, run it again. With a ticket, never push with git. No ticket: `pr-description` pushes.
-11. Run the `pr-description` skill. With a ticket, skip its push step: step 10 pushed. It opens the PR and sets one `risk:*` label (the highest tier that matches a changed path). The check-config finding of the test guard means `risk:high`: put it in the PR body.
+11. Run the `pr-description` skill. With a ticket, skip its push step: step 10 pushed. It opens the PR and sets one `risk:*` label. With a ticket, the tier of the router (`route <n>`). No ticket, the path rules. The check-config finding of the test guard means `risk:high`: put it in the PR body.
 12. Report. Give the branch name, the commit SHA, the PR URL, the verify result, and the number of pre-pr rounds used.
 
 ## Done when

@@ -14,7 +14,7 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 - `zizmor.yml`: zizmor config. A human adds each entry, with a reason.
 - `actions/repo-setup/action.yml`: composite action. It sets up Node, restores the caches, runs `rush install`, and restores the Rush build cache.
 - `CODEOWNERS`: owner rules. The last matching line wins.
-- `pull_request_template.md`: Summary, Linked issue, Testing, Risk tier, How to revert, Feature flag, Checklist.
+- `pull_request_template.md`: Summary, Linked issue, Testing, Risk tier (with the Routing line), How to revert, Feature flag, Decisions I made, Over budget, Checklist.
 - `ISSUE_TEMPLATE/ticket.yml`: issue form for tickets: Context, Acceptance, Risk tier, Notes. Blank issues are off. Rules: wiki page Ticket Workflow.
 
 ## When a CI check fails
