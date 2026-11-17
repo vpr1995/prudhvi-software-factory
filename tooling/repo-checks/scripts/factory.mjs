@@ -6,6 +6,9 @@
 // (R-20, design 4.3). The one routing line for the PR body goes to stderr only: `routingLine`
 // builds it from the stored JSON. With no `ticket.json`, nothing is stored and stderr has a warning.
 //
+// start [<n>] [--dry-run]: build the queue, mark the run active or adopt it, print the plan
+// (lib/factory-queue.mjs, task 2c). `--dry-run` writes nothing. `FACTORY_RUN=off` refuses (R-4).
+//
 // push <n>: the local test guard, then `git push origin HEAD:<branch>` (task 2a2, R-17, R-54).
 // stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
 //
@@ -30,8 +33,10 @@ import {
 } from './lib/factory-github.mjs';
 import { hardstopCommand } from './lib/factory-hard-stop.mjs';
 import { pushCommand } from './lib/factory-push.mjs';
+import { startCommand } from './lib/factory-queue.mjs';
 import { parseSize, route, routingLine } from './lib/factory-route.mjs';
 import { COMMANDS, FactoryError, loadTicket, saveTicket, SYNOPSES } from './lib/factory-state.mjs';
+import { isRunOff } from './lib/factory.config.mjs';
 import { readStdin } from './lib/fs-io.mjs';
 import { readDiff } from './lib/test-guard-diff.mjs';
 import { CHECK_CONFIG_MESSAGE } from './lib/test-guard-rules.mjs';
@@ -46,6 +51,7 @@ const FIRST_USER_ARGUMENT = 2;
 const DEFAULT_BASE = 'origin/main';
 const TICKET = /^\d+$/;
 const USAGE = [
+  'start [<n>] [--dry-run]',
   'route <n> [--base <ref>]',
   'push <n>',
   'comment <n> <hard-stop|reply> [<reply-to-id>]   (body on stdin)',
@@ -122,6 +128,7 @@ const HANDLERS = new Map([
   ['hardstop', hardstopCommand],
   ['push', pushCommand],
   ['route', routeCommand],
+  ['start', startCommand],
 ]);
 
 /** @returns {object} The context of the commands. A test replaces any part. */
@@ -133,6 +140,7 @@ function commandContext(overrides) {
     guard: (base) => guardRepository(root, base),
     now: () => new Date(),
     pid: process.pid,
+    runOff: isRunOff,
     stdin: readStdin,
     print: (text) => process.stdout.write(text),
     err: (text) => process.stderr.write(text),
@@ -161,7 +169,7 @@ function runCommand(command, input, overrides) {
 
 /**
  * @param {string[]} argv - Process arguments.
- * @param {object} [overrides] - Parts of the command context (root, gh, git, guard, now, pid, stdin, print, err).
+ * @param {object} [overrides] - Parts of the command context (root, gh, git, guard, now, pid, runOff, stdin, print, err).
  * @returns {number} Exit code: 0 done, 2 refused or failed, 3 hard stop.
  */
 export function main(argv = process.argv, overrides = {}) {
