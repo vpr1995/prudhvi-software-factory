@@ -9,7 +9,7 @@
 // `<number> <name>` ("4 comment"). A second hard stop of the same run writes the same report.
 import { fail, relative, withLock } from './factory-base.mjs';
 import { redactText } from './factory-comment.mjs';
-import { clearRun, isOpenRun, loadRun, saveRun } from './factory-run.mjs';
+import { clearRun, isOpenRun, loadRun, onlyOf, saveRun } from './factory-run.mjs';
 import { loadTicket, runLogFile, writeRunLog } from './factory-state.mjs';
 import { readOptional, writeAtomic } from './fs-io.mjs';
 
@@ -18,8 +18,10 @@ const STATUS_STOP = 'stopped by the owner (R-47)';
 const STATUS_HARD_STOP = 'hard stop (R-12)';
 const STATUS_ACTIVE = 'active';
 const STATUS_STALLED = 'stalled: run `/factory` to resume (R-48)';
-const IN_FLIGHT = new Set(['building', 'reviewing', 'ci']);
+// The stages of a ticket that the run still works on. `green` waits for the owner (design 4.4).
+export const IN_FLIGHT = new Set(['building', 'reviewing', 'ci']);
 const LOG_SUFFIX = '.jsonl';
+const REASON_LIMIT = 300;
 const NO_WORDS = (name, words) => {
   if (words.length > 0) fail(`Usage: ${name}`);
 };
@@ -41,8 +43,18 @@ export function readRunLog(root) {
 const reportFile = (root) => `${runLogFile(root).slice(0, -LOG_SUFFIX.length)}-report.md`;
 const isWork = (line) => line.ticket > 0 && line.event !== 'skip';
 
-/** @returns {{ ticket: number, stage: string } | undefined} The last worked ticket that is still in flight. */
-export function currentTicket(context) {
+/**
+ * A resume step in run.json `next` is the current ticket, before the run log has a line for it.
+ * Else it is the last worked ticket that is still in flight.
+ *
+ * @returns {{ ticket: number, stage: string } | undefined} The current ticket.
+ */
+export function currentTicket(context, run) {
+  const step = run?.next;
+  if (step?.kind === 'ticket' && step.resume === true) {
+    const stage = loadTicket(context.root, String(step.ticket))?.stage;
+    if (IN_FLIGHT.has(stage)) return { ticket: step.ticket, stage };
+  }
   const worked = readRunLog(context.root).filter((line) => isWork(line));
   const numbers = [...new Set(worked.map((line) => line.ticket).toReversed())];
   for (const ticket of numbers) {
@@ -51,6 +63,11 @@ export function currentTicket(context) {
   }
   return;
 }
+
+const scopeOf = (run) => {
+  const only = run === undefined ? null : onlyOf(run);
+  return only === null ? 'all tickets' : `only #${String(only)}`;
+};
 
 /** @returns {string} The command that resumes the run. R-50: `/factory` adopts the run. */
 const resumeCommand = (run) =>
@@ -95,7 +112,7 @@ function sections(context, run, stopped) {
   const worked = workedTickets(context, lines);
   const done = worked.filter(({ state }) => state.stage === 'green' || state.stage === 'done');
   const pr = ({ state }) => (Number.isInteger(state.pr) ? state.pr : undefined);
-  const current = currentTicket(context);
+  const current = currentTicket(context, run);
   const resume = [resumeCommand(run)];
   if (stopped !== undefined) {
     resume.push(
@@ -157,7 +174,7 @@ export function writeReport(context, { status, stopped } = {}) {
     '',
     `Status: ${status ?? statusOf(run, hardStop)}`,
     `Started: ${run?.startedAt ?? 'unknown'}`,
-    `Scope: ${typeof run?.only === 'number' ? `only #${String(run.only)}` : 'all tickets'}`,
+    `Scope: ${scopeOf(run)}`,
   ];
   const body = sections(context, run, hardStop).flatMap(([name, text]) => [
     `## ${name}`,
@@ -178,9 +195,11 @@ export function writeReport(context, { status, stopped } = {}) {
  * @returns {string} The line for the step.
  */
 export function recordStop(context, stop) {
+  const reason = redactText(stop.reason);
   const stopped = {
     ticket: Number(stop.ticket),
-    reason: redactText(stop.reason),
+    // The reason is short in the run.json and in the report. The issue comment has the whole text.
+    reason: reason.length > REASON_LIMIT ? `${reason.slice(0, REASON_LIMIT)}...` : reason,
     failedSteps: stop.failedSteps,
   };
   const run = loadRun(context.root);

@@ -97,6 +97,10 @@ function failedCiRuns(context, state) {
   ).length;
 }
 
+// A `skip` line of a ticket is a queue decision, not work. A hard-stop step line (`step <n> ...`)
+// is work, also when it is a `skip` event (step 5, task 5).
+const isTicketSkip = (entry) => entry.event === 'skip' && !String(entry.detail).startsWith('step ');
+
 function logLines(context, ticket) {
   const folder = path.join(stateFolder(context.root), 'runs');
   const files = listFolder(folder).filter((name) => name.endsWith('.jsonl'));
@@ -108,7 +112,7 @@ function logLines(context, ticket) {
       const entry = parseJson(line, 'run log line');
       return { ...entry, time: timeOf(entry?.ts, 'run log ts') };
     })
-    .filter((entry) => entry.ticket === Number(ticket))
+    .filter((entry) => entry.ticket === Number(ticket) && !isTicketSkip(entry))
     .toSorted((first, second) => first.time - second.time);
 }
 

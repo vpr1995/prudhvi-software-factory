@@ -17,8 +17,14 @@
 import { fail, relative, withLock } from './factory-base.mjs';
 import { peekCaps } from './factory-caps.mjs';
 import { buildPlan, syncTickets } from './factory-queue.mjs';
-import { currentTicket, readRunLog, STATUS_DONE, writeReport } from './factory-report.mjs';
-import { clearRun, loadRun, saveRun } from './factory-run.mjs';
+import {
+  currentTicket,
+  IN_FLIGHT,
+  readRunLog,
+  STATUS_DONE,
+  writeReport,
+} from './factory-report.mjs';
+import { clearRun, loadRun, onlyOf, saveRun } from './factory-run.mjs';
 import { writeRunLog } from './factory-state.mjs';
 
 const none = (name, words) => {
@@ -74,10 +80,15 @@ function chooseNext(context, run) {
   if (run.waiting !== null && run.waiting !== undefined) {
     return { step: { kind: 'wait', pr: run.waiting.pr }, skipped: [] };
   }
-  const only = typeof run.only === 'number' ? run.only : null;
+  const only = onlyOf(run);
   syncTickets(context, only);
   const { queue, skipped } = buildPlan(context, only);
-  const entry = queue.find((candidate) => candidate.kind === 'resume') ?? queue[0];
+  // Only a ticket in flight resumes. A green, done or needs-human ticket does not resume and does
+  // not block `done`.
+  const startable = queue.filter(
+    (candidate) => candidate.kind !== 'resume' || IN_FLIGHT.has(candidate.stage),
+  );
+  const entry = startable.find((candidate) => candidate.kind === 'resume') ?? startable[0];
   return { step: entry === undefined ? { kind: 'done' } : entryStep(entry), skipped };
 }
 
@@ -120,7 +131,7 @@ export function statusCommand(words, context) {
   none('status', words);
   const run = loadRun(context.root);
   if (run === undefined) return 'run: none (no run.json)\n';
-  const current = currentTicket(context);
+  const current = currentTicket(context, run);
   const now =
     current === undefined
       ? 'current: none'
