@@ -121,6 +121,10 @@ function addFindings(context, ticket, inputs) {
       rows.push({ id: `F${String(number)}`, round, ...input, status: 'open' });
       return `F${String(number)} added`;
     }
+    if (input.severity === 'Important' && match.severity === 'Nit' && match.status !== 'fixed') {
+      Object.assign(match, { severity: 'Important', status: 'open', reason: input.reason });
+      return `${match.id} raised to Important`;
+    }
     if (match.status !== 'fixed') return `${match.id} skipped (${match.status})`;
     match.status = 'open';
     return `${match.id} reopened`;

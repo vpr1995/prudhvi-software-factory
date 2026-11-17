@@ -86,7 +86,7 @@ Ticket `<n>`.
 6. Route again after the review fixes: `node tooling/repo-checks/scripts/factory.mjs route <n>`. Keep the tier and the routing line.
 7. Push. First run `node tooling/repo-checks/scripts/factory.mjs caps <n>` (exit 3: hard stop). Run `node tooling/repo-checks/scripts/factory.mjs push <n>`. The script runs the local test guard first (no PR labels, against the base of the ticket). Then it pushes `HEAD` to the ticket branch.
    - The finding "check config changed" does not block the push. Use `risk:high` for the PR. Write the finding in the PR body.
-   - Any other finding blocks the push (exit 2). Give it one fix round: fix each finding, commit, and run `push` again.
+   - Any other finding blocks the push (exit 2). Give it one fix round: fix each finding, run the `verify` skill, commit, and run `push` again.
    - A finding that stays after the one fix round is a hard stop with the reason "test guard finding stays". An exit 3 with `hard stop: <reason>` is a hard stop too: use the reason "script hard stop" (the printed line: see "Hard stop"). Run `node tooling/repo-checks/scripts/factory.mjs hardstop <n> "<reason>"` as "Hard stop" says.
 8. Open the PR. Check for a PR: `gh pr list --head "$branch" --state open --json number` (`$branch` is the validated ticket branch). An empty list means no PR.
    - The list has a PR: open no new PR. If the tier changed, run `gh pr edit <pr> --add-label risk:<new> --remove-label risk:<old>`.
