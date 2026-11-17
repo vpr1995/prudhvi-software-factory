@@ -6,12 +6,14 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  readSync,
   realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { isatty } from 'node:tty';
 
 /**
  * @param {string} root - Repo root.
@@ -22,9 +24,38 @@ export function readRepositoryFile(root, file) {
   return readFileSync(path.join(root, file), 'utf8');
 }
 
-/** @returns {string} All of stdin. */
-export function readStdin() {
-  return readFileSync(0, 'utf8');
+const RETRY_WAIT_MS = 10;
+
+function readChunk(buffer) {
+  try {
+    return readSync(0, buffer);
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? error.code : undefined;
+    if (code === 'EOF' || code === 'EBADF') return 0;
+    if (code !== 'EAGAIN') throw error;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RETRY_WAIT_MS);
+    return -1;
+  }
+}
+
+/**
+ * @param {number} [maxBytes] - Stop after this many bytes. No limit when left out.
+ * @returns {string} Stdin, or its first maxBytes bytes. '' when stdin is a terminal or closed.
+ */
+export function readStdin(maxBytes = Infinity) {
+  if (isatty(0)) return '';
+  const chunks = [];
+  let total = 0;
+  while (total < maxBytes) {
+    const buffer = Buffer.alloc(Math.min(65_536, maxBytes - total));
+    const count = readChunk(buffer);
+    if (count === 0) break;
+    if (count > 0) {
+      chunks.push(buffer.subarray(0, count));
+      total += count;
+    }
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 /**

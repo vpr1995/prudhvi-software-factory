@@ -42,9 +42,9 @@ export function parseJson(text, what) {
 
 export const MAX_INPUT_BYTES = 1024 * 1024;
 
-/** @returns {string} All of stdin. Refuses input of more than 1 MiB. */
+/** @returns {string} All of stdin. Refuses input of more than 1 MiB. Reads at most 1 MiB + 1 byte. */
 export function readInput(context) {
-  const text = context.stdin();
+  const text = context.stdin(MAX_INPUT_BYTES + 1);
   if (Buffer.byteLength(text) > MAX_INPUT_BYTES) fail('stdin is bigger than 1 MiB');
   return text;
 }
@@ -67,7 +67,8 @@ const lockFile = (root) => path.join(stateFolder(root), 'lock');
 /**
  * Takes over a lock of a dead process. The rename is atomic, so one process only moves the stale
  * file. When the moved file is not the stale holder, another process took the lock between the
- * check and the rename: put it back and fail.
+ * check and the rename: put it back and fail. When the put back fails too, a third process made a
+ * new lock in the window. Keep the stale file, so no holder is lost, and fail with both paths.
  *
  * @param {object} context - Command context (root, pid).
  * @param {string | undefined} holder - Pid text that the caller found in the lock.
@@ -81,7 +82,12 @@ export function takeOverStale(context, holder) {
   if (renameIfExists(file, stale)) {
     const moved = readOptional(stale);
     if (moved?.trim() !== holder) {
-      createExclusive(file, moved ?? '');
+      if (!createExclusive(file, moved ?? '')) {
+        fail(
+          `lock restore failed: ${shown} was taken again while ${relative(context.root, stale)} ` +
+            'holds the moved lock. Two holders can exist. The owner must check.',
+        );
+      }
       removeFile(stale);
       taken();
     }
