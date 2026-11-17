@@ -33,21 +33,35 @@ export function hasAcceptance(body) {
 }
 
 const HAS_NAME_CHARACTER = /[\p{L}\p{N}]/u;
+const HAS_PATH_MARK = /[/.]/;
+
+// A bare word (not in ticks) is a path when it has a glob character, or when it has `/` or `.`
+// and a letter or digit. Other bare words are prose (`and`, `see`, a lone `.` or `/`).
+const isBarePath = (word) =>
+  GLOB_CHARACTER.test(word) || (HAS_PATH_MARK.test(word) && HAS_NAME_CHARACTER.test(word));
+// A line with no ticks has no prose marker. Each bare word with a letter or digit stays, so
+// `Paths: tooling` is a path.
+const isBareWord = (word) => GLOB_CHARACTER.test(word) || HAS_NAME_CHARACTER.test(word);
 
 /**
  * @param {string} body - Ticket body.
- * @returns {string[]} The tokens of every `Paths:` line (also `**Paths:**`). A line with backticked
- *   parts gives only those parts. A line with none gives its bare words. A token with no letter and
- *   no digit (`.`, `/`) is prose: it goes. A token is raw: `namesForbiddenPath` cleans it.
+ * @returns {string[]} The tokens of every `Paths:` line (also `**Paths:**`). For each line, the
+ *   union of two sets. Set 1: each backticked part. It always stays: `*`, `**\/*` and `.` are paths.
+ *   Set 2: each bare word (the text outside the ticks) that is a path. See `isBarePath`. A line with
+ *   no ticks keeps every bare word with a letter, a digit or a glob character (`isBareWord`).
+ *   A token is raw: `namesForbiddenPath` cleans it.
  */
 export function pathsOf(body) {
-  return [...body.matchAll(PATHS_LINE)]
-    .flatMap((match) => {
-      const line = match[1];
-      const ticked = [...line.matchAll(BACKTICKED)].map((tick) => tick[1].trim());
-      return ticked.length > 0 ? ticked : line.split(SPLIT_WORDS);
-    })
-    .filter((token) => HAS_NAME_CHARACTER.test(token));
+  return [...body.matchAll(PATHS_LINE)].flatMap((match) => {
+    const line = match[1];
+    const ticked = [...line.matchAll(BACKTICKED)].map((tick) => tick[1].trim());
+    const keep = ticked.length > 0 ? isBarePath : isBareWord;
+    const bare = line
+      .replaceAll(BACKTICKED, ' ')
+      .split(SPLIT_WORDS)
+      .filter((word) => keep(word));
+    return [...ticked, ...bare];
+  });
 }
 
 // Characters that hide a name in a text: zero-width, soft hyphen, BOM, and C0 controls but \n, \t.
