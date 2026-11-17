@@ -31,6 +31,9 @@ const MAX_BULLETS = 5;
 
 const IN_PROGRESS_LABELS = { add: ['agent:in-progress'], remove: ['agent:ready'] };
 const NO_LABELS = { add: [], remove: [] };
+// The owner added `agent:ready` and GitHub gives no stage (R-57). It is not a stage.
+const READY = 'ready';
+const READY_STATUS = 'Ready';
 
 /** Stages of design 4.4: labels on entry, board Status, legal next stages. */
 export const STAGES = new Map(
@@ -119,6 +122,21 @@ function ghJson(context, args) {
   return parseJson(context.gh(args), `gh ${args.slice(0, 2).join(' ')}`);
 }
 
+function boardItem(context, ticket) {
+  const { items } = ghJson(context, [
+    'project',
+    'item-list',
+    BOARD.number,
+    '--owner',
+    BOARD.owner,
+    '--format',
+    'json',
+    '--limit',
+    '1000',
+  ]);
+  return items.find((entry) => entry.content?.number === Number(ticket));
+}
+
 // Read-only lookups. Returns the arguments of the item-edit call, so a refusal comes before any write.
 function boardEdit(context, ticket, status) {
   const board = ['--owner', BOARD.owner];
@@ -135,17 +153,7 @@ function boardEdit(context, ticket, status) {
   if (option === undefined) {
     fail(`board ${BOARD.number}: ${BOARD.statusField} option "${status}" not found`);
   }
-  const { items } = ghJson(context, [
-    'project',
-    'item-list',
-    BOARD.number,
-    ...board,
-    '--format',
-    'json',
-    '--limit',
-    '1000',
-  ]);
-  const item = items.find((entry) => entry.content?.number === Number(ticket));
+  const item = boardItem(context, ticket);
   if (item === undefined) fail(`ticket #${ticket} is not on board ${BOARD.number}`);
   const project = ghJson(context, ['project', 'view', BOARD.number, ...board, '--format', 'json']);
   return [
@@ -242,7 +250,9 @@ function githubStage(context, ticket, state) {
   if (prs.some((pr) => pr.state === 'MERGED')) return 'done';
   if (labels.some((label) => label.name === 'needs-human')) return 'needs-human';
   const open = prs.find((pr) => pr.state === 'OPEN');
-  if (open === undefined) return;
+  if (open === undefined) {
+    return labels.some((label) => label.name === 'agent:ready') ? READY : undefined;
+  }
   const checks = ghJson(context, [
     'pr',
     'checks',
@@ -252,6 +262,22 @@ function githubStage(context, ticket, state) {
   ]);
   const passed = checks.every((check) => check.bucket === 'pass' || check.bucket === 'skipping');
   return checks.length > 0 && passed ? 'green' : 'ci';
+}
+
+// R-57: `agent:ready` with no stage matches board Status Ready. On a mismatch, prints both values and
+// logs it. It writes no board value and changes no stage: the claim (`stage building`) moves both.
+function reconcileReady(context, ticket, state) {
+  const board = boardItem(context, ticket)?.status ?? 'none';
+  if (board === READY_STATUS) return state.stage;
+  context.print(`reconcile #${ticket}: board=${board} github=${READY_STATUS}; using github\n`);
+  logEvent(context, runLogFile(context.root), {
+    ticket,
+    event: 'reconcile',
+    from: state.stage,
+    to: state.stage,
+    detail: `github: board ${board}, expected ${READY_STATUS}`,
+  });
+  return state.stage;
 }
 
 /**
@@ -266,6 +292,7 @@ export function reconcile(context) {
   const state = loadTicket(context.root, ticket);
   if (state === undefined) return;
   const github = githubStage(context, ticket, state);
+  if (github === READY) return reconcileReady(context, ticket, state);
   if (github === undefined || github === state.stage) return state.stage;
   context.print(`reconcile #${ticket}: local=${state.stage} github=${github}; using github\n`);
   const logFile = runLogFile(context.root);
