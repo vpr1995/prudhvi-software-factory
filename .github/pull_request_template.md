@@ -1,3 +1,5 @@
+<!-- Stacked PR only: the first line of the body is "Stacked on #<m>. Merge #<m> first." -->
+
 ## Summary
 
 <!-- One or two sentences. What changes and why. One change per PR. -->
@@ -30,6 +32,8 @@ Output:
 
 Reason:
 
+Routing: <with a ticket, copy the Routing line of `factory.mjs route <n>`. Write `none` with no ticket.>
+
 ## How to revert
 
 <!-- Steps to undo this change. Name the flag to turn off first, if one exists. See docs/runbooks/rollback.md. -->
@@ -37,6 +41,14 @@ Reason:
 ## Feature flag
 
 <!-- Flag name from packages/flags. Write `none` if this change adds no user-visible behavior. -->
+
+## Decisions I made
+
+<!-- Each choice you made that the ticket or the user did not state. Write `None` if there is none. -->
+
+## Over budget
+
+<!-- With a ticket: `Over budget: <lines> lines, limit <budget>.` and `Reason:` one line, or `None. <lines> of <budget> lines.` No ticket: `None (no ticket, no size)`. -->
 
 ## Checklist
 
