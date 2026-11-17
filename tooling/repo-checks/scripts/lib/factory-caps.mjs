@@ -12,7 +12,7 @@
 // reached (R-16). The JSON goes to stdout. A reached cap exits 3 (a hard stop, lib/factory-github):
 // the agent then runs `hardstop`.
 //
-// R-51: `applyRestart` sets `restartedAt` and adds 1 to `resumes`. `caps` calls it first.
+// R-51: `applyRestart` sets `restartedAt`, adds 1 to `resumes`, and resets `threadReplies` to `{}`. `caps` calls it first.
 // `start` (task 2c, #106) must call it too, before it moves the stage of the ticket to building.
 import path from 'node:path';
 
@@ -68,6 +68,7 @@ export function applyRestart(context, ticket) {
     ...state,
     restartedAt: new Date(ready).toISOString().replace(/\.\d+Z$/, 'Z'),
     resumes: (Number.isInteger(state.resumes) ? state.resumes : 0) + 1,
+    threadReplies: {}, // R-31: a restart gives each thread 3 new replies. `handledComments` stays.
   };
   saveTicket(context.root, ticket, next);
   return next;

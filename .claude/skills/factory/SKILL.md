@@ -34,13 +34,13 @@ Rules for the whole run:
 1. Run `node tooling/repo-checks/scripts/factory.mjs next`. It stores the next step. The `Stop` hook gives you that step each time you try to stop.
    - Exit 3 with `hard stop: <reason>` is a hard stop (a thread with 3 agent replies, a `gh` call that failed twice). Use the ticket number `#<n>` of the message and the reason "script hard stop". Go to "Hard stop".
 2. Read the line `next: ...` and go to the matching step.
-   - `fix owner comments of #<m> (PR #<p>)`: a new owner comment waits on a green ticket. It comes before any new ticket. Go to "Comment fix round" with ticket `<m>`.
+   - `fix owner comments of #<m> (PR #<p>)`: a new owner comment waits on a green ticket. It comes after a ticket in flight resumes, and before any new ticket. Go to "Comment fix round" with ticket `<m>`.
    - `start #<m>, stacked on #<k>`: the line has `(PR ..., branch ...)` after it. Check this one first, before the plain `start`. The stack steps are (built in task 7b, #112). Do not start the ticket. Run `node tooling/repo-checks/scripts/factory.mjs stop`, tell the owner, and stop.
    - `start #<m>`: a new ticket, or an owner restart. Work the ticket (next section).
    - `resume #<m> (stage <s>)`: work the ticket (next section).
    - `wait for the CI of PR #<m>`: a CI wait runs already. Wait for its end. Then run `next` again.
    - `done`: show the run report path that `next` prints. Report the tickets done, the PRs that wait for a merge, and the skips. The `Stop` hook allows the stop.
-3. Owner review comments come as the step `fix owner comments of #<m> (PR #<p>)`. `next` gives it before a resume or a new ticket, and only for a green ticket. A ticket in flight finishes first.
+3. Owner review comments come as the step `fix owner comments of #<m> (PR #<p>)`. The order is: a ticket in flight finishes first, then owner comments, then a new ticket. `next` gives the step only for a green ticket, and only when no ticket is in flight.
 
 ## Stage moves
 

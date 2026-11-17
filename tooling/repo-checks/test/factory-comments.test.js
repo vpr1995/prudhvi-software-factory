@@ -59,6 +59,13 @@ const metricsV1 = `Run metrics\n${FENCE}factory-metrics\n{"version":1}\n${FENCE}
 const ticketBody =
   '### Context\n\nPaths: `docs/guides/x.md`\n\n### Acceptance\n\n- [ ] R-1: a thing\n\n### Notes\n\nSize: 2\n';
 
+const labeled = (name, time) => ({
+  event: 'labeled',
+  label: { name },
+  actor: { login: OWNER },
+  [CREATED]: time,
+});
+
 /** A gh stub over a world. Records each call with the text of its body file. */
 function makeWorld(config = {}) {
   const world = {
@@ -67,6 +74,7 @@ function makeWorld(config = {}) {
     reviews: [],
     issueComments: [],
     readyTickets: [],
+    inProgress: [7],
     prOfBranch: new Map([['feat/7-x', PR]]),
     checkBucket: 'pass',
     ...config,
@@ -83,13 +91,8 @@ function makeWorld(config = {}) {
     if (/\/pulls\/\d+\/reviews$/.test(endpoint)) return JSON.stringify([world.reviews]);
     if (/\/issues\/\d+\/comments$/.test(endpoint)) return JSON.stringify([world.issueComments]);
     if (endpoint.endsWith('/events')) {
-      const event = {
-        event: 'labeled',
-        label: { name: 'agent:ready' },
-        actor: { login: OWNER },
-        [CREATED]: '2026-11-10T08:00:00Z',
-      };
-      return JSON.stringify([[event]]);
+      const event = labeled('agent:ready', '2026-11-10T08:00:00Z');
+      return JSON.stringify([world.events ?? [event]]);
     }
     if (endpoint.endsWith('/dependencies/blocked_by')) return '[]';
     return JSON.stringify({ [SUMMARY]: { total: 0 } });
@@ -97,7 +100,7 @@ function makeWorld(config = {}) {
   const answerIssue = (args) => {
     if (args[1] === 'list') {
       const label = args[args.indexOf('--label') + 1];
-      const numbers = label === 'agent:ready' ? world.readyTickets : [7];
+      const numbers = label === 'agent:ready' ? world.readyTickets : world.inProgress;
       return JSON.stringify(numbers.map((number) => ({ number })));
     }
     const number = Number(args[2]);
@@ -116,7 +119,7 @@ function makeWorld(config = {}) {
       return JSON.stringify({ nameWithOwner: REPO, owner: { login: world.owner } });
     }
     if (first === 'project') {
-      const items = [7, ...world.readyTickets].map((number) => ({
+      const items = [...world.inProgress, ...world.readyTickets].map((number) => ({
         id: `I_${String(number)}`,
         content: { number, type: 'Issue', repository: REPO },
         status: 'Ready',
@@ -338,6 +341,24 @@ test('R-30: only a green ticket gets a comment step: a ticket whose CI runs resu
   assert.match(result.out, /resume #7 \(stage ci\)/);
 });
 
+test('R-30: a ticket in flight resumes before the comment step of a green ticket, and the comment step comes before a new ticket', () => {
+  const { root, gh } = scene({
+    reviewComments: [ownerReviewComment(101)],
+    readyTickets: [8],
+    inProgress: [7, 9],
+  });
+  seedTicket(root, 9, { stage: 'building' });
+  const first = factory('next', [], { gh, root });
+  assert.equal(first.code, 0, first.errors);
+  assert.match(first.out, /next: resume #9 \(stage building\)/);
+  assert.doesNotMatch(first.out, /fix owner comments/);
+  seedTicket(root, 9, { stage: 'green' });
+  const second = factory('next', [], { gh, root });
+  assert.equal(second.code, 0, second.errors);
+  assert.match(second.out, NEXT_COMMENT);
+  assert.doesNotMatch(second.out, /start #8/);
+});
+
 test('R-30 and R-2: with `only` set, comments on the PR of another ticket are not read', () => {
   const { root, gh, calls } = scene({
     run: { only: 8 },
@@ -497,6 +518,33 @@ test('R-31: a handled comment in a full thread is not a new comment, so it gives
   const result = factory('next', [], { gh, root });
   assert.equal(result.code, 0, result.errors);
   assert.match(result.out, /next: start #8/);
+});
+
+test('R-31 and R-51: an owner restart resets the thread counts, so a new comment in the thread gets a fix round', () => {
+  const { root, gh } = scene({
+    ticket: { stage: 'needs-human', threadReplies: { 101: 3 }, handledComments: [101, 102, 103] },
+    events: [
+      labeled('agent:ready', '2026-11-10T08:00:00Z'),
+      labeled('needs-human', '2026-11-11T08:00:00Z'),
+      labeled('agent:ready', '2026-11-12T08:00:00Z'),
+    ],
+    reviewComments: [
+      ownerReviewComment(101),
+      ownerReviewComment(102, 'again', { [IN_REPLY]: 101 }),
+      ownerReviewComment(103, 'again', { [IN_REPLY]: 101 }),
+      ownerReviewComment(104, 'still wrong', { [IN_REPLY]: 101 }),
+    ],
+  });
+  const restart = factory('next', [], { gh, root });
+  assert.equal(restart.code, 0, restart.errors);
+  const restarted = readJson(root, '7', 'ticket.json');
+  assert.equal(restarted.resumes, 1, 'the restart ran');
+  assert.deepEqual(restarted.threadReplies, {});
+  assert.deepEqual(restarted.handledComments, [101, 102, 103]);
+  seedTicket(root, 7, { ...restarted, stage: 'green' });
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, NEXT_COMMENT);
 });
 
 // The skill

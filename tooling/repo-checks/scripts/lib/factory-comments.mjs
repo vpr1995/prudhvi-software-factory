@@ -1,17 +1,18 @@
 // The review loop of the /factory script (design factory-daily-run 4.3, 4.5; R-9, R-30, R-31).
 //
 // `findCommentStep` is the seam of `next`: a green ticket whose open PR has a new owner comment
-// gives `{ kind: 'comment', ticket, pr }` before any ticket resume or start. A comment is new when
-// it passes the owner filter (lib/factory-github.mjs, R-9) and its id is not in `handledComments`.
-// Only a `green` ticket is looked at: a ticket in flight resumes first, and its comments are read
-// when it is green again. `only` of the run limits the scan to one ticket (R-2).
+// gives `{ kind: 'comment', ticket, pr }` before a new ticket. A comment is new when it passes the
+// owner filter (lib/factory-github.mjs, R-9) and its id is not in `handledComments`. Order: a ticket
+// in flight (`building`, `reviewing`, `ci`) resumes first, then owner comments, then a new ticket.
+// So `findCommentStep` gives nothing while any local ticket is in flight: two tickets must not be in
+// flight. Only a `green` ticket is looked at. `only` of the run limits the scan to one ticket (R-2).
 //
 // R-31: a new comment in a thread with 3 agent replies (`threadReplies` of ticket.json, counted by
 // `comment <n> reply <id>`) is a hard stop. The reason has fixed words and numbers only.
 //
 // `comments <n>` prints the new owner comments of a ticket: it is the only way the skill reads
 // comment text. It writes nothing. `replyTarget` and `repliedState` serve `comment <n> reply <id>`.
-import { fail, ticketNumber } from './factory-base.mjs';
+import { fail, IN_FLIGHT, ticketNumber } from './factory-base.mjs';
 import { hardStop, ownerComments, readPrComments } from './factory-github.mjs';
 import { localTickets } from './factory-queue.mjs';
 import { ghJson, loadTicket } from './factory-state.mjs';
@@ -70,7 +71,8 @@ function checkThreads(ticket, { state, fresh }) {
 }
 
 /**
- * Looks for a new owner comment. Reads only. Makes no `gh` call when no ticket is green.
+ * Looks for a new owner comment. Reads only. Makes no `gh` call when no ticket is green. Gives
+ * nothing while a local ticket is in flight: that ticket resumes first.
  *
  * @param {object} context - Command context (root, gh).
  * @param {number | null} only - The ticket of `start <n>`, or null.
@@ -78,10 +80,11 @@ function checkThreads(ticket, { state, fresh }) {
  * @throws {HardStopError} A new comment is in a thread with 3 agent replies (R-31).
  */
 export function findCommentStep(context, only) {
-  const green = localTickets(context.root, only)
+  const tickets = localTickets(context.root, only)
     .toSorted(byNumber)
-    .map((ticket) => ({ ticket, state: loadTicket(context.root, ticket) }))
-    .filter(({ state }) => state.stage === COMMENT_STAGE);
+    .map((ticket) => ({ ticket, state: loadTicket(context.root, ticket) }));
+  if (tickets.some(({ state }) => IN_FLIGHT.has(state.stage))) return;
+  const green = tickets.filter(({ state }) => state.stage === COMMENT_STAGE);
   if (green.length === 0) return;
   const owner = ownerOf(context);
   for (const { ticket, state } of green) {

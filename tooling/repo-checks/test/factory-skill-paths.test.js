@@ -229,7 +229,7 @@ test('loop: each describeNext line meets its own bullet first', () => {
 test('loop: step 3 sends an owner comment to the comment fix round, and only for a green ticket', () => {
   const [, , third] = stepsOf('Loop');
   assert.match(third, /fix owner comments of #<m> \(PR #<p>\)/);
-  assert.match(third, /before a resume or a new ticket/);
+  assert.match(third, /a ticket in flight finishes first, then owner comments, then a new ticket/);
   assert.match(third, /only for a green ticket/);
   assert.doesNotMatch(third, /#101|Do not act on|Skip this step/);
 });
