@@ -133,8 +133,7 @@ function attempt(what, derive) {
   }
 }
 
-function derive(context, ticket) {
-  const restart = attempt('restart', () => applyRestart(context, ticket));
+function countsOf(context, ticket, restart) {
   const state = restart.problem === undefined ? restart.value : undefined;
   const ci = attempt('failed CI runs', () =>
     failedCiRuns(context, state ?? fail('no ticket state')),
@@ -161,6 +160,28 @@ function derive(context, ticket) {
     reason: reasons.length > 0 ? reasons.join('; ') : null,
   };
 }
+
+const derive = (context, ticket) =>
+  countsOf(
+    context,
+    ticket,
+    attempt('restart', () => applyRestart(context, ticket)),
+  );
+
+/**
+ * Read only (`status`, R-46): the counts of `caps` with no restart (R-51) and no lock, so it writes
+ * nothing. A count that cannot be derived is null with the reason in `reason`.
+ *
+ * @param {object} context - Command context (root, gh).
+ * @param {string} ticket - Ticket number as text.
+ * @returns {{ failedCi: number | null, activeMinutes: number | null, reached: boolean, reason: string | null }}
+ */
+export const peekCaps = (context, ticket) =>
+  countsOf(
+    context,
+    ticket,
+    attempt('ticket state', () => loadTicket(context.root, ticket)),
+  );
 
 /** @returns {string} The JSON of the counts. A reached cap prints the JSON and throws HardStopError. */
 export function capsCommand([ticketWord, ...extra], context) {
