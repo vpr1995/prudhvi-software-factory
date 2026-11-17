@@ -9,6 +9,11 @@
 // start [<n>] [--dry-run]: build the queue, mark the run active or adopt it, print the plan
 // (lib/factory-queue.mjs, task 2c). `--dry-run` writes nothing. `FACTORY_RUN=off` refuses (R-4).
 //
+// next: find the next step (resume, start, CI wait, or done) and store it in run.json. On `done`
+// it writes the run report and clears the run (R-5). status: print the run state, read only
+// (R-46). stop: clear the run, keep each ticket.json, change no label, write the report (R-47).
+// report: write the run report (R-29). Code: lib/factory-next.mjs, lib/factory-report.mjs.
+//
 // push <n>: the local test guard, then `git push origin HEAD:<branch>` (task 2a2, R-17, R-54).
 // stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
 //
@@ -32,8 +37,10 @@ import {
   run,
 } from './lib/factory-github.mjs';
 import { hardstopCommand } from './lib/factory-hard-stop.mjs';
+import { nextCommand, statusCommand } from './lib/factory-next.mjs';
 import { pushCommand } from './lib/factory-push.mjs';
 import { startCommand } from './lib/factory-queue.mjs';
+import { reportCommand, stopCommand } from './lib/factory-report.mjs';
 import { parseSize, route, routingLine } from './lib/factory-route.mjs';
 import { COMMANDS, FactoryError, loadTicket, saveTicket, SYNOPSES } from './lib/factory-state.mjs';
 import { isRunOff } from './lib/factory.config.mjs';
@@ -52,6 +59,10 @@ const DEFAULT_BASE = 'origin/main';
 const TICKET = /^\d+$/;
 const USAGE = [
   'start [<n>] [--dry-run]',
+  'next',
+  'status',
+  'stop',
+  'report',
   'route <n> [--base <ref>]',
   'push <n>',
   'comment <n> <hard-stop|reply> [<reply-to-id>]   (body on stdin)',
@@ -126,9 +137,13 @@ const HANDLERS = new Map([
   ['caps', capsCommand],
   ['comment', commentCommand],
   ['hardstop', hardstopCommand],
+  ['next', nextCommand],
   ['push', pushCommand],
+  ['report', reportCommand],
   ['route', routeCommand],
   ['start', startCommand],
+  ['status', statusCommand],
+  ['stop', stopCommand],
 ]);
 
 /** @returns {object} The context of the commands. A test replaces any part. */

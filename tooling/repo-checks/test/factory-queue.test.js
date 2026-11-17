@@ -1,5 +1,5 @@
-// Tests for `start` of scripts/factory.mjs (design factory-daily-run 4.1, 4.3, 4.5: R-1, R-2, R-3,
-// R-4, R-6, R-7, R-43, R-50, R-51). `gh` is a stub built from a small world (issues, board, PRs).
+// Tests for `start`, `next`, `status`, `stop` and `report` of scripts/factory.mjs (design
+// factory-daily-run 4.1, 4.3, 4.5: R-1 to R-7, R-29, R-43, R-46, R-47, R-50, R-51). `gh` is a stub built from a small world (issues, board, PRs).
 // No test calls the real gh or the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -86,6 +86,7 @@ const READ_CALLS = new Set([
   'issue view',
   'pr list',
   'pr checks',
+  'run list',
 ]);
 /** @returns {boolean} True when the gh call can only read. */
 const isRead = (args) =>
@@ -138,6 +139,7 @@ function answer(world, args) {
     return JSON.stringify({ items });
   }
   if (first === 'issue') return answerIssue(world, args);
+  if (first === 'run') return JSON.stringify(world.runs);
   if (first === 'api') return answerApi(world, args);
   if (first === 'pr' && second === 'list') {
     if (args.includes('--head')) return JSON.stringify(world.branchPrs.get(args[3]) ?? []);
@@ -159,6 +161,7 @@ function makeWorld(config = {}) {
     openPrs: [],
     branchPrs: new Map(),
     checks: new Map(),
+    runs: [],
     ...config,
   };
   const calls = [];
@@ -991,4 +994,432 @@ test('start releases the lock when it ends', () => {
   add(makeIssue(7));
   start([], { gh, root });
   assert.equal(exists(stateFile(root, 'lock')), false);
+});
+
+// next, status, stop, report (task 2c2: R-5, R-29, R-46, R-47)
+
+const NO_GH = () => {
+  throw new Error('no gh call expected');
+};
+
+/** Runs one factory command in process. */
+function factory(command, words, { gh = NO_GH, root, ...overrides }) {
+  const out = [];
+  const errors = [];
+  const code = main(['node', 'factory.mjs', command, ...words], {
+    root,
+    gh,
+    runOff: () => false,
+    now: () => NOW,
+    pid: process.pid + 1_000_000,
+    stdin: () => '',
+    ...overrides,
+    print: (text) => out.push(text),
+    err: (text) => errors.push(text),
+  });
+  return { code, out: out.join(''), errors: errors.join('') };
+}
+
+const OLD_RUN = 'old-run';
+const REPORT = `runs/${OLD_RUN}-report.md`;
+const NOT_WAITING = { next: null, waiting: null, stopChecks: { count: 0, lastHash: null } };
+const logLine = (ticket, event, extra = {}) => ({
+  ts: '2026-11-17T09:00:00Z',
+  ticket,
+  event,
+  from: null,
+  to: null,
+  detail: '',
+  ...extra,
+});
+const seedLog = (root, lines) =>
+  writeAtomic(
+    stateFile(root, 'runs', `${OLD_RUN}.jsonl`),
+    `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`,
+  );
+const readReport = (root) => readFileSync(stateFile(root, REPORT), 'utf8');
+const ticketBytes = (root) =>
+  new Map([...snapshot(root)].filter(([file]) => file.endsWith('ticket.json')));
+
+// next: R-5
+
+test('R-5: an empty queue gives done, writes the run report, and clears the run', () => {
+  const root = temporaryFolder();
+  const { gh, calls } = makeWorld();
+  seedRun(root, NOT_WAITING);
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: done/);
+  assert.ok(result.out.includes(`${STATE}/${REPORT}`));
+  const run = readJson(root, 'run.json');
+  assert.equal(run.active, false);
+  assert.deepEqual(run.next, { kind: 'done' });
+  assert.match(readReport(root), /^# Run report: old-run$/m);
+  assert.match(readReport(root), /## Resume command\n+`\/factory`/);
+  assert.deepEqual(writeCalls(calls), []);
+});
+
+test('R-5: when each ticket left is blocked and cannot stack, next gives done and the report lists the skip', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { blockedBy: [makeBlocker(3)] }));
+  seedRun(root, NOT_WAITING);
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: done/);
+  assert.equal(readJson(root, 'run.json').active, false);
+  assert.match(readReport(root), /## Tickets skipped\n+- #7: blocked by #3: no open PR/);
+  assert.ok(runLog(root, OLD_RUN).some((line) => line.event === 'skip' && line.ticket === 7));
+});
+
+test('R-5: the run has no ticket count limit: many done tickets do not end it', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(20));
+  for (const ticket of [11, 12, 13, 14, 15, 16]) seedTicket(root, ticket, { stage: 'done' });
+  seedRun(root, NOT_WAITING);
+  seedLog(
+    root,
+    [11, 12, 13, 14, 15, 16].map((ticket) => logLine(ticket, 'stage')),
+  );
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: start #20/);
+  assert.equal(readJson(root, 'run.json').active, true);
+});
+
+test('R-5: a ticket to start is stored in run.json next, with no gh write', () => {
+  const root = temporaryFolder();
+  const { gh, calls, add } = makeWorld();
+  add(makeIssue(8), makeIssue(9));
+  seedRun(root, NOT_WAITING);
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: start #8/);
+  assert.deepEqual(readJson(root, 'run.json').next, { kind: 'ticket', ticket: 8, resume: false });
+  assert.equal(readJson(root, 'run.json').active, true);
+  assert.deepEqual(writeCalls(calls), []);
+  assert.equal(exists(stateFile(root, REPORT)), false, 'no report while the run goes on');
+});
+
+test('R-43: a ticket with agent:in-progress and a ticket.json resumes at its stage, before a new ticket', () => {
+  const root = temporaryFolder();
+  const { gh, add, world } = makeWorld();
+  add(makeIssue(8), makeIssue(7, { labels: ['agent:in-progress'], body: 'no acceptance here' }));
+  world.board = [8, 7];
+  seedTicket(root, 7, { stage: 'reviewing' });
+  seedRun(root, NOT_WAITING);
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: resume #7 \(stage reviewing\)/);
+  assert.deepEqual(readJson(root, 'run.json').next, {
+    kind: 'ticket',
+    ticket: 7,
+    resume: true,
+    stage: 'reviewing',
+  });
+});
+
+test('R-23: next reconciles a local ticket with GitHub before it picks', () => {
+  const root = temporaryFolder();
+  const { gh, add, world } = makeWorld();
+  add(makeIssue(7, { labels: ['agent:in-progress'], body: 'x' }));
+  world.branchPrs.set('feat/7-x', [{ number: 70, state: 'OPEN' }]);
+  world.checks.set(70, PASS);
+  seedTicket(root, 7, { stage: 'building' });
+  seedRun(root, NOT_WAITING);
+  const result = factory('next', [], { gh, root });
+  assert.match(result.out, /reconcile #7: local=building github=green/);
+  assert.equal(readJson(root, '7', 'ticket.json').stage, 'green');
+  assert.equal(readJson(root, 'run.json').next.stage, 'green');
+});
+
+test('R-2: next respects only: other ready tickets do not count', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { blockedBy: [makeBlocker(3)] }), makeIssue(8));
+  seedRun(root, { ...NOT_WAITING, only: 7 });
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: done/);
+  assert.match(readReport(root), /Scope: only #7/);
+  assert.match(readReport(root), /`\/factory 7`/);
+});
+
+test('R-5: a stored CI wait of the run gives next wait, with no gh call', () => {
+  const root = temporaryFolder();
+  seedRun(root, { next: null, waiting: { pr: 3, since: '2026-11-17T09:00:00Z' } });
+  const result = factory('next', [], { root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: wait for the CI of PR #3/);
+  assert.deepEqual(readJson(root, 'run.json').next, { kind: 'wait', pr: 3 });
+  assert.equal(readJson(root, 'run.json').active, true);
+});
+
+test('next refuses when no run is active, and writes nothing', () => {
+  const root = temporaryFolder();
+  const none = factory('next', [], { root });
+  assert.equal(none.code, 2);
+  assert.match(none.errors, /no active run/);
+  seedRun(root, { ...NOT_WAITING, active: false });
+  const before = snapshot(root);
+  const ended = factory('next', [], { root });
+  assert.equal(ended.code, 2);
+  assert.match(ended.errors, /no active run/);
+  assert.deepEqual(snapshot(root), before);
+});
+
+test('next logs a skip once: a second call adds no line, so the active time of caps does not grow', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(9, { labels: ['agent:ready', 'needs-human'] }), makeIssue(8));
+  seedRun(root, NOT_WAITING);
+  assert.equal(factory('next', [], { gh, root }).code, 0);
+  assert.equal(factory('next', [], { gh, root }).code, 0);
+  assert.equal(runLog(root, OLD_RUN).filter((line) => line.ticket === 9).length, 1);
+});
+
+test('next shows no title or body text in the output, the log, or the report', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(
+    makeIssue(7, {
+      title: 'SECRET-TITLE',
+      body: 'SECRET-BODY',
+      labels: ['agent:ready', 'needs-human'],
+    }),
+  );
+  seedRun(root, NOT_WAITING);
+  const result = factory('next', [], { gh, root });
+  assert.match(result.out, /next: done/);
+  const text = [...snapshot(root).values()].join('\n') + result.out;
+  assert.doesNotMatch(text, /SECRET/);
+});
+
+test('next holds the lock: a lock of a live process refuses it, and the lock is released after', () => {
+  const root = temporaryFolder();
+  const { gh } = makeWorld();
+  seedRun(root, NOT_WAITING);
+  writeAtomic(stateFile(root, 'lock'), String(process.pid));
+  const refused = factory('next', [], { gh, root });
+  assert.equal(refused.code, 2);
+  assert.match(refused.errors, /lock held/);
+  writeAtomic(stateFile(root, 'lock'), '999999999');
+  assert.equal(factory('next', [], { gh, root }).code, 0);
+  assert.equal(exists(stateFile(root, 'lock')), false);
+});
+
+// status: R-46
+
+test('R-46: status prints active, the current ticket and stage, the cap counts, and the next step, and changes nothing', () => {
+  const root = temporaryFolder();
+  const { gh, calls, world } = makeWorld();
+  world.runs = [{ conclusion: 'failure', createdAt: '2026-11-17T09:30:00Z' }];
+  seedTicket(root, 7, { stage: 'reviewing' });
+  seedRun(root, { next: { kind: 'ticket', ticket: 7, resume: true, stage: 'reviewing' } });
+  seedLog(root, [
+    logLine(7, 'stage', { ts: '2026-11-17T09:00:00Z', to: 'building' }),
+    logLine(7, 'stage', { ts: '2026-11-17T09:05:00Z', to: 'reviewing' }),
+    logLine(7, 'gate', { ts: '2026-11-17T09:30:00Z' }),
+  ]);
+  const before = snapshot(root);
+  const result = factory('status', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /^run: active \(old-run/m);
+  assert.match(result.out, /^current: #7, stage reviewing$/m);
+  assert.match(result.out, /^caps: failed CI runs 1, active minutes 15$/m);
+  assert.match(result.out, /^next: resume #7 \(stage reviewing\)$/m);
+  assert.deepEqual(writeCalls(calls), []);
+  assert.deepEqual(snapshot(root), before);
+  assert.equal(exists(stateFile(root, 'lock')), false);
+});
+
+test('R-46: status shows a reached cap and still exits 0', () => {
+  const root = temporaryFolder();
+  const { gh, world } = makeWorld();
+  world.runs = [1, 2, 3].map(() => ({ conclusion: 'failure', createdAt: '2026-11-17T09:30:00Z' }));
+  seedTicket(root, 7);
+  seedRun(root);
+  seedLog(root, [logLine(7, 'stage')]);
+  const result = factory('status', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(
+    result.out,
+    /^caps: failed CI runs 3, active minutes 0; cap reached: 3 failed CI runs/m,
+  );
+});
+
+test('R-46: status with a count that cannot be read says unknown and the reason', () => {
+  const root = temporaryFolder();
+  const failing = (args) => {
+    if (args[0] === 'run') throw new Error('network down');
+    return '';
+  };
+  seedTicket(root, 7);
+  seedRun(root);
+  seedLog(root, [logLine(7, 'stage')]);
+  const result = factory('status', [], { gh: failing, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /^caps: failed CI runs unknown.*network down/m);
+});
+
+test('R-46: status of an ended run and of no run', () => {
+  const root = temporaryFolder();
+  assert.match(factory('status', [], { root }).out, /^run: none/m);
+  seedRun(root, { ...NOT_WAITING, active: false, next: { kind: 'done' } });
+  const result = factory('status', [], { root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /^run: not active \(old-run/m);
+  assert.match(result.out, /^current: none$/m);
+  assert.match(result.out, /^next: done$/m);
+  seedRun(root, { ...NOT_WAITING, active: false, stalled: true });
+  assert.match(factory('status', [], { root }).out, /^run: stalled/m);
+});
+
+// stop: R-47
+
+test('R-47: stop clears the run, keeps each ticket.json, changes no label, and writes the report with the current ticket and the resume command', () => {
+  const root = temporaryFolder();
+  seedTicket(root, 7, { stage: 'building' });
+  seedTicket(root, 6, { stage: 'green', pr: 60 });
+  seedRun(root, { only: 7 });
+  seedLog(root, [logLine(6, 'stage', { to: 'green' }), logLine(7, 'stage', { to: 'building' })]);
+  const before = ticketBytes(root);
+  const result = factory('stop', [], { root }); // the default gh stub throws: no gh call at all
+  assert.equal(result.code, 0, result.errors);
+  assert.deepEqual(ticketBytes(root), before, 'each ticket.json is kept as it was');
+  const run = readJson(root, 'run.json');
+  assert.equal(run.active, false);
+  assert.equal(run.next, null);
+  assert.equal(run.runId, OLD_RUN);
+  const report = readReport(root);
+  assert.match(report, /^Status: stopped by the owner/m);
+  assert.match(report, /## Current ticket\n+#7, stage building/);
+  assert.match(report, /## Resume command\n+`\/factory 7`/);
+  assert.ok(result.out.includes(`${STATE}/${REPORT}`));
+  assert.ok(runLog(root, OLD_RUN).some((line) => line.event === 'stop' && line.ticket === 0));
+});
+
+test('R-47: stop with no active run says so, writes nothing, and exits 0; a second stop is the same', () => {
+  const root = temporaryFolder();
+  const none = factory('stop', [], { root });
+  assert.equal(none.code, 0, none.errors);
+  assert.match(none.out, /no active run/);
+  assert.deepEqual(snapshot(root), new Map());
+  seedRun(root);
+  assert.equal(factory('stop', [], { root }).code, 0);
+  const after = snapshot(root);
+  const again = factory('stop', [], { root });
+  assert.equal(again.code, 0, again.errors);
+  assert.match(again.out, /no active run/);
+  assert.deepEqual(snapshot(root), after);
+});
+
+test('R-47: stop clears a stalled run too', () => {
+  const root = temporaryFolder();
+  seedRun(root, { active: false, stalled: true });
+  assert.equal(factory('stop', [], { root }).code, 0);
+  assert.equal(readJson(root, 'run.json').stalled, false);
+  assert.ok(exists(stateFile(root, REPORT)));
+});
+
+// report: R-29
+
+function seedFullRun(root) {
+  seedTicket(root, 5, { stage: 'done', pr: 50 });
+  seedTicket(root, 6, { stage: 'green', pr: 60 });
+  seedTicket(root, 7, { stage: 'building' });
+  seedTicket(root, 8, { stage: 'needs-human', pr: null });
+  seedRun(root, {
+    stopped: { ticket: 8, reason: 'tests fail', failedSteps: ['4 comment'] },
+  });
+  seedLog(root, [
+    logLine(5, 'stage', { to: 'done' }),
+    logLine(6, 'stage', { to: 'green' }),
+    logLine(7, 'stage', { to: 'building' }),
+    logLine(8, 'stage', { to: 'needs-human' }),
+    logLine(8, 'skip', { detail: 'step 5 metrics: skipped: task 5' }),
+    logLine(9, 'skip', { detail: 'blocked by #3: no open PR (R-6)' }),
+    logLine(9, 'skip', { detail: 'blocked by #3: CI of PR #4 is pending (R-6)' }),
+    logLine(6, 'skip', { detail: 'issue is closed' }),
+  ]);
+}
+
+test('R-29: report has the done tickets, the PRs that wait, the ticket that stopped and why, the skips, the failed hard-stop steps, and the resume command', () => {
+  const root = temporaryFolder();
+  seedFullRun(root);
+  const result = factory('report', [], { root });
+  assert.equal(result.code, 0, result.errors);
+  const report = readReport(root);
+  assert.equal(result.out.includes(report), true, 'the command prints the report');
+  const section = (name) =>
+    report
+      .split(/^## /m)
+      .find((part) => part.startsWith(name))
+      ?.split('\n')
+      .slice(1)
+      .join('\n')
+      .trim();
+  assert.equal(section('Tickets done'), '- #5, PR #50\n- #6, PR #60');
+  assert.equal(section('PRs that wait for a merge'), '- PR #60 (#6)');
+  assert.equal(section('Ticket that stopped'), '- #8: tests fail');
+  assert.equal(section('Tickets skipped'), '- #9: blocked by #3: CI of PR #4 is pending (R-6)');
+  assert.equal(section('Hard-stop steps that failed'), '- step 4 comment');
+  assert.equal(section('Current ticket'), '#7, stage building');
+  assert.match(section('Resume command'), /`\/factory`/);
+});
+
+test('R-29: a report of a run with nothing to list says none in each section', () => {
+  const root = temporaryFolder();
+  seedRun(root);
+  const result = factory('report', [], { root });
+  assert.equal(result.code, 0, result.errors);
+  const report = readReport(root);
+  const names = [
+    'Tickets done',
+    'PRs that wait for a merge',
+    'Ticket that stopped',
+    'Tickets skipped',
+    'Hard-stop steps that failed',
+  ];
+  for (const name of names) assert.ok(report.includes(`## ${name}\n\nnone\n`), name);
+});
+
+test('R-29: report is the same text when it runs again, and it leaves the run as it was', () => {
+  const root = temporaryFolder();
+  seedFullRun(root);
+  factory('report', [], { root });
+  const first = snapshot(root);
+  const second = factory('report', [], { root, now: () => new Date('2026-11-18T10:00:00Z') });
+  assert.equal(second.code, 0, second.errors);
+  assert.deepEqual(snapshot(root), first);
+});
+
+test('R-29: report with no run.json fails loudly', () => {
+  const root = temporaryFolder();
+  const result = factory('report', [], { root });
+  assert.equal(result.code, 2);
+  assert.match(result.errors, /no run/);
+});
+
+test('R-29: the report holds no title or body text of a ticket, and the stop reason is redacted', () => {
+  const root = temporaryFolder();
+  seedTicket(root, 8, { stage: 'needs-human' });
+  seedRun(root, {
+    stopped: { ticket: 8, reason: 'bad token=abc123 in /Users/bob/x', failedSteps: [] },
+  });
+  seedLog(root, [logLine(8, 'stage')]);
+  assert.equal(factory('report', [], { root }).code, 0);
+  assert.doesNotMatch(readReport(root), /abc123|bob/);
+  assert.match(readReport(root), /\[redacted\]/);
+});
+
+test('next, status, stop and report refuse extra words', () => {
+  const root = temporaryFolder();
+  seedRun(root);
+  for (const command of ['next', 'status', 'stop', 'report']) {
+    const result = factory(command, ['extra'], { root });
+    assert.equal(result.code, 2, command);
+    assert.match(result.errors, /Usage/);
+  }
 });

@@ -693,8 +693,10 @@ test('R-12: the steps run in order, push needs no guard, and nothing opens a PR'
     '7 clear',
   ]);
   assert.match(result.out, /step 5 metrics: not built yet \(task 5\)/);
-  assert.match(result.out, /step 6 report: not built yet \(task 2c\)/);
-  assert.match(result.out, /step 7 clear: not built yet \(task 2c\)/);
+  assert.match(result.out, /step 6 report: wrote \.claude\/factory\/runs\/adhoc-report\.md/);
+  assert.match(result.out, /step 7 clear: no active run/);
+  const report = readFileSync(stateFile(work, 'runs', 'adhoc-report.md'), 'utf8');
+  assert.match(report, new RegExp(`## Ticket that stopped\\n+- #7: ${REASON}`));
   const lines = result.out.trimEnd().split('\n');
   assert.equal(
     lines.at(-1),
@@ -722,14 +724,12 @@ test('R-12: the steps run in order, push needs no guard, and nothing opens a PR'
     .split('\n')
     .map(JSON.parse);
   const detail = events.filter((entry) => entry.event === 'stop').map((entry) => entry.detail);
-  assert.equal(detail.length, 4);
+  assert.equal(detail.length, 6, 'steps 1 to 4, 6 and 7');
+  assert.match(detail[4], /^step 6 report: wrote /);
+  assert.equal(detail[5], 'step 7 clear: no active run');
   assert.deepEqual(
     events.filter((entry) => entry.event === 'skip').map((entry) => entry.detail),
-    [
-      'step 5 metrics: skipped: task 5',
-      'step 6 report: skipped: task 2c',
-      'step 7 clear: skipped: task 2c',
-    ],
+    ['step 5 metrics: skipped: task 5'],
   );
 });
 
@@ -1049,7 +1049,7 @@ test('R-12: a failed comment is not recorded, so the next run posts it', () => {
   const result = runFactory(['hardstop', '7', REASON], failing.overrides);
   assert.equal(result.code, 2);
   assert.match(result.out, /step 4 comment: FAILED: .*network/);
-  assert.match(result.out, /step 7 clear: not built yet/, 'later steps still run');
+  assert.match(result.out, /step 7 clear: no active run/, 'later steps still run');
   assert.match(result.errors, /steps failed: 4 comment/);
   const retry = hardstopOverrides(work);
   assert.equal(runFactory(['hardstop', '7', REASON], retry.overrides).code, 0);
@@ -1104,10 +1104,18 @@ test('R-12: a run.json that cannot be read does not stop the steps, and each log
   dirty(work);
   const { calls, overrides } = hardstopOverrides(work);
   const result = runFactory(['hardstop', '7', REASON], overrides);
-  assert.equal(result.code, 0, result.errors);
+  assert.equal(result.code, 2);
   const order = [...result.out.matchAll(/^step (\d) (\w+):/gm)].map((match) => match[2]);
   assert.deepEqual(order, ['labels', 'push', 'patch', 'comment', 'metrics', 'report', 'clear']);
-  assert.ok(!result.out.includes('FAILED'), result.out);
+  // Steps 6 and 7 are real now: with a run.json that cannot be read they fail loudly, and the
+  // other steps still run. Before task 2c they were no-ops, so no step failed.
+  assert.deepEqual(
+    [...result.out.matchAll(/^step (\d) \w+: FAILED/gm)].map((match) => match[1]),
+    ['6', '7'],
+  );
+  assert.match(result.out, /step 6 report: FAILED: run\.json: not valid JSON/);
+  assert.match(result.out, /step 7 clear: FAILED: run\.json: not valid JSON/);
+  assert.match(result.errors, /steps failed: 6 report, 7 clear/);
   assert.match(result.out, /^log failed: run\.json: not valid JSON$/m);
   assert.equal(
     result.out.match(/^log failed:/gm).length,
@@ -1529,4 +1537,95 @@ test('R-51: an events call that fails gives reached, and ticket.json is unchange
   assert.equal(result.json.reached, true);
   assert.match(result.json.reason, /cannot derive restart: .*network/);
   assert.equal(readTicket(work).resumes, 0);
+});
+
+// hardstop steps 6 and 7 (R-12, R-29, R-45: task 2c2)
+
+const seedActiveRun = (work) => {
+  writeAtomic(
+    stateFile(work, 'run.json'),
+    JSON.stringify({
+      runId: 'old-run',
+      sessionId: 'session-1',
+      sessionIds: ['session-1'],
+      active: true,
+      stalled: false,
+      startedAt: '2026-11-17T08:00:00Z',
+      only: null,
+      next: { kind: 'ticket', ticket: 7 },
+      waiting: null,
+      stopChecks: { count: 2, lastHash: 'abc' },
+    }),
+  );
+  seedLog(work, [logLine(T0)], 'old-run');
+};
+const readRun = (work) => JSON.parse(readFileSync(stateFile(work, 'run.json'), 'utf8'));
+const readRunReport = (work) => readFileSync(stateFile(work, 'runs', 'old-run-report.md'), 'utf8');
+
+test('R-12: step 6 writes the run report with the stopped ticket and the reason, and step 7 clears the run', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedActiveRun(work);
+  const { overrides } = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /step 6 report: wrote \.claude\/factory\/runs\/old-run-report\.md/);
+  assert.match(result.out, /step 7 clear: run cleared/);
+  const run = readRun(work);
+  assert.equal(run.active, false);
+  assert.equal(run.next, null);
+  assert.equal(run.runId, 'old-run');
+  assert.deepEqual(run.sessionIds, ['session-1'], 'the session list stays for the cost read');
+  const report = readRunReport(work);
+  assert.match(report, new RegExp(`## Ticket that stopped\\n+- #7: ${REASON}`));
+  assert.match(report, /## Hard-stop steps that failed\n+none/);
+  assert.match(report, /## Resume command/);
+  assert.equal(readTicket(work).stage, 'needs-human', 'ticket.json is kept');
+});
+
+test('R-12: a failed step is listed in the report, and the run is still cleared', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedActiveRun(work);
+  const failing = hardstopOverrides(work, {
+    replies: {
+      'issue comment': () => {
+        throw new HardStopError('gh issue comment failed twice: network');
+      },
+    },
+  });
+  const result = runFactory(['hardstop', '7', REASON], failing.overrides);
+  assert.equal(result.code, 2);
+  assert.match(readRunReport(work), /## Hard-stop steps that failed\n+- step 4 comment/);
+  assert.equal(readRun(work).active, false);
+  const retry = hardstopOverrides(work);
+  assert.equal(runFactory(['hardstop', '7', REASON], retry.overrides).code, 0);
+  assert.match(readRunReport(work), /## Hard-stop steps that failed\n+none/, 'the retry fixes it');
+});
+
+test('R-12: a second hardstop run keeps the report and run.json as they were, and posts nothing', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedActiveRun(work);
+  assert.equal(runFactory(['hardstop', '7', REASON], hardstopOverrides(work).overrides).code, 0);
+  const report = readRunReport(work);
+  const run = readFileSync(stateFile(work, 'run.json'), 'utf8');
+  const second = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', REASON], second.overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /step 7 clear: already cleared/);
+  assert.equal(readRunReport(work), report);
+  assert.equal(readFileSync(stateFile(work, 'run.json'), 'utf8'), run);
+  assert.equal(comments(second.calls).length, 0);
+});
+
+test('R-12: the reason in the report has secret-like strings and home paths removed', () => {
+  const { work } = makeRepository();
+  seedTicket(work);
+  seedActiveRun(work);
+  const { overrides } = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', 'fail token=abc123 in /Users/bob/x'], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.doesNotMatch(readRunReport(work), /abc123|bob/);
+  assert.doesNotMatch(readFileSync(stateFile(work, 'run.json'), 'utf8'), /abc123|bob/);
 });

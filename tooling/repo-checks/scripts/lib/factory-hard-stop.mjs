@@ -7,8 +7,8 @@
 //              holds it, because no regex can redact free-form error text for sure (owner, 2026-11-17)
 //   4 comment  post one ticket comment (the flag is `hardStop.commentKey` in ticket.json)
 //   5 metrics  named no-op until task 5 (#100)
-//   6 report   named no-op until task 2c (#107)
-//   7 clear    named no-op until task 2c (#107)
+//   6 report   store the stop in run.json and write the run report (R-29)
+//   7 clear    end the run: run.json stays, not active (R-45)
 // A failed step is printed and logged, the later steps still run, and the command exits 2 at the
 // end. The reason of the failure is on the step line. It opens no draft PR and starts no ticket.
 import { createHash } from 'node:crypto';
@@ -24,6 +24,7 @@ import {
 } from './factory-base.mjs';
 import { postComment, redactText } from './factory-comment.mjs';
 import { pushBranch } from './factory-push.mjs';
+import { clearForStop, recordStop } from './factory-report.mjs';
 import { loadTicket, moveStage, saveTicket, writeRunLog } from './factory-state.mjs';
 import { fileSize, listFolder, readOptional, writeAtomic } from './fs-io.mjs';
 
@@ -229,21 +230,25 @@ function stepComment(context, hs) {
   return 'posted';
 }
 
+// Steps 1 to 5 have run: `hs.failed` names the ones that failed.
+const stepReport = (context, hs) =>
+  recordStop(context, { ticket: hs.ticket, reason: hs.reason, failedSteps: hs.failed });
+
 const STEPS = [
   { name: 'labels', run: stepLabels },
   { name: 'push', run: stepPush },
   { name: 'patch', run: stepPatch },
   { name: 'comment', run: stepComment },
   { name: 'metrics', task: '5' },
-  { name: 'report', task: '2c' },
-  { name: 'clear', task: '2c' },
+  { name: 'report', run: stepReport },
+  { name: 'clear', run: (context) => clearForStop(context) },
 ];
 
 // A run log that cannot be written must not stop a hard stop: each log call is best effort.
 function runSteps(strict, hs) {
   const context = { ...strict, bestEffortLog: true };
   const { ticket } = hs;
-  const failed = [];
+  const { failed } = hs;
   for (const [index, step] of STEPS.entries()) {
     const label = `step ${String(index + 1)} ${step.name}`;
     let event = 'stop';
@@ -284,6 +289,7 @@ export function hardstopCommand(words, context) {
       excerpt,
       patch: undefined,
       excerptFile: undefined,
+      failed: [],
     });
     return '';
   });

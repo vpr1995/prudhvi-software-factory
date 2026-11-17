@@ -1,5 +1,5 @@
 // run.json of the /factory run (design factory-daily-run 4.3, R-50). `beginRun` starts a run or
-// adopts the active or stalled one. The caller holds the lock. If the caller fails later, it calls
+// adopts the active or stalled one. `clearRun` ends it (R-45). The caller holds the lock. If the caller fails later, it calls
 // `undo`: run.json is then as it was before `beginRun`. The caller calls `logAdoption` only after
 // it succeeded.
 import path from 'node:path';
@@ -78,4 +78,30 @@ export function beginRun(context, only) {
 export function logAdoption(context, { resumed }) {
   if (resumed === undefined) return;
   writeRunLog(context, { ticket: 0, event: 'resume', from: null, to: null, detail: resumed });
+}
+
+/** @returns {boolean} True when the run is active or stalled: `start` adopts it, `stop` ends it. */
+export const isOpenRun = (run) => run?.active === true || run?.stalled === true;
+
+/**
+ * R-45. Ends the run: not active, not stalled, no CI wait, stop counts at 0. run.json stays: the
+ * run report and the cost read (R-33) need `runId` and `sessionIds`. Safe to run again. The caller
+ * holds the lock.
+ *
+ * @param {object} context - Command context (root).
+ * @param {object | null} next - The `next` result to keep: `{ kind: 'done' }`, or null.
+ * @returns {boolean} True when the run was open. False when there was no run, or it was ended.
+ */
+export function clearRun(context, next = null) {
+  const run = loadRun(context.root);
+  if (run === undefined) return false;
+  saveRun(context.root, {
+    ...run,
+    active: false,
+    stalled: false,
+    next,
+    waiting: null,
+    stopChecks: NO_CHECKS,
+  });
+  return isOpenRun(run);
 }

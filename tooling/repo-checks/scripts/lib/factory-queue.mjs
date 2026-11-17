@@ -295,11 +295,16 @@ function localTickets(root, only) {
   });
 }
 
-function planAndLog(context, only, begun) {
+/** R-51 then R-23 for each local ticket that is not done. Writes ticket state. The caller holds the lock. */
+export function syncTickets(context, only) {
   for (const ticket of localTickets(context.root, only)) {
     applyRestart(context, ticket); // R-51 first: reconcile can move a restarted ticket on
     reconcile({ ...context, ticket });
   }
+}
+
+function planAndLog(context, only, begun) {
+  syncTickets(context, only);
   const plan = buildPlan(context, only);
   logAdoption(context, begun);
   for (const entry of plan.skipped) {
