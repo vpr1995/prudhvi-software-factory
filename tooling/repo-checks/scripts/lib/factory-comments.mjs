@@ -13,7 +13,7 @@
 // `comments <n>` prints the new owner comments of a ticket: it is the only way the skill reads
 // comment text. It writes nothing. `replyTarget` and `repliedState` serve `comment <n> reply <id>`.
 import { fail, IN_FLIGHT, ticketNumber } from './factory-base.mjs';
-import { hardStop, ownerComments, readPrComments } from './factory-github.mjs';
+import { hardStop, openPr, ownerComments, readPrComments } from './factory-github.mjs';
 import { localTickets } from './factory-queue.mjs';
 import { ghJson, loadTicket } from './factory-state.mjs';
 
@@ -26,22 +26,6 @@ const byNumber = (left, right) => Number(left) - Number(right);
 function ownerOf(context) {
   const login = ghJson(context, ['repo', 'view', '--json', 'nameWithOwner,owner']).owner?.login;
   return typeof login === 'string' && login !== '' ? login : fail('gh repo view: no owner login');
-}
-
-/** @returns {number | undefined} The open PR of the branch of the ticket. */
-function openPr(context, state) {
-  if (typeof state.branch !== 'string' || state.branch === '') return;
-  const prs = ghJson(context, [
-    'pr',
-    'list',
-    '--head',
-    state.branch,
-    '--state',
-    'open',
-    '--json',
-    'number',
-  ]);
-  return prs.find((pr) => Number.isInteger(pr.number) && pr.number > 0)?.number;
 }
 
 const isHandled = (state, comment) =>
