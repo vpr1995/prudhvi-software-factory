@@ -242,6 +242,15 @@ test('R-8: comment reply posts on the issue when ticket.json has no pr, or no ti
   assert.deepEqual(empty.calls[0].args.slice(0, 3), ['issue', 'comment', '7']);
 });
 
+test('R-8: comment hard-stop still posts when ticket.json is broken', () => {
+  const work = temporaryFolder();
+  writeAtomic(stateFile(work, '7', 'ticket.json'), '{broken');
+  const { gh, calls } = makeGh();
+  const result = runFactory(['comment', '7', HARD_STOP], { root: work, gh, stdin: () => 'stop' });
+  assert.equal(result.code, 0, result.errors);
+  assert.deepEqual(calls[0].args.slice(0, 3), ['issue', 'comment', '7']);
+});
+
 test('R-8: comment refuses an empty body, an unknown kind, and a bad argument, and calls no gh', () => {
   const work = temporaryFolder();
   seedTicket(work);
@@ -386,6 +395,59 @@ test('redaction: tokens and URL credentials that failureReason knows are removed
   const pat = `github_pat_${'x_Y9'.repeat(6)}`;
   const text = redactText(`fetch https://user:pass@github.com/a/b.git ${pat}`);
   for (const secret of ['user:pass', pat]) assert.ok(!text.includes(secret), secret);
+});
+
+const MEGABYTE = 1024 * 1024;
+const TIME_LIMIT_MS = 1000;
+
+/** Asserts that redactText finishes in under a second on the text, and returns its output. */
+function timedRedactText(text) {
+  const start = performance.now();
+  const output = redactText(text);
+  const elapsed = performance.now() - start;
+  assert.ok(
+    elapsed < TIME_LIMIT_MS,
+    `redactText took ${Math.round(elapsed)} ms on ${text.length} bytes`,
+  );
+  return output;
+}
+
+test('redaction: each pattern is linear on 1 MB of text that fits its character class', () => {
+  const units = ['a-', 'a.', 'a+', 'eyJ', 'eyJ-', 'eyJa.', 'sk-a', 'xoxb-', 'token-', 'api-key-'];
+  for (const unit of units) timedRedactText(unit.repeat(Math.ceil(MEGABYTE / unit.length)));
+  // Text with no secret in it must come back as it went in.
+  for (const plain of [
+    'a-'.repeat(MEGABYTE / 2),
+    'ab-'.repeat(MEGABYTE / 3),
+    'a.'.repeat(MEGABYTE / 2),
+  ]) {
+    assert.equal(timedRedactText(plain), plain);
+  }
+});
+
+test('redaction: 1 MB of hyphens does not hide a secret that follows it', () => {
+  const filler = 'a-'.repeat(MEGABYTE / 2);
+  const jwt = joined('eyJhbGciOiJIUzI1NiJ9', '.payload.sig');
+  const text = timedRedactText(
+    `${filler}\nfetch https://user:pass@github.com/a ${jwt} password=hunter2\n${filler}`,
+  );
+  assert.equal(text, `${filler}\nfetch https://***@github.com/a [redacted] [redacted]\n${filler}`);
+});
+
+test('redaction: a JWT in a long text is redacted whole, whatever the segment size', () => {
+  const jwt = joined('eyJhbGciOiJIUzI1NiJ9.', 'a'.repeat(20000), '.', 'b'.repeat(20000));
+  assert.equal(timedRedactText(`x ${jwt} y`), 'x [redacted] y');
+});
+
+test('redaction: JSON escaped inside a string, a => separator and an escaped quote are redacted', () => {
+  assert.equal(assertRedacted(String.raw`{\"token\":\"abc123\"}`, 'abc123'), '{[redacted]}');
+  assert.equal(assertRedacted('password => "hunter2"', 'hunter2'), '[redacted]');
+  assert.equal(assertRedacted(`secret => 'hunter2' end`, 'hunter2'), '[redacted] end');
+  assert.equal(assertRedacted('{"password": "a\\"b c"}', 'b c', 'a\\"'), '{[redacted]}');
+  assert.equal(
+    assertRedacted(String.raw`{\"password\": \"x y\", \"user\": 1}`, 'x y'),
+    String.raw`{[redacted], \"user\": 1}`,
+  );
 });
 
 // Secret-like test values are built from parts, so the secret scanner of the pre-commit hook does not flag this file.
@@ -542,6 +604,16 @@ test('R-8: a one-line triple backtick span is inline code, not a fence, and an o
     buildComment('```\nopen @a\nmore @b').split('\n').slice(1).join('|'),
     '```|open @a|more @b',
   );
+});
+
+test('R-8: an unclosed backtick run is literal, so a later lone backtick makes no fake code span', () => {
+  for (const body of ['``a @bob ` x', 'x `` @bob ` y', '`` @bob `', '``` @bob `` y']) {
+    const posted = buildComment(body);
+    assert.ok(posted.includes(`@${ZWSP}bob`), `${body} -> ${posted}`);
+  }
+  // A closer of the same length still makes code.
+  assert.equal(buildComment('`` @bob ``').split('\n')[1], '`` @bob ``');
+  assert.equal(buildComment('x ` @bob ``` @cy ` z').split('\n')[1], `x \` @bob \`\`\` @cy \` z`);
 });
 
 // hardstop (R-12)

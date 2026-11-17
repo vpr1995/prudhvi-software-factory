@@ -29,10 +29,13 @@ const SECRET_PATTERNS = [
   /npm_[A-Za-z0-9]{36}/g,
   /xox[abprs]-[A-Za-z0-9-]{10,}/g,
   /AIza[0-9A-Za-z_-]{35}/g,
-  /eyJ[\w-]+\.[\w-]+\.[\w-]+/g,
+  // A JWT starts at the start of a word: `(?<![\w-])` keeps the scan linear on `eyJeyJeyJ`.
+  /(?<![\w-])eyJ[\w-]+\.[\w-]+\.[\w-]+/g,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
-  // key, separator, value
-  /["']?(?:secret|token|password|passwd|api[_-]?key|access[_-]?key|authorization)[\w-]{0,24}["']?[^\S\n]*[:=][^\S\n]*(?:(?:Bearer|Basic)[^\S\n]+\S+|"[^"\n]*"|'[^'\n]*'|\S+)/gi,
+  // key, separator, value. The key is in a string, in JSON with escaped quotes: `{\"token\":\"x\"}`
+  /(?:\\")?(?:secret|token|password|passwd|(?:api|access)[_-]?key|authorization)[\w-]{0,24}\\"[^\S\n]*(?:=>|[:=])[^\S\n]*\\"[^"\\\n]*\\"/gi,
+  // key, separator, value. A quoted value ends at the first quote with no backslash before it.
+  /["']?(?:secret|token|password|passwd|api[_-]?key|access[_-]?key|authorization)[\w-]{0,24}["']?[^\S\n]*(?:=>|[:=])[^\S\n]*(?:(?:Bearer|Basic)[^\S\n]+\S+|"[^\n]*?(?<!\\)"|'[^\n]*?(?<!\\)'|\S+)/gi,
   // flag and value
   /--(?:password|passwd|token|secret|api[_-]?key|access[_-]?key)[^\S\n]+(?!-)(?:(?:Bearer|Basic)[^\S\n]+\S+|"[^"\n]*"|'[^'\n]*'|\S+)/gi,
 ];
@@ -58,7 +61,7 @@ export function redactText(text) {
 // pings nobody. A wrong guess must err on the side of a space: a fence that never closes runs to
 // the end of the text, as it does on GitHub.
 const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
-const INLINE_CODE_OR_MENTION = /(`+)(?!`).*?(?<!`)\1(?!`)|@(?=[A-Za-z0-9])/g;
+const INLINE_CODE_OR_MENTION = /(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)|@(?=[A-Za-z0-9])/g;
 
 const neutralize = (line) =>
   line.replaceAll(INLINE_CODE_OR_MENTION, (found) =>
@@ -153,7 +156,8 @@ export function commentCommand(words, context) {
   const body = readInput(context);
   if (body.trim() === '') fail('comment body is empty: put the text on stdin');
   return withLock(context, () => {
-    const state = loadTicket(context.root, ticket);
+    // A hard stop needs no ticket state: a broken ticket.json must not stop it.
+    const state = kind === 'reply' ? loadTicket(context.root, ticket) : undefined;
     if (replyTo !== undefined && state === undefined) {
       fail(`#${ticket} has no ticket state: cannot store comment ${replyTo} as handled`);
     }
