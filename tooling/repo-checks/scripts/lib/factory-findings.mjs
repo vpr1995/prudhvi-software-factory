@@ -6,6 +6,7 @@ import {
   AD_HOC,
   fail,
   PRE_PR,
+  readInput,
   stateFolder,
   ticketNumber,
   timestamp,
@@ -44,12 +45,12 @@ export function roundCommand(words, context) {
   }
   const folder = preprFolder(context.root, ticket);
   return withLock(context, () => {
+    const sha = context.git(['rev-parse', 'HEAD']).trim();
+    const entry = { sha, ts: timestamp(context.now()) };
     if (flag === '--new') {
       for (const name of listFolder(folder)) removeFile(path.join(folder, name));
     }
     const number = Math.max(0, ...roundNumbers(folder)) + 1;
-    const sha = context.git(['rev-parse', 'HEAD']).trim();
-    const entry = { sha, ts: timestamp(context.now()) };
     writeAtomic(path.join(folder, `round-${String(number)}.json`), `${JSON.stringify(entry)}\n`);
     return `round ${String(number)}\n`;
   });
@@ -108,11 +109,10 @@ function parseInputRows(text) {
 const sameFinding = (row, input) =>
   row.location === input.location && row.bugClass.toLowerCase() === input.bugClass.toLowerCase();
 
-function addFindings(context, ticket) {
+function addFindings(context, ticket, inputs) {
   const folder = preprFolder(context.root, ticket);
   const round = Math.max(0, ...roundNumbers(folder));
   if (round === 0) fail('no round started. Run "round start" first');
-  const inputs = parseInputRows(context.stdin());
   const rows = readRows(context.root, ticket);
   const report = inputs.map((input) => {
     const match = rows.find((row) => sameFinding(row, input));
@@ -146,9 +146,10 @@ export function findingsCommand(words, context) {
   const { ticket, rest } = splitTicket(words);
   const [action, ...extra] = rest;
   if (action === 'list') return listFindings(context, ticket);
-  if (action === 'add') return withLock(context, () => addFindings(context, ticket));
+  if (action === 'add') {
+    const inputs = parseInputRows(readInput(context));
+    return withLock(context, () => addFindings(context, ticket, inputs));
+  }
   if (action === 'set') return withLock(context, () => setFinding(context, ticket, extra));
   return fail('Usage: findings [<n>] add | set <id> <status> | list');
 }
-
-/** Synopses of the state commands. */

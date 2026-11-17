@@ -9,6 +9,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { main } from '../scripts/factory.mjs';
+import { takeOverStale, withLock } from '../scripts/lib/factory-base.mjs';
 import { findForbidden, scanFolders } from '../scripts/lib/factory-skill-scan.mjs';
 import {
   checkSummary,
@@ -47,7 +48,9 @@ const BOARD = {
     },
   ],
 };
-const ITEMS = { items: [{ id: 'I_7', content: { number: 7 } }] };
+const REPOSITORY = 'vpr1995/projects-monorepo';
+const ITEMS = { items: [{ id: 'I_7', content: { number: 7, repository: REPOSITORY } }] };
+const MIB = 1024 * 1024;
 const roots = [];
 
 after(() => {
@@ -71,6 +74,7 @@ function makeContext({ answers = new Map(), items = ITEMS } = {}) {
     ['project field-list', JSON.stringify(BOARD)],
     ['project item-list', JSON.stringify(items)],
     ['project view', JSON.stringify({ id: 'PVT_2' })],
+    ['repo view', `${REPOSITORY}\n`],
     ...answers,
   ]);
   const gh = (args) => {
@@ -357,6 +361,7 @@ test('R-23: the order of 4.4: merged, needs-human label, green CI, other CI', ()
     [{ prs: open, checks: [...pass, { name: 'b', state: 'PENDING', bucket: 'pending' }] }, 'ci'],
     [{ prs: open, checks: [{ name: 'b', state: 'FAILURE', bucket: 'fail' }] }, 'ci'],
     [{ prs: open, checks: [] }, 'ci'],
+    [{ prs: open, checks: [{ name: 'a', state: 'SKIPPED', bucket: 'skipping' }] }, 'ci'],
     [{ prs: [{ number: 90, state: 'CLOSED' }, ...open], checks: pass }, 'green'],
   ];
   for (const [github, expected] of cases) {
@@ -378,7 +383,9 @@ test('R-23: the same stage on both sides prints nothing', () => {
   assert.deepEqual(context.out, []);
 });
 
-const boardItems = (status) => ({ items: [{ id: 'I_7', status, content: { number: 7 } }] });
+const boardItems = (status) => ({
+  items: [{ id: 'I_7', status, content: { number: 7, repository: REPOSITORY } }],
+});
 const READY = { labels: ['agent:ready'] };
 
 test('R-57: agent:ready with no stage expects board Status Ready; a mismatch prints both values', () => {
@@ -476,13 +483,13 @@ test('R-53: a lock with no valid pid is not removed; the message names the file'
 
 test('R-53: the writing commands note, round and findings take the lock too', () => {
   const live = String(process.ppid);
-  for (const [command, words] of [
-    ['note', ['7', 'build']],
-    ['round', ['start']],
-    ['findings', ['add']],
-    ['findings', ['set', 'F1', 'fixed']],
+  for (const [command, words, input] of [
+    ['note', ['7', 'build'], SUMMARY],
+    ['round', ['start'], ''],
+    ['findings', ['add'], 'Nit | a.mjs:1 | style | r\n'],
+    ['findings', ['set', 'F1', 'fixed'], ''],
   ]) {
-    const context = withInput(makeContext(), SUMMARY);
+    const context = withInput(makeContext(), input);
     writeAtomic(lockPath(context), live);
     assert.throws(() => execute(command, words, context), /lock/, command);
   }
@@ -651,6 +658,135 @@ test('findings set: changes the status; an unknown id or status is refused', () 
   );
 });
 
+// Review round 1 fixes
+
+test('R-53: a takeover that finds another holder in the lock refuses and keeps that lock', () => {
+  const context = makeContext();
+  const file = lockPath(context);
+  writeAtomic(file, String(process.ppid));
+  assert.throws(() => takeOverStale(context, '99999999'), /lock taken by another process/);
+  assert.equal(readOptional(file), String(process.ppid));
+  assert.deepEqual(
+    listFolder(path.dirname(file)).filter((name) => name.includes('.stale.')),
+    [],
+  );
+});
+
+test('R-53: a takeover of a dead holder leaves the lock of the new pid and no stale file', () => {
+  const context = makeContext();
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  writeAtomic(lockPath(context), String(dead));
+  takeOverStale(context, String(dead));
+  assert.equal(readOptional(lockPath(context)), String(process.pid));
+  assert.deepEqual(
+    listFolder(path.dirname(lockPath(context))).filter((name) => name.includes('.stale.')),
+    [],
+  );
+});
+
+test('R-53: a takeover with no lock file left takes the lock with an exclusive create', () => {
+  const context = makeContext();
+  takeOverStale(context, '99999999');
+  assert.equal(readOptional(lockPath(context)), String(process.pid));
+});
+
+test('R-53: the release keeps a lock whose content is no longer the pid of the command', () => {
+  const context = makeContext();
+  withLock(context, () => writeAtomic(lockPath(context), '99999999'));
+  assert.equal(readOptional(lockPath(context)), '99999999');
+});
+
+test('R-53: stdin is read and checked before the lock is taken', () => {
+  const context = makeContext();
+  const reads = [];
+  const stdin = (text) => () => {
+    reads.push(exists(lockPath(context)));
+    return text;
+  };
+  execute('note', ['7', 'build'], { ...context, stdin: stdin(SUMMARY) });
+  execute('round', ['7', 'start'], context);
+  execute('findings', ['7', 'add'], { ...context, stdin: stdin('Nit | a.mjs:1 | s | r\n') });
+  assert.deepEqual(reads, [false, false]);
+  writeAtomic(lockPath(context), String(process.ppid));
+  assert.throws(
+    () => execute('note', ['7', 'x'], { ...context, stdin: stdin('bad') }),
+    /start with "## Summary"/,
+  );
+  assert.throws(
+    () => execute('findings', ['7', 'add'], { ...context, stdin: stdin('bad row') }),
+    /4 fields/,
+  );
+});
+
+test('stdin of more than 1 MiB is refused with the reason and nothing is stored', () => {
+  const context = makeContext();
+  const big = (head) => `${head}${'x'.repeat(MIB)}`;
+  assert.throws(
+    () => execute('note', ['7', 'build'], withInput(context, big(SUMMARY))),
+    /stdin.*1 MiB/,
+  );
+  execute('round', ['7', 'start'], context);
+  assert.throws(
+    () => execute('findings', ['7', 'add'], withInput(context, big('Nit | a.mjs:1 | style | r\n'))),
+    /stdin.*1 MiB/,
+  );
+  assert.equal(exists(path.join(context.root, STATE, '7/steps/build.md')), false);
+  assert.equal(execute('findings', ['7', 'list'], context), '');
+  assert.equal(exists(lockPath(context)), false);
+});
+
+test('R-27: round start --new with a failing git wipes nothing', () => {
+  const context = makeContext();
+  execute('round', ['7', 'start'], context);
+  execute('round', ['7', 'start'], context);
+  execute('findings', ['7', 'add'], withInput(context, 'Nit | a.mjs:1 | style | r\n'));
+  const folder = path.join(context.root, STATE, '7/pre-pr');
+  const before = listFolder(folder).toSorted();
+  const failing = {
+    ...context,
+    git: () => {
+      throw new Error('git broke');
+    },
+  };
+  assert.throws(() => execute('round', ['7', 'start', '--new'], failing), /git broke/);
+  assert.deepEqual(listFolder(folder).toSorted(), before);
+  assert.match(execute('findings', ['7', 'list'], context), /^F1 /);
+  assert.equal(exists(lockPath(context)), false);
+});
+
+test('a run.json with null or another value that is not an object is refused with the reason', () => {
+  for (const text of ['null', '7', '"x"']) {
+    const context = makeContext();
+    writeAtomic(path.join(context.root, STATE, 'run.json'), text);
+    assert.throws(
+      () => stage(context, 7, 'building'),
+      (error) => error instanceof FactoryError && /run\.json.*object/.test(error.message),
+      text,
+    );
+  }
+});
+
+test('R-57: a board item with the same number from another repository is not edited', () => {
+  const other = { id: 'I_X', content: { number: 7, repository: 'someone/else' } };
+  const own = { id: 'I_7', content: { number: 7, repository: REPOSITORY } };
+  const onlyOther = makeContext({ items: { items: [other] } });
+  assert.throws(() => stage(onlyOther, 7, 'building'), /#7 is not on board 2/);
+  assert.deepEqual(writeCalls(onlyOther), []);
+  assert.equal(exists(path.join(onlyOther.root, STATE, '7')), false);
+  const both = makeContext({ items: { items: [other, own] } });
+  stage(both, 7, 'building');
+  assert.equal(both.calls.find((call) => call[1] === 'item-edit')[3], 'I_7');
+});
+
+test('R-57: the repository comes from gh once; a reply with no name is refused', () => {
+  const context = makeContext();
+  stage(context, 7, 'building');
+  assert.equal(context.calls.filter((call) => call[0] === 'repo').length, 1);
+  const empty = makeContext({ answers: new Map([['repo view', '']]) });
+  assert.throws(() => stage(empty, 7, 'building'), /repository/);
+  assert.deepEqual(writeCalls(empty), []);
+});
+
 // CLI
 
 const GH_STUB = `#!/usr/bin/env node
@@ -663,6 +799,7 @@ const replies = {
   'project field-list': ${JSON.stringify(JSON.stringify(BOARD))},
   'project item-list': ${JSON.stringify(JSON.stringify(ITEMS))},
   'project view': '{"id":"PVT_2"}',
+  'repo view': ${JSON.stringify(`${REPOSITORY}\n`)},
 };
 process.stdout.write(replies[key] ?? '');
 `;
