@@ -11,6 +11,7 @@ import {
   parseJson,
   plainName,
   PRE_PR,
+  readInput,
   relative,
   stateFolder,
   ticketNumber,
@@ -68,7 +69,9 @@ export const STAGES = new Map(
 function runLogFile(root) {
   const text = readOptional(path.join(stateFolder(root), 'run.json'));
   if (text === undefined) return path.join(stateFolder(root), 'runs', `${AD_HOC}.jsonl`);
-  const { runId } = parseJson(text, 'run.json');
+  const log = parseJson(text, 'run.json');
+  if (typeof log !== 'object' || log === null) fail('run.json: must be a JSON object');
+  const { runId } = log;
   if (typeof runId !== 'string' || !RUN_ID.test(runId))
     fail('run.json: runId must be a plain name');
   return path.join(stateFolder(root), 'runs', `${runId}.jsonl`);
@@ -122,6 +125,13 @@ function ghJson(context, args) {
   return parseJson(context.gh(args), `gh ${args.slice(0, 2).join(' ')}`);
 }
 
+function repository(context) {
+  const name = context
+    .gh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'])
+    .trim();
+  return name === '' ? fail('gh gave no repository name (gh repo view)') : name;
+}
+
 function boardItem(context, ticket) {
   const { items } = ghJson(context, [
     'project',
@@ -134,7 +144,10 @@ function boardItem(context, ticket) {
     '--limit',
     '1000',
   ]);
-  return items.find((entry) => entry.content?.number === Number(ticket));
+  const own = repository(context);
+  return items.find(
+    (entry) => entry.content?.number === Number(ticket) && entry.content?.repository === own,
+  );
 }
 
 // Read-only lookups. Returns the arguments of the item-edit call, so a refusal comes before any write.
@@ -260,8 +273,10 @@ function githubStage(context, ticket, state) {
     '--json',
     'name,state,bucket',
   ]);
-  const passed = checks.every((check) => check.bucket === 'pass' || check.bucket === 'skipping');
-  return checks.length > 0 && passed ? 'green' : 'ci';
+  const onlyPassOrSkip = checks.every(
+    (check) => check.bucket === 'pass' || check.bucket === 'skipping',
+  );
+  return checks.some((check) => check.bucket === 'pass') && onlyPassOrSkip ? 'green' : 'ci';
 }
 
 // R-57: `agent:ready` with no stage matches board Status Ready. On a mismatch, prints both values and
@@ -332,10 +347,10 @@ const stepFile = (root, ticket, step) =>
 function noteCommand([ticketWord, stepWord], context) {
   const ticket = ticketNumber(ticketWord);
   const step = plainName(stepWord, 'step name');
+  const text = readInput(context);
+  const problem = checkSummary(text);
+  if (problem !== undefined) fail(problem);
   return withLock(context, () => {
-    const text = context.stdin();
-    const problem = checkSummary(text);
-    if (problem !== undefined) fail(problem);
     writeAtomic(stepFile(context.root, ticket, step), text.endsWith('\n') ? text : `${text}\n`);
     return `#${ticket}: stored step ${step}\n`;
   });

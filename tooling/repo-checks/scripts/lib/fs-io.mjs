@@ -109,6 +109,23 @@ export function removeFile(file) {
 }
 
 /**
+ * Renames a file. The rename is atomic: only one caller moves a given file.
+ *
+ * @param {string} from - Absolute path.
+ * @param {string} to - Absolute path.
+ * @returns {boolean} True when it moved the file. False when the file does not exist.
+ */
+export function renameIfExists(from, to) {
+  try {
+    renameSync(from, to);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/**
  * Creates a file with an exclusive create (flag wx). Creates the folder first.
  *
  * @param {string} file - Absolute path.

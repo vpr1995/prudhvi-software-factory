@@ -3,7 +3,7 @@
 // non-zero.
 import path from 'node:path';
 
-import { createExclusive, readOptional, removeFile } from './fs-io.mjs';
+import { createExclusive, readOptional, removeFile, renameIfExists } from './fs-io.mjs';
 
 export class FactoryError extends Error {}
 
@@ -40,6 +40,15 @@ export function parseJson(text, what) {
   }
 }
 
+export const MAX_INPUT_BYTES = 1024 * 1024;
+
+/** @returns {string} All of stdin. Refuses input of more than 1 MiB. */
+export function readInput(context) {
+  const text = context.stdin();
+  if (Buffer.byteLength(text) > MAX_INPUT_BYTES) fail('stdin is bigger than 1 MiB');
+  return text;
+}
+
 export const timestamp = (date) => date.toISOString().replace(/\.\d+Z$/, 'Z');
 
 // Lock (R-53)
@@ -53,8 +62,36 @@ function isAlive(pid) {
   }
 }
 
+const lockFile = (root) => path.join(stateFolder(root), 'lock');
+
+/**
+ * Takes over a lock of a dead process. The rename is atomic, so one process only moves the stale
+ * file. When the moved file is not the stale holder, another process took the lock between the
+ * check and the rename: put it back and fail.
+ *
+ * @param {object} context - Command context (root, pid).
+ * @param {string | undefined} holder - Pid text that the caller found in the lock.
+ */
+export function takeOverStale(context, holder) {
+  const file = lockFile(context.root);
+  const shown = relative(context.root, file);
+  const { pid } = context;
+  const taken = () => fail(`lock taken by another process: ${shown}`);
+  const stale = `${file}.stale.${String(pid)}`;
+  if (renameIfExists(file, stale)) {
+    const moved = readOptional(stale);
+    if (moved?.trim() !== holder) {
+      createExclusive(file, moved ?? '');
+      removeFile(stale);
+      taken();
+    }
+    removeFile(stale);
+  }
+  if (!createExclusive(file, String(pid))) taken();
+}
+
 function acquireLock(context) {
-  const file = path.join(stateFolder(context.root), 'lock');
+  const file = lockFile(context.root);
   const shown = relative(context.root, file);
   if (createExclusive(file, String(context.pid))) return file;
   const holder = readOptional(file)?.trim();
@@ -62,8 +99,7 @@ function acquireLock(context) {
     if (!/^\d+$/.test(holder)) fail(`lock file has no valid pid: remove ${shown}`);
     if (isAlive(Number(holder))) fail(`lock held by pid ${holder} (a live process): ${shown}`);
   }
-  removeFile(file);
-  if (!createExclusive(file, String(context.pid))) fail(`lock taken by another process: ${shown}`);
+  takeOverStale(context, holder);
   return file;
 }
 
@@ -72,6 +108,6 @@ export function withLock(context, action) {
   try {
     return action();
   } finally {
-    removeFile(file);
+    if (readOptional(file)?.trim() === String(context.pid)) removeFile(file);
   }
 }
