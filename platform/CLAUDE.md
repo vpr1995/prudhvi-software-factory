@@ -2,8 +2,9 @@ Read the root CLAUDE.md first ([../CLAUDE.md](../CLAUDE.md)). This file covers `
 
 ## What this area is
 
-- `platform/infra` (`@vprprudhvi/platform-infra`) is a CDK app. It owns the shared AWS resources: one Cognito user pool, the imported Route53 hosted zone, and one ACM wildcard certificate.
-- It writes each ID and ARN to SSM under `/platform/<env>/...`. Only `prod` exists. See [ADR 0011](../docs/adr/0011-local-and-prod-environments.md).
+- `platform/infra` (`@vprprudhvi/platform-infra`) is a CDK app. It owns the shared AWS resources: one Cognito user pool. It also fronts the imported Route53 hosted zone and the ACM wildcard certificate, whose parameters the owner creates by hand (below).
+- It writes the Cognito IDs and ARNs to SSM under `/platform/<env>/...`. Only `prod` exists.
+- The DNS and ACM parameters are not written by the stack. The owner creates them by hand with `aws ssm put-parameter` (type `String`, in the region of the stacks that read them): `/platform/prod/dns/hosted-zone-id` (the Route53 zone `api.vprprudhvi.dev`), `/platform/prod/dns/zone-name` (`api.vprprudhvi.dev`) and `/platform/prod/acm/wildcard-certificate-arn` (`*.api.vprprudhvi.dev`). The stack must not manage them, because a deploy would overwrite the values. Websites use `vprprudhvi.dev` on Cloudflare. Backend APIs use names under `api.vprprudhvi.dev`. See [ADR 0011](../docs/adr/0011-local-and-prod-environments.md).
 - Every project reads these values. A broken change here breaks every project.
 
 ## Risk

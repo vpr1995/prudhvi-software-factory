@@ -38,8 +38,10 @@ export function googleSecretName(env: PlatformConfig['env']): string {
 
 /**
  * The shared platform stack: one Cognito user pool with Google sign-in and a hosted sign-in
- * domain, and the SSM parameters that projects read. No Route53 zone and no certificate exist
- * yet. Each project makes its own app client on this pool.
+ * domain, and the SSM parameters that projects read. The stack does not create or write the DNS
+ * and ACM parameters. The owner creates `/platform/<env>/dns/...` and `/platform/<env>/acm/...` by
+ * hand (zone `api.vprprudhvi.dev` in Route53, wildcard certificate `*.api.vprprudhvi.dev`), so a
+ * deploy of this stack never overwrites them. Each project makes its own app client on this pool.
  */
 export class PlatformStack extends Stack {
   /** The one user pool. */
