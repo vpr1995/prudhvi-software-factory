@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { main } from '../scripts/factory.mjs';
 import { FactoryError } from '../scripts/lib/factory-base.mjs';
-import { createGh, failureReason, HardStopError } from '../scripts/lib/factory-github.mjs';
+import { createGh, failureReason, HardStopError, redact } from '../scripts/lib/factory-github.mjs';
 import { checkBranch, pushCommand } from '../scripts/lib/factory-push.mjs';
 import { routingLine } from '../scripts/lib/factory-route.mjs';
 import { readOptional, readRepositoryFile, writeAtomic } from '../scripts/lib/fs-io.mjs';
@@ -474,6 +474,43 @@ test('failureReason redacts URL credentials and tokens', () => {
     assert.ok(!text.includes(secret), secret);
   }
   assert.ok(failureReason(new Error(`boom ${token}`)).includes('boom ***'));
+});
+
+// redact runs on a hard-stop excerpt of up to 1 MiB: it must stay linear on text that fits a pattern class
+
+const MEGABYTE = 1024 * 1024;
+const TIME_LIMIT_MS = 1000;
+
+/** Asserts that redact finishes in under a second on the text, and returns its output. */
+function timedRedact(text) {
+  const start = performance.now();
+  const output = redact(text);
+  const elapsed = performance.now() - start;
+  assert.ok(
+    elapsed < TIME_LIMIT_MS,
+    `redact took ${Math.round(elapsed)} ms on ${text.length} bytes`,
+  );
+  return output;
+}
+
+test('redact is linear on 1 MB of hyphens, dots and plus signs, and still gives the right text', () => {
+  for (const unit of ['a-', 'a.', 'a+', 'token-']) {
+    const text = unit.repeat(Math.ceil(MEGABYTE / unit.length));
+    assert.equal(timedRedact(text), text, unit);
+  }
+  const filler = 'a-'.repeat(MEGABYTE / 4);
+  assert.equal(
+    timedRedact(`${filler} https://user:pass@github.com/a/b.git ${filler}`),
+    `${filler} https://***@github.com/a/b.git ${filler}`,
+  );
+});
+
+test('redact is linear on 1 MB of scheme-like text and keeps a long scheme credential out', () => {
+  const texts = ['a://'.repeat(MEGABYTE / 4), `a://${'b'.repeat(MEGABYTE)}`, 'a'.repeat(MEGABYTE)];
+  for (const text of texts) assert.equal(timedRedact(text), text);
+  const long = `${'x'.repeat(40)}://user:pass@host`;
+  assert.ok(!timedRedact(long).includes('user:pass'), 'a scheme longer than 32 characters');
+  assert.ok(!timedRedact('+svn+ssh://user:pass@host').includes('user:pass'), 'plus before scheme');
 });
 
 // route stores its JSON (R-20)

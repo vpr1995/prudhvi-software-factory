@@ -11,8 +11,10 @@ export const GIT_TIMEOUT_MS = 120_000;
 // A hard-stop patch can be big: the node default of 1 MiB is too small.
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const MAX_REASON_CHARS = 300;
-// `scheme://user:pass@` and `scheme://token@`, then bare tokens of GitHub.
-const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*):\/\/[^\s/@]+@/gi;
+// `scheme://user:pass@` and `scheme://token@`, then bare tokens of GitHub. The scheme has at most 32
+// characters: a longer text of scheme characters (`a-a-a-`) would be quadratic. The match can start
+// inside a longer word: the characters before it stay, the credentials go.
+const URL_CREDENTIALS = /([a-z][a-z0-9+.-]{0,31}):\/\/[^\s/@]+@/gi;
 const TOKENS = /gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}/g;
 
 export const redact = (text) =>
