@@ -7,7 +7,7 @@ import { isTestFile } from './test-guard-rules.mjs';
 
 const DOT_NAME = '_dot_';
 const TIER_RANK = { low: 0, medium: 1, high: 2 };
-const SIZE_LINE = /^Size:\s*(\d+)/m;
+const SIZE_LINE = /^Size:[ \t]*(\d+)(?![\d.])/m;
 const NO_RULE = 'no rule decides (R-19)';
 
 // path.matchesGlob does not match a name that starts with a dot through * or **. Replace the

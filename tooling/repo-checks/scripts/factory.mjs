@@ -10,21 +10,23 @@ import { execFileSync } from 'node:child_process';
 import { parseSize, route } from './lib/factory-route.mjs';
 import { readDiff } from './lib/test-guard-diff.mjs';
 import { CHECK_CONFIG_MESSAGE } from './lib/test-guard-rules.mjs';
-import { guardRepository } from './test-guard.mjs';
+import { guardDiff } from './test-guard.mjs';
 
 const EXIT_PASS = 0;
 const EXIT_ERROR = 2;
 const FIRST_USER_ARGUMENT = 2;
+export const COMMAND_TIMEOUT_MS = 30_000;
 const DEFAULT_BASE = 'origin/main';
 const TICKET = /^\d+$/;
 const USAGE = 'Usage: node tooling/repo-checks/scripts/factory.mjs route <n> [--base <ref>]\n';
 
-function run(command, args) {
-  return execFileSync(command, args, { encoding: 'utf8' });
+/** @returns {string} Stdout of the command. A command that runs longer than the timeout throws. */
+export function run(command, args, timeout = COMMAND_TIMEOUT_MS) {
+  return execFileSync(command, args, { encoding: 'utf8', timeout });
 }
 
 /** @returns {{ ticket: string, base: string } | undefined} The route arguments, or undefined when they are not valid. */
-function parseRouteArguments(words) {
+export function parseRouteArguments(words) {
   const [ticket, flag, base, ...rest] = words;
   if (ticket === undefined || !TICKET.test(ticket) || rest.length > 0) return;
   if (flag === undefined) return { ticket, base: DEFAULT_BASE };
@@ -32,9 +34,8 @@ function parseRouteArguments(words) {
   return { ticket, base };
 }
 
-/** @returns {{ path: string, oldPath: string, added: number, deleted: number }[]} Changed files of base...HEAD. */
-function changedFiles(root, base) {
-  const { entries, patch } = readDiff(root, base);
+/** @returns {{ path: string, oldPath: string, added: number, deleted: number }[]} Changed files of a diff that readDiff returned. */
+export function changedFiles({ entries, patch }) {
   return entries.map((entry) => {
     const lines = patch.get(entry.path) ?? patch.get(entry.oldPath);
     return {
@@ -46,17 +47,21 @@ function changedFiles(root, base) {
   });
 }
 
+/** @returns {object} The router JSON. A test guard finding "check config changed" gives tier high (R-21). */
+export function buildRoute({ base, body, files, findings }) {
+  const checkConfig = findings.some((finding) => finding.message === CHECK_CONFIG_MESSAGE);
+  return route({ base, changedFiles: files, size: parseSize(body), checkConfig });
+}
+
 function routeCommand({ ticket, base }) {
   const root = run('git', ['rev-parse', '--show-toplevel']).trim();
   const { body } = JSON.parse(run('gh', ['issue', 'view', ticket, '--json', 'body']));
-  const checkConfig = guardRepository(root, base).some(
-    (finding) => finding.message === CHECK_CONFIG_MESSAGE,
-  );
-  const result = route({
+  const diff = readDiff(root, base);
+  const result = buildRoute({
     base,
-    changedFiles: changedFiles(root, base),
-    size: parseSize(body),
-    checkConfig,
+    body,
+    files: changedFiles(diff),
+    findings: guardDiff(root, diff),
   });
   return `${JSON.stringify(result, undefined, 2)}\n`;
 }
