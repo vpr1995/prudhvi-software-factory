@@ -97,9 +97,17 @@ function failedCiRuns(context, state) {
   ).length;
 }
 
+// A `skip` line of a ticket is a queue decision, not work. A hard-stop step line (`step <n> ...`)
+// is work, also when it is a `skip` event (step 5, task 5).
+const isTicketSkip = (entry) => entry.event === 'skip' && !String(entry.detail).startsWith('step ');
+
+const runFolder = (context) => path.join(stateFolder(context.root), 'runs');
+const runLogNames = (context) =>
+  listFolder(runFolder(context)).filter((name) => name.endsWith('.jsonl'));
+
 function logLines(context, ticket) {
-  const folder = path.join(stateFolder(context.root), 'runs');
-  const files = listFolder(folder).filter((name) => name.endsWith('.jsonl'));
+  const folder = runFolder(context);
+  const files = runLogNames(context);
   if (files.length === 0) fail('run log missing');
   return files
     .flatMap((name) => (readOptional(path.join(folder, name)) ?? '').split('\n'))
@@ -108,7 +116,7 @@ function logLines(context, ticket) {
       const entry = parseJson(line, 'run log line');
       return { ...entry, time: timeOf(entry?.ts, 'run log ts') };
     })
-    .filter((entry) => entry.ticket === Number(ticket))
+    .filter((entry) => entry.ticket === Number(ticket) && !isTicketSkip(entry))
     .toSorted((first, second) => first.time - second.time);
 }
 
@@ -133,15 +141,17 @@ function attempt(what, derive) {
   }
 }
 
-function derive(context, ticket) {
-  const restart = attempt('restart', () => applyRestart(context, ticket));
+// `peek` is the read-only `status` path: no run log yet means 0 active time, not a failure. The
+// writing path (`caps`) stays fail-closed: no run log is a reached cap.
+function countsOf(context, ticket, { restart, peek }) {
   const state = restart.problem === undefined ? restart.value : undefined;
   const ci = attempt('failed CI runs', () =>
     failedCiRuns(context, state ?? fail('no ticket state')),
   );
-  const time = attempt('active time', () =>
-    activeMs(context, state ?? fail('no ticket state'), ticket),
-  );
+  const time = attempt('active time', () => {
+    const known = state ?? fail('no ticket state');
+    return peek && runLogNames(context).length === 0 ? 0 : activeMs(context, known, ticket);
+  });
   const problems = [restart.problem, ci.problem, time.problem].filter((text) => text !== undefined);
   const reasons = [
     ...problems,
@@ -161,6 +171,26 @@ function derive(context, ticket) {
     reason: reasons.length > 0 ? reasons.join('; ') : null,
   };
 }
+
+const derive = (context, ticket) =>
+  countsOf(context, ticket, {
+    restart: attempt('restart', () => applyRestart(context, ticket)),
+    peek: false,
+  });
+
+/**
+ * Read only (`status`, R-46): the counts of `caps` with no restart (R-51) and no lock, so it writes
+ * nothing. A count that cannot be derived is null with the reason in `reason`.
+ *
+ * @param {object} context - Command context (root, gh).
+ * @param {string} ticket - Ticket number as text.
+ * @returns {{ failedCi: number | null, activeMinutes: number | null, reached: boolean, reason: string | null }}
+ */
+export const peekCaps = (context, ticket) =>
+  countsOf(context, ticket, {
+    restart: attempt('ticket state', () => loadTicket(context.root, ticket)),
+    peek: true,
+  });
 
 /** @returns {string} The JSON of the counts. A reached cap prints the JSON and throws HardStopError. */
 export function capsCommand([ticketWord, ...extra], context) {
