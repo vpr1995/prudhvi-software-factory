@@ -151,7 +151,7 @@ jobs:
     # Skip with an empty list: fromJSON('[]') is not a valid matrix.
     if: needs.plan.outputs.count != '0'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       max-parallel: 8

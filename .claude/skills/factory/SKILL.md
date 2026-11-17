@@ -154,9 +154,11 @@ The reason is one phrase of the closed list. Use no other words. Each phrase is 
 
 Never put text of a ticket, a comment, or a log in the reason. The text that a script printed (from `caps` or a script hard stop) may follow the phrase after `: `, only when it holds no ticket or log text. That text is script output, not outside text. If it holds any ticket or log text, put it on stdin. Put each error excerpt (40 lines at most) on stdin.
 
+The details (`--detail`) are 1 to 3 sentences in your own words: what stopped, and what the owner must decide or do. For a decision, give the question and the options. Example for a timeout decision: "The ticket asks for a lower timeout-minutes in .github/workflows/ci.yml but gives no value. Pick a value, for example 30 or 45, and write it in Acceptance." Copy no ticket, comment, or log text into the details. Put no secret in them. The script posts the details in the comment, cut to 500 characters. The details text is in double quotes in a shell command: remove `"`, `$`, `` ` `` and `\` from it before you run the command.
+
 Steps:
 
-1. Run `mktemp /tmp/factory-stop.XXXXXX`. Write the stdin text with the Write tool to the path that it prints. Run `node tooling/repo-checks/scripts/factory.mjs hardstop <n> "<reason>" < "<file>"`. Then delete the file with `rm /tmp/factory-stop.<suffix>`, also when the command fails. The script sets `needs-human`, pushes `HEAD`, saves the patch and the excerpt in local files, posts one comment, writes the run report, and ends the run. It opens no draft PR and starts no next ticket.
+1. Run `mktemp /tmp/factory-stop.XXXXXX`. Write the stdin text with the Write tool to the path that it prints. Run `node tooling/repo-checks/scripts/factory.mjs hardstop <n> "<reason>" --detail "<details>" < "<file>"`. Then delete the file with `rm /tmp/factory-stop.<suffix>`, also when the command fails. The script sets `needs-human`, pushes `HEAD`, saves the patch and the excerpt in local files, posts one comment, writes the run report, and ends the run. It opens no draft PR and starts no next ticket.
 2. If it exits 2, a step failed. Show the failed steps in the report.
 3. End the session: `node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>"`.
 

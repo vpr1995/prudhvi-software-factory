@@ -139,3 +139,13 @@ export function ownerComments(comments, owner) {
       !METRICS_BLOCK.test(body),
   );
 }
+
+/** @returns {number | undefined} The open PR of the branch of the ticket. Undefined with no branch or no open PR. */
+export function openPr(context, state) {
+  if (typeof state.branch !== 'string' || state.branch === '') return;
+  const prs = parseJson(
+    context.gh(['pr', 'list', '--head', state.branch, '--state', 'open', '--json', 'number']),
+    'gh pr list',
+  );
+  return prs.find((pr) => Number.isInteger(pr.number) && pr.number > 0)?.number;
+}

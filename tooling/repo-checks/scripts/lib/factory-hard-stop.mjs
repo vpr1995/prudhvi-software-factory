@@ -1,4 +1,4 @@
-// `hardstop <n> "<reason>"` of the /factory script (design factory-daily-run 4.1, R-12, J4). The
+// `hardstop <n> "<reason>" [--detail "<text>"]` of the /factory script (design factory-daily-run 4.1, R-12, J4). The
 // error excerpt comes from stdin. The steps run in this order, and each one is safe to run again:
 //   1 labels   set needs-human, remove agent:in-progress (through the stage move, board Backlog)
 //   2 push     push HEAD when the branch has a commit that is not on the base (no test guard)
@@ -35,7 +35,8 @@ const MAX_UNTRACKED_BYTES = 1024 * 1024;
 const FILE_MODE = 0o600;
 const EXCERPT_SUFFIX = '-excerpt.txt';
 const NEXT = 'Next: node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>"';
-const USAGE = 'Usage: hardstop <n> "<reason>"   (error excerpt on stdin)';
+const USAGE = 'Usage: hardstop <n> "<reason>" [--detail "<text>"]   (error excerpt on stdin)';
+const MAX_DETAIL_CHARS = 500;
 const STATE_FOLDER = ['.claude', 'factory'].join('/');
 const DIFF = [
   'diff',
@@ -201,14 +202,21 @@ const fenced = (text) => {
   return [fence, text, fence];
 };
 
-/** @returns {string[]} Lines of the comment. The reason sits in a code fence, so a `@name` pings nobody. No excerpt line is in it. */
-function commentLines({ ticket, reason, excerptFile, branch, patch }) {
+// The details text: no backtick (it cannot close the fence), redacted like the excerpt, one line,
+// at most 500 characters. The cut comes after the redaction: a secret must not leak by its tail.
+const detailText = (detail) =>
+  redactText(detail.replaceAll('`', '')).replaceAll(/\s+/g, ' ').slice(0, MAX_DETAIL_CHARS).trim();
+
+/** @returns {string[]} Lines of the comment. The reason and the details sit in code fences, so a `@name` pings nobody. No excerpt line is in it. */
+function commentLines({ ticket, reason, detail, excerptFile, branch, patch }) {
+  const details = detailText(detail);
   return [
     `Hard stop on #${ticket}. Needs a human.`,
     '',
     'Reason:',
     ...fenced(redactText(reason)),
     '',
+    ...(details === '' ? [] : ['Details:', ...fenced(details), '']),
     `Branch: \`${branch}\``,
     patch === undefined
       ? 'Patch: none'
@@ -281,12 +289,15 @@ function runSteps(strict, hs) {
 export function hardstopCommand(words, context) {
   const [ticketWord, reasonWord, ...extra] = words;
   const ticket = ticketNumber(ticketWord);
-  if (reasonWord === undefined || reasonWord.trim() === '' || extra.length > 0) fail(USAGE);
+  if (reasonWord === undefined || reasonWord.trim() === '') fail(USAGE);
+  // Nothing after the reason, or `--detail` and exactly one value.
+  if (extra.length > 0 && (extra.length !== 2 || extra[0] !== '--detail')) fail(USAGE);
   const excerpt = readInput(context);
   return withLock(context, () => {
     runSteps(context, {
       ticket,
       reason: oneLine(reasonWord),
+      detail: extra[1] ?? '',
       excerpt,
       patch: undefined,
       excerptFile: undefined,

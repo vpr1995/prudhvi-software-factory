@@ -578,7 +578,7 @@ test('the hard stop puts the text on stdin from a mktemp file, with no heredoc, 
   const [first, , third] = stepsOf('Hard stop');
   assert.match(first, /mktemp \/tmp\/factory-stop\.XXXXXX/);
   assert.match(first, /Write tool/);
-  assert.match(first, /factory\.mjs hardstop <n> "<reason>" < "<file>"/);
+  assert.match(first, /factory\.mjs hardstop <n> "<reason>" --detail "<details>" < "<file>"/);
   assert.ok(first.indexOf('rm /tmp/factory-stop.<suffix>') > first.indexOf('factory.mjs hardstop'));
   assert.match(first, /also when the command fails/);
   assert.doesNotMatch(skillText(), /<<'?EOF|heredoc/);
