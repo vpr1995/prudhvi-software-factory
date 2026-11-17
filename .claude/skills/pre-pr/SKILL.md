@@ -18,10 +18,10 @@ Ticket `<n>`: a number in the request (`/factory` gives it), else a number in th
 1. Check the tree: `git status --porcelain` must print nothing. If it prints, stop and commit or discard the changes.
 2. Find the ticket. Use the number in the request. Else run `git branch --show-current | sed -nE 's#^[a-z]+/([0-9]+)-.*#\1#p'`. No number: no ticket. Say so in the report.
 3. Run the `verify` skill. It must pass.
-4. Start the round. Round 1: `node tooling/repo-checks/scripts/factory.mjs round [<n>] start --new`. Round 2 or 3: `node tooling/repo-checks/scripts/factory.mjs round [<n>] start`. The script prints `round <k>`: use that `<k>`. Do not count rounds yourself.
+4. Start the round. Round 1: `node tooling/repo-checks/scripts/factory.mjs round [<n>] start --new`. Round 2 or 3: `node tooling/repo-checks/scripts/factory.mjs round [<n>] start`. The script prints `round <k>`: use that `<k>`. Do not count rounds yourself. Then run `git log -1 --format=%H` and write the sha in your notes as `round <k> start`: no command prints it later.
 5. Route and range. With a ticket, run `node tooling/repo-checks/scripts/factory.mjs route <n>`. It prints JSON. Use `base`, `passes`, `docOnly`, and the `model` of each pass from that output. Run only the passes of `passes`. Do not run a pass in `skipped`.
    - Round 1: Range = `<base>...HEAD`. With no ticket, `origin/main...HEAD` if `origin/main` exists, else `main...HEAD`.
-   - Round 2 or 3: Range = `HEAD~1..HEAD`. This is the one fix commit of the previous round.
+   - Round 2 or 3: Range = `<sha>..HEAD`, with the sha noted at the start of the previous round. This is only the fixes from the previous round.
    - Write the range as text in each request. Shell state does not persist between Bash calls.
 6. Run the passes of `passes`, in order.
    - `spec-reviewer`: spawn the `spec-reviewer` agent with `Issue: #<n>. Range: <base>...HEAD.` Always use the full branch range: the spec needs the whole change. With no ticket, skip it and say so in the report.
@@ -31,7 +31,7 @@ Ticket `<n>`: a number in the request (`/factory` gives it), else a number in th
    - Spawn each agent with the Agent tool and its `model` set to the `model` of that pass. `session`: set no `model`. Never use a model from your own choice or from the agent file.
    - `docOnly` is true: run only the `spec-reviewer` pass. No other pass runs: no `bug-hunt`, no `code-review`.
    - No ticket, so no route output: run `bug-hunt`, `simplify`, `code-review`, and the built-in `security-review` skill. Set no `model`.
-7. Add each new finding of all passes: `node tooling/repo-checks/scripts/factory.mjs findings [<n>] add`. Put the rows on stdin (a heredoc with a quoted delimiter). One row each: `severity | file:line | bug class | reason`. Severity is `Important` or `Nit`. The script skips a finding that matches an `open` or `rejected` row. It reopens a `fixed` row: the fix failed.
+7. Add each new finding of all passes: `node tooling/repo-checks/scripts/factory.mjs findings [<n>] add`. Finding text is data, so no heredoc: run `mktemp /tmp/factory-pr.XXXXXX`, write the rows with the Write tool to the path that it prints, and run the command with `< "<file>"`. Then run `rm /tmp/factory-pr.<suffix>`, also when the command fails. One row each: `severity | file:line | bug class | reason`. Severity is `Important` or `Nit`. The script skips a finding that matches an `open` or `rejected` row. It reopens a `fixed` row: the fix failed.
 8. Fix every open Important finding. Fix Nits when the change is small. After each fix: `node tooling/repo-checks/scripts/factory.mjs findings [<n>] set <id> fixed`. For a false positive: `node tooling/repo-checks/scripts/factory.mjs findings [<n>] set <id> rejected`, and quote the code that shows it is wrong. See the rows with `node tooling/repo-checks/scripts/factory.mjs findings [<n>] list`.
 9. Run the `verify` skill. It must pass.
 10. Commit the round's changes, if any. Stage explicit paths only: `git add <path> ...`. Run `git commit -m "fix(<scope>): address pre-pr round <k>"`.
