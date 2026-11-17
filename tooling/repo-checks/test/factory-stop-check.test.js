@@ -384,21 +384,24 @@ test('R-49: wait reports a CI that ended with a failure', () => {
 test('R-49: wait passes when a cancelled duplicate ci check has a later pass (PR 114)', () => {
   const root = setup({ sessionId: 's1' });
   seedPr(root);
+  const repository = 'https://github.com/vpr1995/prudhvi-software-factory';
   const ci = {
     state: 'SUCCESS',
     bucket: 'pass',
+    link: `${repository}/actions/runs/44024429743/job/133841691172`,
     startedAt: '2026-11-17T05:29:18Z',
     workflow: 'ci',
   };
   const checks = [
     { ...ci, name: 'ci-result', startedAt: '2026-11-17T05:30:20Z' },
     { ...ci, name: 'knip' },
-    { ...ci, name: 'CodeQL', workflow: '' },
+    { ...ci, name: 'CodeQL', link: `${repository}/runs/133841448302`, workflow: '' },
     {
       ...ci,
       name: 'matrix.project.name',
       state: 'CANCELLED',
       bucket: 'cancel',
+      link: `${repository}/actions/runs/44024429640/job/133841274038`,
       startedAt: '2026-11-17T05:29:09Z',
     },
   ];
