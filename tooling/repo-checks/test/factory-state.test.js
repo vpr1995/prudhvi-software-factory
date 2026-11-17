@@ -371,6 +371,72 @@ test('R-23: the order of 4.4: merged, needs-human label, green CI, other CI', ()
   }
 });
 
+const REPO_URL = 'https://github.com/vpr1995/prudhvi-software-factory';
+const ciPass = {
+  name: 'knip',
+  state: 'SUCCESS',
+  bucket: 'pass',
+  link: `${REPO_URL}/actions/runs/44024429743/job/133841691172`,
+  startedAt: '2026-11-17T05:29:18Z',
+  workflow: 'ci',
+};
+const codeql = {
+  name: 'CodeQL',
+  state: 'SUCCESS',
+  bucket: 'pass',
+  link: `${REPO_URL}/runs/133841448302`,
+  startedAt: '2026-11-17T05:29:38Z',
+  workflow: '',
+};
+const ciCancel = {
+  name: 'matrix.project.name',
+  state: 'CANCELLED',
+  bucket: 'cancel',
+  link: `${REPO_URL}/actions/runs/44024429640/job/133841274038`,
+  startedAt: '2026-11-17T05:29:09Z',
+  workflow: 'ci',
+};
+
+test('R-23: a cancelled duplicate check is ignored when a later check of its workflow passed', () => {
+  const open = [{ number: 96, state: 'OPEN' }];
+  const cases = [
+    // PR 114 shape: the cancelled duplicate ci run started before the passing ci checks.
+    [[ciPass, codeql, ciCancel, { ...ciPass, name: 'gitleaks', workflow: 'secrets' }], 'green'],
+    // A fully cancelled ci run is not green.
+    [[codeql, ciCancel], 'ci'],
+    // A later pass of another workflow does not cover the cancel.
+    [[codeql, { ...ciPass, workflow: 'secrets' }, ciCancel], 'ci'],
+    // The pass started before the cancel.
+    [[codeql, { ...ciPass, startedAt: '2026-11-17T05:29:00Z' }, ciCancel], 'ci'],
+    // Missing fields give no match.
+    [[codeql, { name: 'knip', state: 'SUCCESS', bucket: 'pass' }, { bucket: 'cancel' }], 'ci'],
+    // A later pass in the same run does not cover a cancelled job of that run.
+    [
+      [codeql, { ...ciPass, link: ciCancel.link, startedAt: '2026-11-17T05:30:00Z' }, ciCancel],
+      'ci',
+    ],
+    // An empty workflow is no key: a later pass of an external check does not cover the cancel.
+    [
+      [
+        { ...codeql, link: `${REPO_URL}/actions/runs/555/job/1` },
+        { ...ciCancel, workflow: '' },
+      ],
+      'ci',
+    ],
+    // A cancel with no link has no run id.
+    [[ciPass, codeql, { ...ciCancel, link: undefined }], 'ci'],
+    // A pass with no run id in its link does not cover the cancel.
+    [[codeql, { ...ciPass, link: codeql.link }, ciCancel], 'ci'],
+  ];
+  for (const [checks, expected] of cases) {
+    assert.equal(
+      reconcileWith('building', { prs: open, checks }).result,
+      expected,
+      JSON.stringify(checks),
+    );
+  }
+});
+
 test('R-23: no GitHub signal keeps the stored stage and prints nothing', () => {
   const { context, result } = reconcileWith('reviewing', {});
   assert.equal(result, 'reviewing');

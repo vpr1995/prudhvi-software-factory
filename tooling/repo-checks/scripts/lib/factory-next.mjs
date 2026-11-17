@@ -24,24 +24,30 @@ import {
   STATUS_DONE,
   writeReport,
 } from './factory-report.mjs';
-import { clearRun, loadRun, onlyOf, saveRun, warnBadOnly } from './factory-run.mjs';
+import { clearRun, liveWait, loadRun, onlyOf, saveRun, warnBadOnly } from './factory-run.mjs';
 import { writeRunLog } from './factory-state.mjs';
 
 const none = (name, words) => {
   if (words.length > 0) fail(`Usage: ${name}`);
 };
 
-/** @returns {string} The step as text. */
-function describeNext(next) {
+/**
+ * @param {object | null | undefined} next - The stored step.
+ * @param {{ withBranch?: boolean }} [options] - `withBranch: false` leaves out the stack branch
+ *   name. It is GitHub text: the Stop hook must not show it.
+ * @returns {string} The step as text.
+ */
+export function describeNext(next, { withBranch = true } = {}) {
   if (next === null || next === undefined) return 'none';
   if (next.kind === 'done') return 'done';
   if (next.kind === 'wait') return `wait for the CI of PR #${String(next.pr)}`;
   if (next.resume === true) return `resume #${String(next.ticket)} (stage ${next.stage})`;
   const { stack } = next;
+  const branch = withBranch ? `, branch ${stack?.branch}` : '';
   const on =
     stack === undefined
       ? ''
-      : `, stacked on #${String(stack.blocker)} (PR #${String(stack.pr)}, branch ${stack.branch})`;
+      : `, stacked on #${String(stack.blocker)} (PR #${String(stack.pr)}${branch})`;
   return `start #${String(next.ticket)}${on}`;
 }
 
@@ -76,7 +82,7 @@ function logNewSkips(context, skippedEntries) {
 }
 
 function chooseNext(context, run) {
-  // R-49: a CI wait that the run stored (by `wait`, task 3) is the next step. No gh call.
+  // R-49: a live CI wait (by `wait`) is the next step. No gh call. `nextCommand` clears a dead one.
   if (run.waiting !== null && run.waiting !== undefined) {
     return { step: { kind: 'wait', pr: run.waiting.pr }, skipped: [] };
   }
@@ -96,8 +102,10 @@ function chooseNext(context, run) {
 export function nextCommand(words, context) {
   none('next', words);
   return withLock(context, () => {
-    const run = loadRun(context.root);
-    if (run?.active !== true) fail('no active run: run `start` first');
+    const stored = loadRun(context.root);
+    if (stored?.active !== true) fail('no active run: run `start` first');
+    // A killed `wait` leaves `waiting` set: a dead wait is no wait.
+    const run = liveWait(context, stored) ? stored : { ...stored, waiting: null };
     const { step, skipped } = chooseNext(context, run);
     logNewSkips(context, skipped);
     if (step.kind !== 'done') {

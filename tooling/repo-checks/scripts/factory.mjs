@@ -14,6 +14,10 @@
 // (R-46). stop: clear the run, keep each ticket.json, change no label, write the report (R-47).
 // report: write the run report (R-29). Code: lib/factory-next.mjs, lib/factory-report.mjs.
 //
+// wait <n>: mark a CI wait, poll `gh pr checks` every 30 s until CI ends, exit "timeout" (exit 3,
+// hard stop "CI timeout") after 60 minutes (R-49). Code: lib/factory-wait.mjs. The Stop hook is the
+// separate entry scripts/factory-stop-check.mjs: it loads no other factory code until a run is open (R-56).
+//
 // push <n>: the local test guard, then `git push origin HEAD:<branch>` (task 2a2, R-17, R-54).
 // stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
 //
@@ -43,6 +47,7 @@ import { startCommand } from './lib/factory-queue.mjs';
 import { reportCommand, stopCommand } from './lib/factory-report.mjs';
 import { parseSize, route, routingLine } from './lib/factory-route.mjs';
 import { COMMANDS, FactoryError, loadTicket, saveTicket, SYNOPSES } from './lib/factory-state.mjs';
+import { waitCommand } from './lib/factory-wait.mjs';
 import { isRunOff } from './lib/factory.config.mjs';
 import { readStdin } from './lib/fs-io.mjs';
 import { readDiff } from './lib/test-guard-diff.mjs';
@@ -65,6 +70,7 @@ const USAGE = [
   'report',
   'route <n> [--base <ref>]',
   'push <n>',
+  'wait <n>',
   'comment <n> <hard-stop|reply> [<reply-to-id>]   (body on stdin)',
   'hardstop <n> "<reason>"   (error excerpt on stdin)',
   'caps <n>',
@@ -144,6 +150,7 @@ const HANDLERS = new Map([
   ['start', startCommand],
   ['status', statusCommand],
   ['stop', stopCommand],
+  ['wait', waitCommand],
 ]);
 
 /** @returns {object} The context of the commands. A test replaces any part. */

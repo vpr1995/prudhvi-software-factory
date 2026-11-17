@@ -133,13 +133,49 @@ function newTicket(context, ticket, stage) {
   };
 }
 
-/** @returns {boolean} True when a CI check list has a pass and no check that fails or runs. */
-export function checksGreen(checks) {
-  const onlyPassOrSkip = checks.every(
-    (check) => check.bucket === 'pass' || check.bucket === 'skipping',
-  );
-  return checks.some((check) => check.bucket === 'pass') && onlyPassOrSkip;
+/** @returns {string|null} The Actions run id in a check link, or null. */
+function runId(check) {
+  const { link } = check;
+  if (typeof link !== 'string') return null;
+  return /\/actions\/runs\/(\d+)\//.exec(link)?.[1] ?? null;
 }
+
+/**
+ * @returns {boolean} True when a cancelled check has a later pass of the same named workflow
+ * in a different run.
+ */
+function supersededCancel(check, checks) {
+  const { workflow, startedAt } = check;
+  const cancelRun = runId(check);
+  if (typeof workflow !== 'string' || workflow === '' || cancelRun === null) return false;
+  if (typeof startedAt !== 'string') return false;
+  return checks.some((other) => {
+    const otherRun = runId(other);
+    return (
+      other.bucket === 'pass' &&
+      other.workflow === workflow &&
+      otherRun !== null &&
+      otherRun !== cancelRun &&
+      typeof other.startedAt === 'string' &&
+      other.startedAt > startedAt
+    );
+  });
+}
+
+/**
+ * A cancelled check does not block when a later run of its workflow passed.
+ * @returns {boolean} True when a CI check list has a pass and no check that fails or runs.
+ */
+export function checksGreen(checks) {
+  const okay = (check) =>
+    check.bucket === 'pass' ||
+    check.bucket === 'skipping' ||
+    (check.bucket === 'cancel' && supersededCancel(check, checks));
+  return checks.some((check) => check.bucket === 'pass') && checks.every(okay);
+}
+
+/** The --json field list for `gh pr checks`. */
+export const CHECK_FIELDS = 'name,state,bucket,startedAt,workflow,link';
 
 // GitHub: labels and board Status (R-57)
 
@@ -300,13 +336,7 @@ function githubStage(context, ticket, state) {
   if (open === undefined) {
     return labels.some((label) => label.name === 'agent:ready') ? READY : undefined;
   }
-  const checks = ghJson(context, [
-    'pr',
-    'checks',
-    String(open.number),
-    '--json',
-    'name,state,bucket',
-  ]);
+  const checks = ghJson(context, ['pr', 'checks', String(open.number), '--json', CHECK_FIELDS]);
   return checksGreen(checks) ? 'green' : 'ci';
 }
 

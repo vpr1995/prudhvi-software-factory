@@ -1179,12 +1179,38 @@ test('R-2: next respects only: other ready tickets do not count', () => {
 
 test('R-5: a stored CI wait of the run gives next wait, with no gh call', () => {
   const root = temporaryFolder();
-  seedRun(root, { next: null, waiting: { pr: 3, since: '2026-11-17T09:00:00Z' } });
-  const result = factory('next', [], { root });
+  const waiting = { pr: 3, since: '2026-11-17T09:30:00Z', pid: process.pid };
+  seedRun(root, { next: null, waiting });
+  const result = factory('next', [], { root, isAlive: () => true });
   assert.equal(result.code, 0, result.errors);
   assert.match(result.out, /next: wait for the CI of PR #3/);
   assert.deepEqual(readJson(root, 'run.json').next, { kind: 'wait', pr: 3 });
   assert.equal(readJson(root, 'run.json').active, true);
+});
+
+test('R-49: a wait of a dead process is cleared and next goes on', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(8));
+  const waiting = { pr: 3, since: '2026-11-17T09:30:00Z', pid: 424_242 };
+  seedRun(root, { ...NOT_WAITING, waiting });
+  const result = factory('next', [], { gh, root, isAlive: () => false });
+  assert.equal(result.code, 0, result.errors);
+  assert.doesNotMatch(result.out, /wait for the CI/);
+  assert.match(result.out, /next: start #8/);
+  assert.equal(readJson(root, 'run.json').waiting, null);
+});
+
+test('R-49: a wait older than 60 minutes is cleared and next goes on', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(8));
+  const waiting = { pr: 3, since: '2026-11-17T08:59:00Z', pid: process.pid };
+  seedRun(root, { ...NOT_WAITING, waiting });
+  const result = factory('next', [], { gh, root, isAlive: () => true });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: start #8/);
+  assert.equal(readJson(root, 'run.json').waiting, null);
 });
 
 test('next refuses when no run is active, and writes nothing', () => {

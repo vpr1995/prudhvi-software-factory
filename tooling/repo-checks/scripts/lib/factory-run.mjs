@@ -4,12 +4,31 @@
 // it succeeded.
 import path from 'node:path';
 
-import { fail, parseJson, stateFolder, timestamp } from './factory-base.mjs';
+import { fail, isAlive, parseJson, stateFolder, timestamp } from './factory-base.mjs';
 import { runLogFile, writeRunLog } from './factory-state.mjs';
 import { readOptional, removeFile, writeAtomic } from './fs-io.mjs';
 
 const runFile = (root) => path.join(stateFolder(root), 'run.json');
 const NO_CHECKS = { count: 0, lastHash: null };
+const WAIT_STALE_MS = 60 * 60_000;
+
+/**
+ * R-49. A wait is live when `wait` still runs: its pid is alive and it began less than 60 minutes
+ * ago. A killed `wait` leaves `waiting` set, and a dead wait must not allow every stop. A wait with
+ * no pid (or a bad one) is not live.
+ *
+ * @param {object} context - Command context (now). `context.isAlive` is for tests.
+ * @param {object} run - The run.json object.
+ * @returns {boolean} True when the run has a live CI wait.
+ */
+export function liveWait(context, run) {
+  const waiting = run?.waiting;
+  if (waiting === null || waiting === undefined) return false;
+  if (!Number.isInteger(waiting.pid) || waiting.pid <= 0) return false;
+  const since = Date.parse(waiting.since);
+  if (Number.isNaN(since) || context.now().getTime() - since > WAIT_STALE_MS) return false;
+  return (context.isAlive ?? isAlive)(waiting.pid);
+}
 
 /** @returns {object | undefined} The parsed run.json, or undefined when there is none. */
 export function loadRun(root) {
