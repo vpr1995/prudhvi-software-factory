@@ -521,6 +521,11 @@ const FORBIDDEN_PATHS = [
   ['the .claude folder', 'Paths: `.claude`'],
   ['a folder that resolves to the root', 'Paths: `src/..`'],
   ['another letter case', 'Paths: Tooling/Repo-Checks/x.mjs'],
+  ['a ticked star', 'Paths: `*`'],
+  ['a ticked star glob', 'Paths: `**/*`'],
+  ['a ticked dot', 'Paths: `.`'],
+  ['a bare glob after a ticked path', 'Paths: `src/a`, tooling/*'],
+  ['a bare folder after a ticked path', 'Paths: `src/a` .claude/'],
 ];
 
 for (const [name, context] of FORBIDDEN_PATHS) {
@@ -539,7 +544,6 @@ const QUEUED_PATHS = [
   ['a backticked path and a final dot', 'Paths: `src/a.ts`.'],
   ['a slash of prose between two paths', 'Paths: `a` / `b`'],
   ['two paths with a prose word and a final dot', 'Paths: `a.ts` and `b.ts`.'],
-  ['a bare dot that is no path', 'Paths: `.`'],
 ];
 
 for (const [name, context] of QUEUED_PATHS) {
@@ -577,6 +581,16 @@ for (const [name, context] of BYPASS_PATHS) {
     assert.deepEqual(queued(result.out), [], JSON.stringify(context));
   });
 }
+
+test('R-3: a bare path-like word after a ticked doc path counts: not tier low', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { body: body('Paths: `docs/a.md`, src/x.ts') }));
+  const lines = start([], { gh, root }).out.split('\n');
+  const routing = lines[lines.findIndex((line) => line.includes('#7 ')) + 1];
+  assert.match(routing, /Routing: tier /);
+  assert.doesNotMatch(routing, /tier low/);
+});
 
 test('R-3: two backticked paths with a prose word route as one doc path: tier low', () => {
   const root = temporaryFolder();
