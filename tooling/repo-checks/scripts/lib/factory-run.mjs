@@ -80,15 +80,30 @@ export function logAdoption(context, { resumed }) {
   writeRunLog(context, { ticket: 0, event: 'resume', from: null, to: null, detail: resumed });
 }
 
+const isUnset = (only) => only === null || only === undefined;
+const isTicketNumber = (only) => Number.isInteger(only) && only > 0;
+
 /**
- * @param {object} run - The parsed run.json.
- * @returns {number | null} `only` of the run. Fails when it is not null or a positive integer.
+ * The one reader of run.json `only`. `next` is strict: a bad value fails. `stop`, `report`, `status`
+ * and hard-stop step 6 are not strict: a bad value is null (all tickets), so the kill switch (R-47)
+ * and the report still work. They call `warnBadOnly` for the warning.
+ *
+ * @param {object | undefined} run - The parsed run.json.
+ * @param {{ strict: boolean }} options - True: fail on a bad value. False: a bad value is null.
+ * @returns {number | null} `only` of the run: a positive integer, or null.
  */
-export function onlyOf(run) {
-  const { only } = run;
-  if (only === null || only === undefined) return null;
-  if (Number.isInteger(only) && only > 0) return only;
-  return fail('run.json: only must be a positive integer or null');
+export function onlyOf(run, { strict }) {
+  const only = run?.only;
+  if (isUnset(only)) return null;
+  if (isTicketNumber(only)) return only;
+  return strict ? fail('run.json: only must be a positive integer or null') : null;
+}
+
+/** Prints one warning line to stderr when `only` is bad and the caller does not fail on it. */
+export function warnBadOnly(context, run) {
+  const only = run?.only;
+  if (isUnset(only) || isTicketNumber(only)) return;
+  context.err('warning: run.json only is not valid: treated as all tickets\n');
 }
 
 /** @returns {boolean} True when the run is active or stalled: `start` adopts it, `stop` ends it. */

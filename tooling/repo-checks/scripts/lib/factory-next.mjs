@@ -24,7 +24,7 @@ import {
   STATUS_DONE,
   writeReport,
 } from './factory-report.mjs';
-import { clearRun, loadRun, onlyOf, saveRun } from './factory-run.mjs';
+import { clearRun, loadRun, onlyOf, saveRun, warnBadOnly } from './factory-run.mjs';
 import { writeRunLog } from './factory-state.mjs';
 
 const none = (name, words) => {
@@ -80,7 +80,7 @@ function chooseNext(context, run) {
   if (run.waiting !== null && run.waiting !== undefined) {
     return { step: { kind: 'wait', pr: run.waiting.pr }, skipped: [] };
   }
-  const only = onlyOf(run);
+  const only = onlyOf(run, { strict: true });
   syncTickets(context, only);
   const { queue, skipped } = buildPlan(context, only);
   // Only a ticket in flight resumes. A green, done or needs-human ticket does not resume and does
@@ -114,7 +114,8 @@ export function nextCommand(words, context) {
 
 function runLine(run) {
   const state = run.active === true ? 'active' : run.stalled === true ? 'stalled' : 'not active';
-  const scope = typeof run.only === 'number' ? `only #${String(run.only)}` : 'all tickets';
+  const only = onlyOf(run, { strict: false });
+  const scope = only === null ? 'all tickets' : `only #${String(only)}`;
   return `run: ${state} (${run.runId}, started ${run.startedAt}, ${scope})`;
 }
 
@@ -131,6 +132,7 @@ export function statusCommand(words, context) {
   none('status', words);
   const run = loadRun(context.root);
   if (run === undefined) return 'run: none (no run.json)\n';
+  warnBadOnly(context, run);
   const current = currentTicket(context, run);
   const now =
     current === undefined

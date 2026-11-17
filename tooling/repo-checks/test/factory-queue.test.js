@@ -1457,12 +1457,14 @@ test('next, status, stop and report refuse extra words', () => {
 
 // Review round 1: S1 (only), B1 (current ticket of a resume step)
 
-test('S1: run.json only that is not null or a positive integer fails next and report, and writes nothing', () => {
+// Round 2 change: `report` is no longer in this loop. A bad `only` is tolerated by `report`, `stop`,
+// `status` and hard-stop step 6 (kill switch R-47 must work). See the R2 tests below.
+test('S1: run.json only that is not null or a positive integer fails next, and writes nothing', () => {
   for (const only of ['7', 0, -1, 1.5, true, [7], {}]) {
     const root = temporaryFolder();
     seedRun(root, { ...NOT_WAITING, only });
     const before = snapshot(root);
-    for (const command of ['next', 'report']) {
+    for (const command of ['next']) {
       const result = factory(command, [], { root });
       const label = `${command} with only ${JSON.stringify(only)}`;
       assert.equal(result.code, 2, label);
@@ -1500,10 +1502,70 @@ test('B1: a resume step in run.json next is the current ticket before any new lo
     stage: 'building',
   });
   assert.equal(exists(stateFile(root, 'runs', `${OLD_RUN}.jsonl`)), false, 'no log line yet');
-  const status = factory('status', [], { root });
+  const noRuns = (args) => (args[0] === 'run' ? '[]' : NO_GH());
+  const status = factory('status', [], { root, gh: noRuns });
   assert.equal(status.code, 0, status.errors);
   assert.match(status.out, /^current: #5, stage building$/m);
+  // No run log file yet: the read-only peek counts 0 active minutes, and no cap is reached.
+  assert.match(status.out, /^caps: failed CI runs 0, active minutes 0$/m);
+  assert.doesNotMatch(status.out, /cap reached/);
   const stop = factory('stop', [], { root });
   assert.equal(stop.code, 0, stop.errors);
   assert.match(readReport(root), /## Current ticket\n+#5, stage building/);
+});
+
+// Review round 2: R2-1 (bad only is tolerated), R2-3 (resume step ticket)
+
+const BAD_ONLY_WARNING = 'warning: run.json only is not valid: treated as all tickets\n';
+
+test('R2: stop with a bad only clears the run, writes the report, warns, and exits 0', () => {
+  for (const only of ['7', 0, -1, 1.5, true, [7], {}]) {
+    const root = temporaryFolder();
+    seedRun(root, { ...NOT_WAITING, only });
+    const label = `only ${JSON.stringify(only)}`;
+    const result = factory('stop', [], { root });
+    assert.equal(result.code, 0, `${label}: ${result.errors}`);
+    assert.equal(result.errors, BAD_ONLY_WARNING, label);
+    assert.match(result.out, /resume: `\/factory`/, label);
+    assert.equal(readJson(root, 'run.json').active, false, label);
+    assert.match(readReport(root), /Scope: all tickets/, label);
+  }
+});
+
+test('R2: report and status with a bad only warn once and show all tickets', () => {
+  const root = temporaryFolder();
+  seedRun(root, { ...NOT_WAITING, only: -1 });
+  const report = factory('report', [], { root });
+  assert.equal(report.code, 0, report.errors);
+  assert.equal(report.errors, BAD_ONLY_WARNING);
+  assert.match(report.out, /Scope: all tickets/);
+  const status = factory('status', [], { root });
+  assert.equal(status.code, 0, status.errors);
+  assert.equal(status.errors, BAD_ONLY_WARNING);
+  assert.match(status.out, /^run: active \(old-run, started .*, all tickets\)$/m);
+});
+
+test('R2: a valid only gives no warning, and status shows it', () => {
+  const root = temporaryFolder();
+  seedRun(root, { ...NOT_WAITING, only: 7 });
+  const status = factory('status', [], { root });
+  assert.equal(status.errors, '');
+  assert.match(status.out, /, only #7\)$/m);
+  const stop = factory('stop', [], { root });
+  assert.equal(stop.errors, '');
+  assert.match(stop.out, /resume: `\/factory 7`/);
+});
+
+test('R2: a resume step with a ticket that is not a positive integer is ignored', () => {
+  for (const ticket of ['../x', '5/../5', 0, -3, 1.5, '5']) {
+    const root = temporaryFolder();
+    // Ticket 5 is in flight: a path that reaches its folder must still not count.
+    seedTicket(root, 5, { stage: 'building' });
+    seedRun(root, { ...NOT_WAITING, next: { kind: 'ticket', ticket, resume: true } });
+    const status = factory('status', [], { root });
+    assert.equal(status.code, 0, `${JSON.stringify(ticket)}: ${status.errors}`);
+    assert.match(status.out, /^current: none$/m);
+    assert.equal(factory('stop', [], { root }).code, 0);
+    assert.match(readReport(root), /## Current ticket\n+none/);
+  }
 });
