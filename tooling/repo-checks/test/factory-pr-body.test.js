@@ -5,12 +5,18 @@
 // step fails the test. This file is new: factory-skill-paths.test.js is over 400 lines.
 // The tests read the real repository files. They call no `gh` and no network.
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { COMMAND_NAMES } from '../scripts/factory.mjs';
 import { route, routingLine } from '../scripts/lib/factory-route.mjs';
 import { readRepositoryFile } from '../scripts/lib/fs-io.mjs';
+
+import { pathFromEnv } from './test-env.config.js';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const PR_DESCRIPTION = '.claude/skills/pr-description/SKILL.md';
@@ -142,8 +148,8 @@ test('#110 R-35: the stack line is the first line of the body of a stacked PR, a
 test('#110 R-20: the body has the Routing line copied from the output of route <n>', () => {
   assert.ok(COMMAND_NAMES.has('route'), 'factory.mjs has the command route');
   const text = routeStep();
-  assert.match(text, /`Routing: \.\.\.`/);
-  assert.match(text, /first line/);
+  assert.match(text, /`Routing: `/);
+  assert.match(text, /the line that starts with/);
   assert.match(text, /Copy it as it is/);
   const risk = bodyStep()
     .split('\n')
@@ -259,4 +265,165 @@ test('#110: the factory skill step 8 agrees with pr-description', () => {
   assert.match(text, /Skip its push step/);
   assert.match(text, /`## Over budget`/);
   assert.match(text, /`## Decisions I made`/);
+});
+
+// Review round 1 findings (#110)
+
+const IMPLEMENT_FEATURE = '.claude/skills/implement-feature/SKILL.md';
+const scratch = [];
+after(() => {
+  for (const folder of scratch) rmSync(folder, { recursive: true, force: true });
+});
+
+function scratchFolder() {
+  const folder = mkdtempSync(path.join(tmpdir(), 'pr-body-'));
+  scratch.push(folder);
+  return folder;
+}
+
+const stepOf = (needle) => fileStepWith(PR_DESCRIPTION, needle).text;
+const afterWord = (text, word) => text.slice(text.indexOf(word));
+
+test('#110 round 1: the title has no shell metacharacters and gh gets it in single quotes', () => {
+  const title = stepOf('Conventional Commits');
+  for (const part of ["`'`", '`"`', '`$`', 'a backtick', '`\\`']) {
+    assert.ok(title.includes(part), `the title rule names ${part}`);
+  }
+  assert.match(title, /must not contain/);
+  assert.match(title, /Remove them/);
+  const create = createStep();
+  assert.ok(create.includes("--title '<title>'"), 'single quotes around the title');
+  assert.doesNotMatch(create, /--title "/, 'no double quotes around the title');
+});
+
+test('#110 round 1: rm runs only when the path matches the mktemp pattern', () => {
+  const create = createStep();
+  const pattern = '^/tmp/factory-pr\\.[A-Za-z0-9]{6}$';
+  assert.ok(create.includes(`\`${pattern}\``), 'the step names the path pattern');
+  assert.match(afterWord(create, 'rm /tmp/factory-pr.<suffix>'), /only when/);
+  const made = spawnSync('mktemp', ['/tmp/factory-pr.XXXXXX'], { encoding: 'utf8' });
+  const file = made.stdout.trim();
+  rmSync(file, { force: true });
+  assert.match(file, new RegExp(pattern), 'a real mktemp path matches');
+  assert.doesNotMatch('/tmp/factory-pr.abc; rm -rf ~', new RegExp(pattern));
+  assert.doesNotMatch('/tmp/factory-pr.abcdef/../x', new RegExp(pattern));
+});
+
+test('#110 round 1: a caller ticket skips the branch lookup of steps 1 and 2', () => {
+  const [first, second] = stepsOfFile(PR_DESCRIPTION);
+  assert.match(first, /caller passes `ticket <n>`/);
+  assert.match(first, /validated the branch/);
+  assert.match(first, /skip this step and step 2/);
+  assert.match(second, /Skip this step when the caller passed `ticket <n>`/);
+  const { text } = fileStepWith(FACTORY_SKILL, 'Open the PR.', '## Work a ticket');
+  assert.match(text, /`pr-description` skill[^\n]*"ticket <n>"|"ticket <n>"[^\n]*`pr-description`/);
+});
+
+test('#110 round 1: with a ticket the Testing output is the last verify run, not the log file', () => {
+  const verify = stepOf('Check the verify output');
+  const withTicket = verify.indexOf('With a ticket');
+  const noTicket = verify.indexOf('No ticket');
+  assert.ok(
+    withTicket !== -1 && noTicket !== -1 && withTicket < noTicket,
+    'both cases, ticket first',
+  );
+  const ticketCase = verify.slice(withTicket, noTicket);
+  assert.match(ticketCase, /last `verify` run of this session/);
+  assert.ok(ticketCase.includes('`doc-lint.mjs`'), 'doc-only case');
+  assert.doesNotMatch(ticketCase, /verify-output\.log/, 'no log file with a ticket');
+  assert.ok(verify.slice(noTicket).includes('tail -n 30 .claude/state/verify-output.log'));
+  const testing = bodyStep()
+    .split('\n')
+    .find((entry) => entry.startsWith('   - `## Testing`:'));
+  assert.ok(testing !== undefined, 'the body step has a Testing line');
+  assert.match(testing, /With a ticket[^\n]*last `verify` run/);
+  assert.doesNotMatch(testing.slice(0, testing.indexOf('No ticket')), /verify-output\.log/);
+  assert.match(testing.slice(testing.indexOf('No ticket')), /verify-output\.log/);
+});
+
+test('#110 round 1: the Routing line is the line that starts with "Routing: " of route <n> 2>&1', () => {
+  const text = routeStep();
+  assert.ok(text.includes(`${FACTORY_CALL} route <n> 2>&1`), 'stderr is merged');
+  assert.match(text, /the line that starts with `Routing: `/);
+  assert.doesNotMatch(text, /first line is/);
+  assert.doesNotMatch(text, /The JSON follows/);
+});
+
+test('#110 round 1: the real CLI prints the Routing line on stderr and the JSON on stdout', () => {
+  const folder = scratchFolder();
+  const env = {
+    PATH: `${path.join(folder, 'bin')}${path.delimiter}${pathFromEnv()}`,
+    HOME: folder,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 't',
+    GIT_AUTHOR_EMAIL: 't@t',
+    GIT_COMMITTER_NAME: 't',
+    GIT_COMMITTER_EMAIL: 't@t',
+  };
+  mkdirSync(path.join(folder, 'bin'));
+  writeFileSync(path.join(folder, 'bin', 'gh'), `#!/bin/sh\necho '{"body":"Size: 2"}'\n`);
+  chmodSync(path.join(folder, 'bin', 'gh'), 0o755);
+  const work = path.join(folder, 'work');
+  mkdirSync(path.join(work, 'src'), { recursive: true });
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: work, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
+  };
+  git('init', '-q', '-b', 'main');
+  git('config', 'commit.gpgsign', 'false');
+  git('config', 'core.hooksPath', '/dev/null');
+  writeFileSync(path.join(work, 'README.md'), 'hello\n');
+  git('add', '.');
+  git('commit', '-qm', 'base');
+  git('checkout', '-q', '-b', 'feat/7-x');
+  writeFileSync(path.join(work, 'src', 'a.js'), 'export const a = 1;\n');
+  git('add', '.');
+  git('commit', '-qm', 'change');
+  // The skill runs `route <n> 2>&1`: one stream, as the agent sees it.
+  const merged = spawnSync(
+    'sh',
+    [
+      '-c',
+      `${process.execPath} ${path.join(ROOT, 'tooling/repo-checks/scripts/factory.mjs')} route 7 --base main 2>&1`,
+    ],
+    { cwd: work, env, encoding: 'utf8' },
+  );
+  assert.equal(merged.status, 0, merged.stdout);
+  const lines = merged.stdout.split('\n');
+  assert.match(
+    lines[0],
+    /^warning: #7 has no ticket state/,
+    'the warning comes first, not the Routing line',
+  );
+  const routing = lines.filter((line) => line.startsWith('Routing: '));
+  assert.equal(routing.length, 1, 'exactly one line starts with "Routing: "');
+  const result = JSON.parse(merged.stdout.slice(merged.stdout.indexOf('{\n')));
+  assert.equal(routing[0], routingLine(result), 'the line is the router line of the JSON');
+  assert.equal(result.budget, 300);
+});
+
+test('#110 round 1: the check-config finding comes from the output of push <n>', () => {
+  const line = routeStep()
+    .split('\n')
+    .find((entry) => entry.includes('check config changed'));
+  assert.ok(line !== undefined, 'the route step names the finding');
+  assert.ok(line.includes(`${FACTORY_CALL} push <n>`), 'the finding source is the push output');
+  assert.match(line, /test guard/);
+  assert.match(line, /route JSON has no flag|no flag for it/);
+});
+
+test('#110 round 1: the stacked --base is not built yet and the caller sets it', () => {
+  const create = createStep();
+  assert.match(create, /not built yet/);
+  assert.match(create, /task 7b, #112/);
+  assert.match(create, /Until then the caller sets `--base`/);
+  assert.ok(bodyStep().includes('Stacked on #<m>. Merge #<m> first.'), 'the stack line stays');
+});
+
+test('#110 round 1: implement-feature takes the tier of the router with a ticket, the path rules without', () => {
+  const { text } = fileStepWith(IMPLEMENT_FEATURE, 'Run the `pr-description` skill');
+  assert.match(text, /With a ticket, the tier of the router \(`route <n>`\)/);
+  assert.match(text, /No ticket, the path rules/);
+  assert.doesNotMatch(text, /highest tier that matches a changed path/);
 });
