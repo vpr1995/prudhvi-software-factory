@@ -143,3 +143,6 @@ test-results/
 
 # Wrangler local state
 .wrangler/
+
+# Factory run state
+.claude/factory/
