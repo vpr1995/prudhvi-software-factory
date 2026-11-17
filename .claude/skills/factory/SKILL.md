@@ -90,7 +90,7 @@ Ticket `<n>`.
    - A finding that stays after the one fix round is a hard stop with the reason "test guard finding stays". An exit 3 with `hard stop: <reason>` is a hard stop too: use the reason "script hard stop" (the printed line: see "Hard stop"). Run `node tooling/repo-checks/scripts/factory.mjs hardstop <n> "<reason>"` as "Hard stop" says.
 8. Open the PR. Check for a PR: `gh pr list --head "$branch" --state open --json number` (`$branch` is the validated ticket branch). An empty list means no PR.
    - The list has a PR: open no new PR. If the tier changed, run `gh pr edit <pr> --add-label risk:<new> --remove-label risk:<old>`.
-   - No PR: use the `pr-description` skill for the body, with these overrides (the skill gets them in task 4c, #110).
+   - No PR: use the `pr-description` skill for the body, with these overrides. The skill has the same rules for a ticket.
      - Skip its push step. Step 7 pushed.
      - Run `mktemp /tmp/factory-pr.XXXXXX`. Write the body with the Write tool to the path that it prints. Never use a fixed path.
      - Add `Closes #<n>`, the section `## Decisions I made` (read them with `node tooling/repo-checks/scripts/factory.mjs read <n> decisions`, or write `None`), the section `## Over budget` (from the `route` output), the routing line, and the check-config finding if there was one.
