@@ -6,7 +6,8 @@
 //              patch) in <n>/logs/. The excerpt stays on the agent machine: no GitHub comment
 //              holds it, because no regex can redact free-form error text for sure (owner, 2026-11-17)
 //   4 comment  post one ticket comment (the flag is `hardStop.commentKey` in ticket.json)
-//   5 metrics  named no-op until task 5 (#100)
+//   5 metrics  create or edit the `factory-metrics` comment with the outcome needs-human (R-32,
+//              lib/factory-metrics.mjs). A ticket with no state has no metrics: the step says so
 //   6 report   store the stop in run.json and write the run report (R-29)
 //   7 clear    end the run: run.json stays, not active (R-45)
 // A failed step is printed and logged, the later steps still run, and the command exits 2 at the
@@ -23,6 +24,7 @@ import {
   withLock,
 } from './factory-base.mjs';
 import { postComment, redactText } from './factory-comment.mjs';
+import { metricsStep } from './factory-metrics.mjs';
 import { pushBranch } from './factory-push.mjs';
 import { clearForStop, recordStop } from './factory-report.mjs';
 import { loadTicket, moveStage, saveTicket, writeRunLog } from './factory-state.mjs';
@@ -239,7 +241,7 @@ const STEPS = [
   { name: 'push', run: stepPush },
   { name: 'patch', run: stepPatch },
   { name: 'comment', run: stepComment },
-  { name: 'metrics', task: '5' },
+  { name: 'metrics', run: (context, hs) => metricsStep(context, hs.ticket) },
   { name: 'report', run: stepReport },
   { name: 'clear', run: (context) => clearForStop(context) },
 ];
@@ -251,22 +253,21 @@ function runSteps(strict, hs) {
   const { failed } = hs;
   for (const [index, step] of STEPS.entries()) {
     const label = `step ${String(index + 1)} ${step.name}`;
-    let event = 'stop';
     let detail;
-    if (step.run === undefined) {
-      event = 'skip';
-      detail = `skipped: task ${step.task}`;
-      context.print(`${label}: not built yet (task ${step.task})\n`);
-    } else {
-      try {
-        detail = step.run(context, hs);
-      } catch (error) {
-        failed.push(`${String(index + 1)} ${step.name}`);
-        detail = `FAILED: ${oneLine(error instanceof Error ? error.message : String(error))}`;
-      }
-      context.print(`${label}: ${detail}\n`);
+    try {
+      detail = step.run(context, hs);
+    } catch (error) {
+      failed.push(`${String(index + 1)} ${step.name}`);
+      detail = `FAILED: ${oneLine(error instanceof Error ? error.message : String(error))}`;
     }
-    writeRunLog(context, { ticket, event, from: null, to: null, detail: `${label}: ${detail}` });
+    context.print(`${label}: ${detail}\n`);
+    writeRunLog(context, {
+      ticket,
+      event: 'stop',
+      from: null,
+      to: null,
+      detail: `${label}: ${detail}`,
+    });
   }
   context.print(`${NEXT}\n`);
   if (failed.length > 0) {
