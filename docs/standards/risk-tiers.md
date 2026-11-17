@@ -16,6 +16,8 @@ Review rules: see section 3.
 
 A PR that changes any path below is `risk:high`.
 
+The code copy of the tables in sections 2 and 2.1 is [factory-routing.mjs](../../tooling/repo-checks/scripts/lib/factory-routing.mjs). A unit test fails when the code copy and these tables do not agree.
+
 | Path or change                                                     | Why                                                                                               |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | Authentication and authorization code                              | Access control.                                                                                   |
