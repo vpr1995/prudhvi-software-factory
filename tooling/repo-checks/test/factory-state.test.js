@@ -371,6 +371,51 @@ test('R-23: the order of 4.4: merged, needs-human label, green CI, other CI', ()
   }
 });
 
+const ciPass = {
+  name: 'knip',
+  state: 'SUCCESS',
+  bucket: 'pass',
+  startedAt: '2026-11-17T05:29:18Z',
+  workflow: 'ci',
+};
+const codeql = {
+  name: 'CodeQL',
+  state: 'SUCCESS',
+  bucket: 'pass',
+  startedAt: '2026-11-17T05:29:38Z',
+  workflow: '',
+};
+const ciCancel = {
+  name: 'matrix.project.name',
+  state: 'CANCELLED',
+  bucket: 'cancel',
+  startedAt: '2026-11-17T05:29:09Z',
+  workflow: 'ci',
+};
+
+test('R-23: a cancelled duplicate check is ignored when a later check of its workflow passed', () => {
+  const open = [{ number: 96, state: 'OPEN' }];
+  const cases = [
+    // PR 114 shape: the cancelled duplicate ci run started before the passing ci checks.
+    [[ciPass, codeql, ciCancel, { ...ciPass, name: 'gitleaks', workflow: 'secrets' }], 'green'],
+    // A fully cancelled ci run is not green.
+    [[codeql, ciCancel], 'ci'],
+    // A later pass of another workflow does not cover the cancel.
+    [[codeql, { ...ciPass, workflow: 'secrets' }, ciCancel], 'ci'],
+    // The pass started before the cancel.
+    [[codeql, { ...ciPass, startedAt: '2026-11-17T05:29:00Z' }, ciCancel], 'ci'],
+    // Missing fields give no match.
+    [[codeql, { name: 'knip', state: 'SUCCESS', bucket: 'pass' }, { bucket: 'cancel' }], 'ci'],
+  ];
+  for (const [checks, expected] of cases) {
+    assert.equal(
+      reconcileWith('building', { prs: open, checks }).result,
+      expected,
+      JSON.stringify(checks),
+    );
+  }
+});
+
 test('R-23: no GitHub signal keeps the stored stage and prints nothing', () => {
   const { context, result } = reconcileWith('reviewing', {});
   assert.equal(result, 'reviewing');

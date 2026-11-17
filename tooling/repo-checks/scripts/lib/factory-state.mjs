@@ -133,13 +133,33 @@ function newTicket(context, ticket, stage) {
   };
 }
 
-/** @returns {boolean} True when a CI check list has a pass and no check that fails or runs. */
-export function checksGreen(checks) {
-  const onlyPassOrSkip = checks.every(
-    (check) => check.bucket === 'pass' || check.bucket === 'skipping',
+/** @returns {boolean} True when a cancelled check has a later pass in the same workflow. */
+function supersededCancel(check, checks) {
+  const { workflow, startedAt } = check;
+  if (typeof workflow !== 'string' || typeof startedAt !== 'string') return false;
+  return checks.some(
+    (other) =>
+      other.bucket === 'pass' &&
+      other.workflow === workflow &&
+      typeof other.startedAt === 'string' &&
+      other.startedAt > startedAt,
   );
-  return checks.some((check) => check.bucket === 'pass') && onlyPassOrSkip;
 }
+
+/**
+ * A cancelled duplicate run (same workflow, earlier start) does not block.
+ * @returns {boolean} True when a CI check list has a pass and no check that fails or runs.
+ */
+export function checksGreen(checks) {
+  const okay = (check) =>
+    check.bucket === 'pass' ||
+    check.bucket === 'skipping' ||
+    (check.bucket === 'cancel' && supersededCancel(check, checks));
+  return checks.some((check) => check.bucket === 'pass') && checks.every(okay);
+}
+
+/** The --json field list for `gh pr checks`. */
+export const CHECK_FIELDS = 'name,state,bucket,startedAt,workflow';
 
 // GitHub: labels and board Status (R-57)
 
@@ -300,13 +320,7 @@ function githubStage(context, ticket, state) {
   if (open === undefined) {
     return labels.some((label) => label.name === 'agent:ready') ? READY : undefined;
   }
-  const checks = ghJson(context, [
-    'pr',
-    'checks',
-    String(open.number),
-    '--json',
-    'name,state,bucket',
-  ]);
+  const checks = ghJson(context, ['pr', 'checks', String(open.number), '--json', CHECK_FIELDS]);
   return checksGreen(checks) ? 'green' : 'ci';
 }
 

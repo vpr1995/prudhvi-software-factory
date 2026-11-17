@@ -26,7 +26,14 @@ import {
 } from './factory-queue-rules.mjs';
 import { parseSize, route, routingLine } from './factory-route.mjs';
 import { beginRun, logAdoption } from './factory-run.mjs';
-import { checksGreen, ghJson, loadTicket, reconcile, writeRunLog } from './factory-state.mjs';
+import {
+  CHECK_FIELDS,
+  checksGreen,
+  ghJson,
+  loadTicket,
+  reconcile,
+  writeRunLog,
+} from './factory-state.mjs';
 import { BOARD } from './factory.config.mjs';
 import { listFolder } from './fs-io.mjs';
 
@@ -119,13 +126,7 @@ function stackOn(env, blocker) {
   if (hasNeedsHuman(blocker.labels) || hasNeedsHuman(pr.labels)) {
     return { skip: `${name}: needs-human (R-6)` };
   }
-  const checks = ghJson(env.context, [
-    'pr',
-    'checks',
-    String(pr.number),
-    '--json',
-    'name,state,bucket',
-  ]);
+  const checks = ghJson(env.context, ['pr', 'checks', String(pr.number), '--json', CHECK_FIELDS]);
   if (!checksGreen(checks)) {
     const pending = checks.some((check) => check.bucket === 'pending');
     return {
