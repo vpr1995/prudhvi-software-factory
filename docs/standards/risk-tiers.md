@@ -55,6 +55,8 @@ Changes to `CLAUDE.md` files, `REVIEW.md` files, `docs/guides/**`, and `docs/sta
 2. The agent sets one label: `risk:low`, `risk:medium`, or `risk:high`. The tier is the highest tier that matches a changed path.
 3. The agent writes the reason in the PR template.
 
+A stacked ticket (see [git-workflow.md](git-workflow.md) section 9) uses its stack base, not `main`. The changed paths, the tier, and the diff count come from `origin/<base>...HEAD`. `<base>` is the branch of the lower PR.
+
 ## 5. Choosing the tier for a PR you write
 
 1. Check each changed path against section 2. If one matches, the tier is `risk:high`.

@@ -15,15 +15,16 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 4. Check the verify output.
    - With a ticket: use the output of the last `verify` run of this session. It must show a pass. A doc-only diff has the output of `doc-lint.mjs` (the doc-lint run of the `factory` skill) instead. Do not read the log file. If there is no passing output, run the `verify` skill.
    - No ticket: `tail -n 30 .claude/state/verify-output.log`. It must show a pass. If the file is missing or shows a failure, run the `verify` skill.
-5. Gather facts: `git log --oneline main..HEAD` and `git diff --stat main...HEAD`.
+5. Gather facts: `git log --oneline main..HEAD` and `git diff --stat main...HEAD`. A stacked ticket uses its stack base: `origin/<base>..HEAD` and `origin/<base>...HEAD` (step 6 gives `<base>`).
 6. Set the risk tier.
-   - With a ticket: run `node tooling/repo-checks/scripts/factory.mjs route <n> 2>&1`. The Routing line and a possible `warning: #<n> has no ticket state` go to stderr. The JSON goes to stdout. Find the line that starts with `Routing: `. Copy it as it is into the body (step 7). A warning on that line (a missing or bad size) stays in it. Ignore the `warning: #<n>` line. Take `changedLines`, `budget` and `overBudget` from it. The tier is the `tier` of the output. Do not set it by hand. Do not lower it.
+   - With a ticket: run `node tooling/repo-checks/scripts/factory.mjs route <n> 2>&1`. The `base` of the route JSON is `origin/main`, or `origin/<base>` for a stacked ticket (R-37). Keep `<base>` for steps 7 and 10. The Routing line and a possible `warning: #<n> has no ticket state` go to stderr. The JSON goes to stdout. Find the line that starts with `Routing: `. Copy it as it is into the body (step 7). A warning on that line (a missing or bad size) stays in it. Ignore the `warning: #<n>` line. Take `changedLines`, `budget` and `overBudget` from it. The tier is the `tier` of the output. Do not set it by hand. Do not lower it.
    - The finding "check config changed" comes from the output of `node tooling/repo-checks/scripts/factory.mjs push <n>` (the test guard). The route JSON has no flag for it. It gives `risk:high` (the router sets it): write the finding in `## Risk tier`.
    - No ticket: there is no router. Read `docs/standards/risk-tiers.md`. Apply its path rules to the changed files. Keep the highest tier that matches. Do not lower it.
 7. Write the body. Run `mktemp /tmp/factory-pr.XXXXXX`. Write the body with the Write tool to the path that it prints. Do not write it with a shell heredoc: a quoted denied command in the body can trip the deny rules in `.claude/settings.json`. Never use a fixed path.
    - The six sections below are required, in this order. After them, write `## Decisions I made` and `## Over budget`, in this order.
    - If `.github/pull_request_template.md` exists and has other headings, keep them after these sections. Do not replace these sections with them.
    - Stacked PR (its base is a ticket branch, not `main`): the first line of the body is `Stacked on #<m>. Merge #<m> first.` (`<m>` is the PR number of the PR below it). Other PR: no stack line.
+   - `<m>` of a stacked ticket: run `node tooling/repo-checks/scripts/factory.mjs stack plan <n>`. The line has `stacked on PR #<m>`.
    - `## Summary`: 1 to 3 sentences. What changed and why.
    - `## Linked issue`: `Closes #<n>`. If there is no issue, write `None`. Ask the user for the number if it is unknown. Do not invent one.
    - `## Testing`: the commands you ran, and the output. With a ticket: the last `verify` run of step 4. No ticket: the last 30 lines of `.claude/state/verify-output.log`.
@@ -37,7 +38,7 @@ Alias (define it in every Bash call): `rush() { node "$(git rev-parse --show-top
 9. Push.
    - With a ticket: skip this step. `pre-pr` or `/factory` pushed already with `node tooling/repo-checks/scripts/factory.mjs push <n>`. That command runs the test guard first.
    - No ticket: `git push -u origin HEAD`. If the pre-push hook fails, read the message and fix the cause. Then retry.
-10. Open the PR with the risk label: `gh pr create --base main --title '<title>' --label risk:<tier> --body-file <path>`. `<tier>` is the tier of step 6. `<path>` is the file of step 7. The stacked `--base` is not built yet (task 7b, #112). Until then the caller sets `--base` and `--draft`. The agent PR uses the owner's GitHub user. Then delete the body file with `rm /tmp/factory-pr.<suffix>` (the path that `mktemp` printed), also when `gh pr create` fails. Run `rm` only when the path matches `^/tmp/factory-pr\.[A-Za-z0-9]{6}$`. No match: do not run `rm`. Report the path.
+10. Open the PR with the risk label: `gh pr create --base main --title '<title>' --label risk:<tier> --body-file <path>`. `<tier>` is the tier of step 6. `<path>` is the file of step 7. A stacked ticket (the `base` of the route JSON is `origin/<base>`) opens a draft PR to the stack base: `gh pr create --draft --base <base> --title '<title>' --label risk:<tier> --body-file <path>`. The agent PR uses the owner's GitHub user. Then delete the body file with `rm /tmp/factory-pr.<suffix>` (the path that `mktemp` printed), also when `gh pr create` fails. Run `rm` only when the path matches `^/tmp/factory-pr\.[A-Za-z0-9]{6}$`. No match: do not run `rm`. Report the path.
 11. Report the PR URL.
 
 ## Done when

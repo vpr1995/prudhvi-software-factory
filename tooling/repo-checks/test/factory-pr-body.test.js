@@ -417,14 +417,6 @@ test('#110 round 1: the check-config finding comes from the output of push <n>',
   assert.match(line, /route JSON has no flag|no flag for it/);
 });
 
-test('#110 round 1: the stacked --base is not built yet and the caller sets it', () => {
-  const create = createStep();
-  assert.match(create, /not built yet/);
-  assert.match(create, /task 7b, #112/);
-  assert.match(create, /Until then the caller sets `--base`/);
-  assert.ok(bodyStep().includes('Stacked on #<m>. Merge #<m> first.'), 'the stack line stays');
-});
-
 test('#110 round 1: implement-feature takes the tier of the router with a ticket, the path rules without', () => {
   const { text } = fileStepWith(IMPLEMENT_FEATURE, 'Run the `pr-description` skill');
   assert.match(text, /With a ticket, the tier of the router \(`route <n>`\)/);
