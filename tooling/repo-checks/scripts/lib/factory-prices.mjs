@@ -5,6 +5,8 @@
 // 0.1 times the input price, and a cache write costs 1.25 times the input price (the 5 minute write).
 // A write with a 1 hour life costs 2 times the input price: the script prices it as a 5 minute write.
 // A model that is not in this table has no price: the cost script then writes `null` and a warning.
+// Haiku 5.5 has a second price row for a prompt above 100,000 tokens (the prompt is the input plus the
+// cache write plus the cache read tokens of one message). A model with no `above` row has one price.
 // A new model is one line in the table.
 const PRICES = new Map([
   ['claude-fable-5-2', { input: 8, output: 40, cacheWrite: 10, cacheRead: 0.2 }],
@@ -17,7 +19,18 @@ const PRICES = new Map([
   ['claude-sonnet-5', { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 }],
   ['claude-sonnet-4-6', { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 }],
   ['claude-haiku-4-5', { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }],
+  [
+    'claude-haiku-5-5',
+    {
+      input: 0.1,
+      output: 0.5,
+      cacheWrite: 0.125,
+      cacheRead: 0.01,
+      above: { input: 0.5, output: 2.5, cacheWrite: 0.625, cacheRead: 0.05 },
+    },
+  ],
 ]);
+const LONG_PROMPT_TOKENS = 100_000;
 
 // A context size suffix (`[1m]`) and a date suffix (`-20261101`) are not part of the model.
 const CONTEXT_SUFFIX = /\[\d+[km]\]$/;
@@ -25,9 +38,13 @@ const DATE_SUFFIX = /-\d{8}$/;
 
 /**
  * @param {string} model - The `message.model` text of a transcript line.
+ * @param {number} [promptTokens] - The prompt size of the message: input, cache write and cache read tokens.
  * @returns {{ input: number, output: number, cacheWrite: number, cacheRead: number } | undefined}
  *   The prices for each million tokens, or undefined for a model that has no price.
  */
-export function priceOf(model) {
-  return PRICES.get(model.replace(CONTEXT_SUFFIX, '').replace(DATE_SUFFIX, ''));
+export function priceOf(model, promptTokens = 0) {
+  const found = PRICES.get(model.replace(CONTEXT_SUFFIX, '').replace(DATE_SUFFIX, ''));
+  if (found === undefined) return;
+  const { above, ...base } = found;
+  return above !== undefined && promptTokens > LONG_PROMPT_TOKENS ? above : base;
 }

@@ -109,6 +109,8 @@ function transcriptsOf(folder, sessionId) {
   ];
 }
 
+const promptOf = (tokens) => tokens.input + tokens.cacheWrite + tokens.cacheRead;
+
 /** @returns {number} The cost of one message in US dollars, from its token numbers and prices. */
 const costOf = (tokens, price) =>
   [...TOKEN_FIELDS.keys()].reduce((sum, key) => sum + (tokens[key] / MILLION) * price[key], 0);
@@ -118,7 +120,7 @@ function priceMessages(messages) {
   const unknown = new Set();
   let cost = 0;
   for (const { model, tokens } of messages.values()) {
-    const price = priceOf(model);
+    const price = priceOf(model, promptOf(tokens));
     if (price === undefined) unknown.add(PLAIN_NAME.test(model) ? model : '<invalid name>');
     else cost += costOf(tokens, price);
   }

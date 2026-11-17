@@ -22,6 +22,7 @@ const T0 = Date.parse('2026-11-17T08:00:00Z');
 const MILLION = 1_000_000;
 const OPUS = 'claude-opus-5-5';
 const SONNET = 'claude-sonnet-5-5';
+const HAIKU = 'claude-haiku-5-5';
 const roots = [];
 
 after(() => {
@@ -542,4 +543,22 @@ test('R-33: the price table has the known models, and an unknown name has no pri
   assert.equal(priceOf(`${OPUS}[1m]`)?.input, 4, 'a context suffix is not part of the model');
   assert.equal(priceOf(`${OPUS}-20261101`)?.input, 4, 'a date suffix is not part of the model');
   assert.equal(priceOf('claude-mystery-9'), undefined);
+});
+
+test('R-33: haiku 5.5 has a price, and a prompt above 100,000 tokens has the higher price', () => {
+  assert.equal(priceOf(HAIKU, 100_000)?.input, 0.1);
+  assert.equal(priceOf(HAIKU, 100_001)?.input, 0.5);
+  assert.equal(priceOf(HAIKU, 100_001)?.output, 2.5);
+  assert.equal('above' in (priceOf(HAIKU) ?? {}), false, 'the tier row is not in the result');
+  const setup = fullSetup();
+  writeTranscript(setup.project, 'sess-a.jsonl', [
+    // Short prompt: 50k input, 1M output at 0.1 and 0.5 = 0.005 + 0.5 = 0.505. Long prompt: 200k
+    // input, 1M output at 0.5 and 2.5 = 0.1 + 2.5 = 2.6. With the subagent message s1 (opus, 0.6): 3.705.
+    assistant(T0 + MINUTE, 'h1', [HAIKU, usage(50_000, MILLION)]),
+    assistant(T0 + 2 * MINUTE, 'h2', [HAIKU, usage(200_000, MILLION)]),
+  ]);
+  const result = runMetrics(setup);
+  const metrics = metricsOf(postedBody(result));
+  assert.equal(metrics.cost, 3.705);
+  assert.equal(result.errors, '');
 });
