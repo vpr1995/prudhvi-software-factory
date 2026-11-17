@@ -11,7 +11,8 @@
 // run. After 3 errors in a row it allows the stop and prints the error. The count is in
 // .claude/factory/stop-errors. A good check of the owner removes the file. Another session (the
 // run has a session id that is not the session of the hook input) is allowed at once and never
-// moves the count. The entry finds the owner with a plain JSON.parse: it loads no lib code.
+// moves the count. A stop that hits a held lock is allowed and leaves the count as it is.
+// The entry finds the owner with a plain JSON.parse: it loads no lib code.
 //
 // The owner turns the factory off with FACTORY_RUN=off (R-45).
 import path from 'node:path';
@@ -52,19 +53,21 @@ async function check() {
   hookInput.text = input;
   const text = readOptional(RUN_FILE);
   let output;
+  let lockHeld = false;
   if (text !== undefined && isOpen(text)) {
     const { handleStopCheck } = await import('./lib/factory-stop-check.mjs');
     const { isRunOff } = await import('./lib/factory.config.mjs');
-    output = handleStopCheck(input, {
+    ({ output, lockHeld } = handleStopCheck(input, {
       root: ROOT,
       now: () => new Date(),
       pid: process.pid,
       runOff: isRunOff,
       err: (line) => process.stderr.write(line),
-    });
+    }));
   }
   // Only the owner (or the claiming session) has a good check. Else the count is not theirs.
-  if (text === undefined || !isOpen(text) || !isOtherSession(input, text)) {
+  // A held lock is no check: the stop is allowed and the count stays.
+  if (!lockHeld && (text === undefined || !isOpen(text) || !isOtherSession(input, text))) {
     removeFile(ERRORS_FILE);
   }
   return output;
