@@ -97,7 +97,7 @@ export function loadTicket(root, ticket) {
   return state;
 }
 
-function saveTicket(root, ticket, state) {
+export function saveTicket(root, ticket, state) {
   writeAtomic(ticketFile(root, ticket), `${JSON.stringify(state, undefined, 2)}\n`);
 }
 
