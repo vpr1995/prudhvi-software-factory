@@ -169,7 +169,15 @@ function buildMetrics(context, { ticket, state, outcome, warnings }) {
 }
 
 /** @returns {string} The login of the user of `gh`. Empty when it cannot be read: then no comment matches. */
-const loginOf = (context) => context.gh(['api', 'user', '--jq', '.login']).trim();
+function loginOf(context, warnings) {
+  try {
+    return context.gh(['api', 'user', '--jq', '.login']).trim();
+  } catch {
+    // An error text is not printed: it can hold anything of the host.
+    warnings.push('gh user not readable: a new metrics comment is made');
+    return '';
+  }
+}
 
 // A comment of the factory starts with the marker line. A version 1 comment has no marker line.
 const isOwnMetrics = (entry, login) =>
@@ -180,8 +188,8 @@ const isOwnMetrics = (entry, login) =>
   (entry.body.startsWith(MARKER_LINE) || !entry.body.includes(MARKER_LINE));
 
 /** @returns {number | undefined} The id of the last comment of the place with a `factory-metrics` block from the logged-in user. */
-function findComment(context, target) {
-  const login = loginOf(context);
+function findComment(context, target, warnings) {
+  const login = loginOf(context, warnings);
   const pages = parseJson(
     context.gh(['api', `repos/{owner}/{repo}/issues/${target}/comments`, '--paginate', '--slurp']),
     'gh api comments',
@@ -228,7 +236,7 @@ export function postMetrics(context, { ticket, outcome }) {
   const body = `${MARKER_LINE}\n${FENCE}factory-metrics\n${JSON.stringify(metrics)}\n${FENCE}\n`;
   const pr = positive(state.pr);
   const place = pr === null ? ticket : String(pr);
-  const id = findComment(context, place);
+  const id = findComment(context, place, warnings);
   if (id === undefined) postComment(context, { ticket, pr: pr === null ? undefined : place }, body);
   else editComment(context, { ticket, id }, body);
   return {

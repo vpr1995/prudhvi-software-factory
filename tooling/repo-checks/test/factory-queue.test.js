@@ -892,10 +892,10 @@ test('R-50: an ended run gives a new run with a new id and no session', () => {
   const run = readJson(root, 'run.json');
   assert.equal(run.runId, RUN_ID);
   assert.equal(run.sessionId, null);
-  assert.deepEqual(run.sessionIds, ['session-1'], 'the earlier sessions of the ticket stay');
+  assert.deepEqual(run.sessionIds, [], 'no session id is set: the list is empty');
 });
 
-test('R-50: a new run records the current session id and carries over the earlier ones', () => {
+test('R-50: a new run records only the current session id and does NOT carry over the earlier ones', () => {
   const root = temporaryFolder();
   const { gh } = makeWorld();
   seedRun(root, { active: false, stalled: false, sessionIds: ['old-1', 'old-2'] });
@@ -903,7 +903,7 @@ test('R-50: a new run records the current session id and carries over the earlie
   assert.equal(result.code, 0, result.errors);
   const run = readJson(root, 'run.json');
   assert.equal(run.runId, RUN_ID);
-  assert.deepEqual(run.sessionIds, ['old-1', 'old-2', 'now-1']);
+  assert.deepEqual(run.sessionIds, ['now-1']);
 });
 
 test('R-50: a new run with no earlier run records the current session id', () => {
@@ -925,24 +925,12 @@ test('R-50: an adopted run adds the current session id once', () => {
 test('R-50: a session id that is not valid or not set is not recorded', () => {
   const root = temporaryFolder();
   const { gh } = makeWorld();
-  seedRun(root, { active: false, stalled: false, sessionIds: ['old-1', 'old-1'] });
+  seedRun(root, { active: false, stalled: false, sessionIds: ['old-1'] });
   assert.equal(start([], { gh, root, sessionId: () => '../x' }).code, 0);
-  assert.deepEqual(readJson(root, 'run.json').sessionIds, ['old-1']);
+  assert.deepEqual(readJson(root, 'run.json').sessionIds, []);
   seedRun(root, { active: false, stalled: false, sessionIds: [] });
   assert.equal(start([], { gh, root, sessionId: () => '' }).code, 0);
   assert.deepEqual(readJson(root, 'run.json').sessionIds, []);
-});
-
-test('R-50: the carried session ids are capped at the last 50', () => {
-  const root = temporaryFolder();
-  const { gh } = makeWorld();
-  const many = Array.from({ length: 60 }, (_, index) => `old-${String(index)}`);
-  seedRun(root, { active: false, stalled: false, sessionIds: many });
-  assert.equal(start([], { gh, root, sessionId: () => 'now-1' }).code, 0);
-  const ids = readJson(root, 'run.json').sessionIds;
-  assert.equal(ids.length, 50);
-  assert.equal(ids[0], 'old-11');
-  assert.equal(ids.at(-1), 'now-1');
 });
 
 test('R-50: a run.json that is not valid is refused before anything is written', () => {

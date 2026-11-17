@@ -479,6 +479,26 @@ test('R-32: with no PR the comment goes on the issue', () => {
   assert.match(result.out, /on the issue/);
 });
 
+test('R-32: a gh user that cannot be read creates a new comment, exits 0, and prints a fixed warning', () => {
+  const setup = fullSetup();
+  const ghParts = makeGh();
+  const inner = ghParts.gh;
+  ghParts.gh = (args) => {
+    if (args[0] === 'api' && args[1] === 'user') {
+      ghParts.calls.push({ args });
+      throw new Error('gh: HTTP 401 ghp_secrettoken');
+    }
+    return inner(args);
+  };
+  assert.equal(runMetrics(setup, { ghParts }).code, 0);
+  const second = runMetrics(setup, { ghParts });
+  assert.equal(second.code, 0, second.errors);
+  assert.equal(creates(ghParts.calls).length, 2, 'no login: no comment matches, a new one is made');
+  assert.equal(patches(ghParts.calls).length, 0);
+  assert.match(second.errors, /warning: gh user not readable: a new metrics comment is made/);
+  assert.ok(!second.errors.includes('ghp_secrettoken'), 'the error text is not printed');
+});
+
 test('R-32: the outcome is needs-human for a stopped ticket, and green for green and done', () => {
   for (const [stage, outcome] of [
     ['needs-human', 'needs-human'],

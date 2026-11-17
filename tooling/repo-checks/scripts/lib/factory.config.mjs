@@ -17,7 +17,9 @@ export const transcriptRoot = () =>
 
 /**
  * @returns {string | undefined} The ID of the current Claude Code session (`CLAUDE_CODE_SESSION_ID`:
- *   the name of its transcript), or undefined when it is not set.
+ *   the name of its transcript), or undefined when it is not set. Claude Code sets this variable to
+ *   the id of the session transcript. Checked on Claude Code 2.1.326 by a real `factory.mjs start`
+ *   run: `sessionIds` of run.json got the session id.
  */
 export const currentSessionId = () => {
   const id = process.env.CLAUDE_CODE_SESSION_ID?.trim();

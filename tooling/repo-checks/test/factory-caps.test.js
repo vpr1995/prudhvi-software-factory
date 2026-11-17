@@ -784,6 +784,24 @@ test('R-12 step 5: a hard stop of a ticket in stage ci still posts the metrics c
   );
 });
 
+test('R-12 step 5: a gh user that cannot be read still posts a new metrics comment and the step is not FAILED', () => {
+  const { work } = makeRepository();
+  seedTicket(work, { pr: 12 });
+  seedLog(work, [logLine(T0)]);
+  const replies = {
+    'api user': () => {
+      throw new Error('gh: HTTP 401 ghp_secrettoken');
+    },
+  };
+  const { calls, overrides } = hardstopOverrides(work, { replies });
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /step 5 metrics: created on PR #12;.* warning: gh user not readable/);
+  assert.doesNotMatch(result.out, /step 5 metrics: FAILED/);
+  assert.ok(!result.out.includes('ghp_secrettoken'), 'the error text is not printed');
+  assert.equal(metricsComments(calls).length, 1);
+});
+
 test('R-12 step 5: a second hard stop edits the metrics comment, it does not post a second one', () => {
   const { work } = makeRepository();
   seedTicket(work, { pr: 12 });
