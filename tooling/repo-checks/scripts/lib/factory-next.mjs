@@ -32,7 +32,7 @@ const none = (name, words) => {
 };
 
 /** @returns {string} The step as text. */
-function describeNext(next) {
+export function describeNext(next) {
   if (next === null || next === undefined) return 'none';
   if (next.kind === 'done') return 'done';
   if (next.kind === 'wait') return `wait for the CI of PR #${String(next.pr)}`;
