@@ -133,9 +133,17 @@ function newTicket(context, ticket, stage) {
   };
 }
 
+/** @returns {boolean} True when a CI check list has a pass and no check that fails or runs. */
+export function checksGreen(checks) {
+  const onlyPassOrSkip = checks.every(
+    (check) => check.bucket === 'pass' || check.bucket === 'skipping',
+  );
+  return checks.some((check) => check.bucket === 'pass') && onlyPassOrSkip;
+}
+
 // GitHub: labels and board Status (R-57)
 
-function ghJson(context, args) {
+export function ghJson(context, args) {
   return parseJson(context.gh(args), `gh ${args.slice(0, 2).join(' ')}`);
 }
 
@@ -269,7 +277,7 @@ function stageCommand([ticketWord, to], context) {
   return withLock(context, () => moveStage(context, ticket, to));
 }
 
-// reconcile (R-23). No 2a1 command calls it: `start` (task 2c) does, and holds the lock.
+// reconcile (R-23). `start` (lib/factory-queue.mjs) calls it and holds the lock.
 
 function githubStage(context, ticket, state) {
   const { labels } = ghJson(context, ['issue', 'view', ticket, '--json', 'labels']);
@@ -299,10 +307,7 @@ function githubStage(context, ticket, state) {
     '--json',
     'name,state,bucket',
   ]);
-  const onlyPassOrSkip = checks.every(
-    (check) => check.bucket === 'pass' || check.bucket === 'skipping',
-  );
-  return checks.some((check) => check.bucket === 'pass') && onlyPassOrSkip ? 'green' : 'ci';
+  return checksGreen(checks) ? 'green' : 'ci';
 }
 
 // R-57: `agent:ready` with no stage matches board Status Ready. On a mismatch, prints both values and
