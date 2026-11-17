@@ -9,7 +9,7 @@
 // `<number> <name>` ("4 comment"). A second hard stop of the same run writes the same report.
 import { fail, relative, withLock } from './factory-base.mjs';
 import { redactText } from './factory-comment.mjs';
-import { clearRun, isOpenRun, loadRun, onlyOf, saveRun } from './factory-run.mjs';
+import { clearRun, isOpenRun, loadRun, onlyOf, saveRun, warnBadOnly } from './factory-run.mjs';
 import { loadTicket, runLogFile, writeRunLog } from './factory-state.mjs';
 import { readOptional, writeAtomic } from './fs-io.mjs';
 
@@ -51,7 +51,13 @@ const isWork = (line) => line.ticket > 0 && line.event !== 'skip';
  */
 export function currentTicket(context, run) {
   const step = run?.next;
-  if (step?.kind === 'ticket' && step.resume === true) {
+  // The ticket is a path part: only a positive integer counts.
+  if (
+    step?.kind === 'ticket' &&
+    step.resume === true &&
+    Number.isInteger(step.ticket) &&
+    step.ticket > 0
+  ) {
     const stage = loadTicket(context.root, String(step.ticket))?.stage;
     if (IN_FLIGHT.has(stage)) return { ticket: step.ticket, stage };
   }
@@ -65,13 +71,15 @@ export function currentTicket(context, run) {
 }
 
 const scopeOf = (run) => {
-  const only = run === undefined ? null : onlyOf(run);
+  const only = onlyOf(run, { strict: false });
   return only === null ? 'all tickets' : `only #${String(only)}`;
 };
 
 /** @returns {string} The command that resumes the run. R-50: `/factory` adopts the run. */
-const resumeCommand = (run) =>
-  `\`/factory${typeof run?.only === 'number' ? ` ${String(run.only)}` : ''}\``;
+const resumeCommand = (run) => {
+  const only = onlyOf(run, { strict: false });
+  return `\`/factory${only === null ? '' : ` ${String(only)}`}\``;
+};
 
 function statusOf(run, stopped) {
   if (run?.next?.kind === 'done') return STATUS_DONE;
@@ -168,6 +176,7 @@ function sections(context, run, stopped) {
  */
 export function writeReport(context, { status, stopped } = {}) {
   const run = loadRun(context.root);
+  warnBadOnly(context, run);
   const hardStop = stopped ?? run?.stopped;
   const head = [
     `# Run report: ${run?.runId ?? 'adhoc'}`,

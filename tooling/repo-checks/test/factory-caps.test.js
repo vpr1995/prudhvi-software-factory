@@ -1680,3 +1680,24 @@ test('S2: a reason of 300 characters or less is stored whole', () => {
   assert.equal(runFactory(['hardstop', '7', exact], overrides).code, 0);
   assert.equal(readRun(work).stopped.reason, exact);
 });
+
+test('R-12: step 6 with a bad run.json only writes the report, warns, and treats only as null', () => {
+  for (const only of [-1, 1.5, '7']) {
+    const { work } = makeRepository();
+    seedTicket(work);
+    seedActiveRun(work);
+    writeAtomic(stateFile(work, 'run.json'), JSON.stringify({ ...readRun(work), only }));
+    const { overrides } = hardstopOverrides(work);
+    const result = runFactory(['hardstop', '7', REASON], overrides);
+    const label = `only ${JSON.stringify(only)}`;
+    assert.equal(result.code, 0, `${label}: ${result.errors}`);
+    assert.match(result.out, /step 6 report: wrote \.claude\/factory\/runs\/old-run-report\.md/);
+    assert.equal(
+      result.errors,
+      'warning: run.json only is not valid: treated as all tickets\n',
+      label,
+    );
+    assert.match(readRunReport(work), /Scope: all tickets/, label);
+    assert.equal(readRun(work).active, false, label);
+  }
+});
