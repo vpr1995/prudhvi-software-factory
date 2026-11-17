@@ -87,6 +87,9 @@ function buildTemplate() {
   git(folder, 'init', '-q', '-b', 'main', work);
   git(work, 'config', 'commit.gpgsign', 'false');
   git(work, 'config', 'core.hooksPath', '/dev/null');
+  // Set an identity in the repo: factory.mjs runs git merge with the process environment, and a CI runner has no identity.
+  git(work, 'config', 'user.name', 't');
+  git(work, 'config', 'user.email', 't@t');
   git(work, 'remote', 'add', 'origin', remote);
   commitFile(work, 'README.md', 'hello\n');
   commitFile(work, 'src/a.js', 'export const a = 0;\n');
