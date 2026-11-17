@@ -99,13 +99,17 @@ function entryFindings(diff, entry) {
   return findings;
 }
 
-/** Check the diff from the merge base of `base` and HEAD. Return findings { file, line, message }. */
-export function guardRepository(root, base) {
-  const { mergeBase, entries, patch } = readDiff(root, base);
+/** Check a diff that readDiff returned. Return findings { file, line, message }. */
+export function guardDiff(root, { mergeBase, entries, patch }) {
   const diff = { root, mergeBase, patch };
   return entries.flatMap((entry) =>
     entryFindings(diff, entry).map((finding) => ({ file: entry.path, ...finding })),
   );
+}
+
+/** Check the diff from the merge base of `base` and HEAD. Return findings { file, line, message }. */
+export function guardRepository(root, base) {
+  return guardDiff(root, readDiff(root, base));
 }
 
 /** Format one finding. GitHub Actions gets an annotation of the given level (error or warning). */
