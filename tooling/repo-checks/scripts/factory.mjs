@@ -31,7 +31,7 @@
 // `handledComments` and adds 1 to `threadReplies` of its thread (R-30, R-31).
 // comments <n>: print the new owner comments of ticket <n>. `next` gives them first (R-30).
 // Code: lib/factory-comments.mjs.
-// hardstop <n> "<reason>": the R-12 steps, error excerpt on stdin (lib/factory-hard-stop.mjs).
+// hardstop <n> "<reason>" [--detail "<text>"]: the R-12 steps, error excerpt on stdin (lib/factory-hard-stop.mjs).
 // caps <n>: derive the cap counts, print JSON, exit 3 when a cap is reached (lib/factory-caps.mjs).
 // metrics <n>: create the `factory-metrics` comment of the ticket, or edit it in place, with the
 // version 2 fields (R-32). The cost script reads the transcripts of the run sessions (R-33). The
@@ -90,7 +90,7 @@ const USAGE = [
   'wait <n>',
   'comment <n> <hard-stop|reply> [<reply-to-id>]   (body on stdin)',
   'comments <n>',
-  'hardstop <n> "<reason>"   (error excerpt on stdin)',
+  'hardstop <n> "<reason>" [--detail "<text>"]   (error excerpt on stdin)',
   'caps <n>',
   'metrics <n>',
   ...SYNOPSES,
