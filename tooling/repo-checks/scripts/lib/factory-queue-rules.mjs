@@ -17,6 +17,8 @@ const FORBIDDEN = ['tooling/repo-checks', '.claude/settings.json'];
 // settings.local.json.
 const BACKSTOP = ['repo-checks', '.claude/settings'];
 const MAIN = 'main';
+/** The diff base of a ticket that is not stacked (R-37). */
+export const MAIN_REF = `origin/${MAIN}`;
 // A stack is at most 2 PRs deep (R-36). A chain with a loop stops at this many steps.
 const MAX_CHAIN = 10;
 
@@ -195,3 +197,22 @@ export function prDepth(pr, prs) {
 export function hasNeedsHuman(labels) {
   return (labels ?? []).some((label) => (label?.name ?? label) === 'needs-human');
 }
+
+/**
+ * R-37. The one place that chooses the diff base of a ticket: the router, the local test guard, the
+ * diff count and the risk tier use it.
+ *
+ * @param {{ base?: unknown } | undefined} state - The ticket state, or undefined when there is none.
+ * @returns {string} `origin/<base>` while the ticket is stacked (`base` is a branch name), else `origin/main`.
+ */
+export function baseRef(state) {
+  return typeof state?.base === 'string' ? `origin/${state.base}` : MAIN_REF;
+}
+
+/** @returns {string} The API path of an issue, with an optional suffix such as `/events`. */
+export const issuePath = (number, suffix = '') =>
+  `repos/{owner}/{repo}/issues/${String(number)}${suffix}`;
+
+/** @returns {boolean} True when the login is the owner. The case does not count. */
+export const isOwner = (login, owner) =>
+  typeof login === 'string' && login.toLowerCase() === owner.toLowerCase();
