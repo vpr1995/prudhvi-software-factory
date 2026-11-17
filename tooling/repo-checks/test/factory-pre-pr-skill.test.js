@@ -151,7 +151,7 @@ test('#109 R-18: a doc-only diff runs only the spec pass', () => {
   assert.match(text, /`docOnly` is true/);
   assert.match(text, /only the `spec-reviewer` pass/);
   assert.match(text, /No other pass/);
-  assert.match(text, /no `code-review`/);
+  assert.match(text, /no `fresh-reviewer`, no `simplify`\./);
 });
 
 test('#109 R-17: the push step runs the guard with factory.mjs push, gives one fix round, then a hard stop', () => {
@@ -461,7 +461,7 @@ test('#109: pre-pr step 7 joins reason fields on one line, bans the pipe, and ma
   const { text } = fileStepWith(PRE_PR, `${FACTORY_CALL} findings [<n>] add`);
   assert.match(text, /Reason: join Evidence and Fix on one line, no newline\./);
   assert.match(text, /No `\|` in any field \(replace with `\/`\)\./);
-  assert.match(text, /`simplify`, `code-review`, `security-review` output/);
+  assert.match(text, /`simplify` and `security-review` output/);
   assert.match(text, /High and Medium map to `Important`, Low maps to `Nit`/);
   assert.match(text, /no level is `Important` when it is a bug, else `Nit`/);
 });
