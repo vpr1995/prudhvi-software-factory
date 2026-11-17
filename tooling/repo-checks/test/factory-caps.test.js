@@ -152,6 +152,7 @@ function makeGh(replies = {}) {
     'project view': JSON.stringify({ id: 'PVT_2' }),
     'repo view': `${REPOSITORY}\n`,
     // Step 5 of the hard stop (metrics): no comment yet, no CI run.
+    'api user': 'factory-bot\n',
     'api repos/{owner}/{repo}/issues/7/comments': '[[]]',
     'api repos/{owner}/{repo}/issues/12/comments': '[[]]',
     'run list': '[]',
@@ -186,6 +187,7 @@ function runFactory(argv, overrides) {
     now: () => new Date('2026-11-17T10:00:00Z'),
     claudeVersion: () => '2.1.300 (Claude Code)\n',
     transcriptRoot: () => path.join(tmpdir(), 'factory-caps-no-transcripts'),
+    sessionId: () => '',
     guard: () => {
       throw new Error('the local test guard must not run');
     },
@@ -767,6 +769,21 @@ test('R-12 step 5: the hard stop posts the metrics comment with the outcome need
   assert.ok(!metrics.body.includes(REASON));
 });
 
+test('R-12 step 5: a hard stop of a ticket in stage ci still posts the metrics comment', () => {
+  const { work } = makeRepository();
+  seedTicket(work, { stage: 'ci', pr: 12 });
+  seedLog(work, [logLine(T0)]);
+  const { calls, overrides } = hardstopOverrides(work);
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /step 5 metrics: created on PR #12/);
+  assert.equal(metricsComments(calls).length, 1);
+  assert.equal(
+    JSON.parse(METRICS_BLOCK.exec(metricsComments(calls)[0].body)[1]).outcome,
+    'needs-human',
+  );
+});
+
 test('R-12 step 5: a second hard stop edits the metrics comment, it does not post a second one', () => {
   const { work } = makeRepository();
   seedTicket(work, { pr: 12 });
@@ -775,7 +792,11 @@ test('R-12 step 5: a second hard stop edits the metrics comment, it does not pos
   const replies = {
     'api repos/{owner}/{repo}/issues/12/comments': () => JSON.stringify([stored]),
     'pr comment': (args) => {
-      stored.push({ id: 900, body: readFileSync(args[args.indexOf('--body-file') + 1], 'utf8') });
+      stored.push({
+        id: 900,
+        body: readFileSync(args[args.indexOf('--body-file') + 1], 'utf8'),
+        user: { login: 'factory-bot' },
+      });
       return '';
     },
   };
@@ -1032,7 +1053,9 @@ test('R-12: a second run changes nothing: no gh write, no second patch, no secon
     'api repos/{owner}/{repo}/issues/7/comments': () => JSON.stringify([stored]),
     'issue comment': (args) => {
       const body = readFileSync(args[args.indexOf('--body-file') + 1], 'utf8');
-      if (body.includes('```factory-metrics')) stored.push({ id: 901, body });
+      if (body.includes('```factory-metrics')) {
+        stored.push({ id: 901, body, user: { login: 'factory-bot' } });
+      }
       return '';
     },
   };
@@ -1052,7 +1075,7 @@ test('R-12: a second run changes nothing: no gh write, no second patch, no secon
   assert.deepEqual(writes(second.calls), []);
   // Step 5 reads the comments and the CI runs, and edits its own comment in place.
   const isStepFive = ({ args }) =>
-    (args[0] === 'api' && args[1].includes('/comments')) ||
+    (args[0] === 'api' && (args[1].includes('/comments') || args[1] === 'user')) ||
     (args[0] === 'run' && args[1] === 'list');
   assert.deepEqual(
     second.calls.filter((call) => !isStepFive(call)),

@@ -98,7 +98,8 @@ function failedCiRuns(context, state) {
 }
 
 // A `skip` line of a ticket is a queue decision, not work. A hard-stop step line (`step <n> ...`)
-// is work, also when it is a `skip` event (step 5, task 5).
+// is work. Step lines are now the event `stop`: this guard serves old logs, where a step line could
+// be a `skip` event.
 const isTicketSkip = (entry) => entry.event === 'skip' && !String(entry.detail).startsWith('step ');
 
 const runFolder = (context) => path.join(stateFolder(context.root), 'runs');

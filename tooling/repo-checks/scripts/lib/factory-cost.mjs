@@ -24,6 +24,10 @@ import { priceOf } from './factory-prices.mjs';
 import { exists, listFolder, readOptional } from './fs-io.mjs';
 
 const SESSION_ID = /^[A-Za-z0-9][\w-]{0,63}$/;
+
+/** @returns {boolean} True when the value is a session id that is safe as a transcript name. */
+export const isSessionId = (value) => typeof value === 'string' && SESSION_ID.test(value);
+
 // A model name that is safe to print: no space, no quote, at most 64 characters.
 const PLAIN_NAME = /^[A-Za-z0-9][\w.:[\]-]{0,63}$/;
 const ASSISTANT_LINE = /"type"\s*:\s*"assistant"/;
@@ -134,7 +138,7 @@ function priceMessages(messages) {
 function sessionFiles(folder, sessionIds, state) {
   if (sessionIds.length === 0) state.problems.push('run.json has no session id');
   return sessionIds.flatMap((sessionId, index) => {
-    if (typeof sessionId !== 'string' || !SESSION_ID.test(sessionId)) {
+    if (!isSessionId(sessionId)) {
       state.problems.push(`session id #${String(index + 1)} is not valid`);
       return [];
     }

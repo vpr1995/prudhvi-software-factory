@@ -5,19 +5,20 @@
 // the comment holds numbers and names only.
 //
 // Where the comment goes: on the PR of the ticket, else on the issue (4.6). The earlier comment is
-// found by its `factory-metrics` block in the comments of that place. A version 1 comment has no
-// marker line and is found the same way. The edit goes through `gh api` with `--field body=@<file>`,
+// found by its `factory-metrics` block in the comments of that place, and only a comment of the
+// logged-in user counts (`gh api user`): the comment of another author is never edited. A version 1
+// comment has no marker line and is found the same way. The edit goes through `gh api` with `--field body=@<file>`,
 // the create through the shared `postComment` (a temp file, never argv).
 //
 // `outcome` is `needs-human` when the ticket is in the stage `needs-human` (or the hard stop says
-// so), else `green`. The command refuses a ticket in `building` or `reviewing`: it has not ended.
+// so), else `green`. The command refuses a ticket in `building`, `reviewing` or `ci`: it has not ended.
 import path from 'node:path';
 
 import { fail, parseJson, stateFolder, ticketNumber, withLock } from './factory-base.mjs';
 import { FAILED, logLines } from './factory-caps.mjs';
 import { buildComment, postComment } from './factory-comment.mjs';
 import { readCost } from './factory-cost.mjs';
-import { loadRun } from './factory-run.mjs';
+import { currentSession, loadRun } from './factory-run.mjs';
 import { loadTicket } from './factory-state.mjs';
 import { listFolder, removeFile, writeAtomic } from './fs-io.mjs';
 
@@ -31,7 +32,7 @@ const RUN_LIST_LIMIT = 100;
 // Run log lines have a time stamp in whole seconds: a message in the last second is in the slice.
 const LAST_SECOND_MS = 999;
 const SECOND_MS = 1000;
-const NOT_ENDED = new Set(['building', 'reviewing']);
+const NOT_ENDED = new Set(['building', 'reviewing', 'ci']);
 const USAGE = 'Usage: metrics <n>';
 
 const positive = (value) => (Number.isInteger(value) && value > 0 ? value : null);
@@ -57,15 +58,17 @@ function sliceOf(context, ticket) {
   return { first, last, stages: Object.fromEntries(seconds) };
 }
 
-/** @returns {unknown[]} The session IDs of the run in run.json. Empty when it has none or cannot be read. */
+/** @returns {unknown[]} The session IDs of the run in run.json, and the current session (first turn: the Stop hook has not stored it). */
 function sessionIdsOf(context, warnings) {
+  let ids = [];
   try {
-    const ids = loadRun(context.root)?.sessionIds;
-    return Array.isArray(ids) ? ids : [];
+    const stored = loadRun(context.root)?.sessionIds;
+    if (Array.isArray(stored)) ids = stored;
   } catch {
     warnings.push('run.json is not readable: no session id');
-    return [];
   }
+  const current = currentSession(context);
+  return current === undefined || ids.includes(current) ? ids : [...ids, current];
 }
 
 function readUsage(context, { ticket, slice, warnings }) {
@@ -82,26 +85,40 @@ function readUsage(context, { ticket, slice, warnings }) {
   return found;
 }
 
+/** @returns {object[] | undefined} The CI runs of the branch. Undefined when `gh run list` fails or gives no list. */
+function runList(context, branch) {
+  try {
+    const runs = parseJson(
+      context.gh([
+        'run',
+        'list',
+        '--branch',
+        branch,
+        '--json',
+        'conclusion',
+        '--limit',
+        String(RUN_LIST_LIMIT),
+      ]),
+      'gh run list',
+    );
+    return Array.isArray(runs) ? runs : undefined;
+  } catch {
+    return;
+  }
+}
+
 /** @returns {{ runs: number | null, failed: number | null }} All CI runs of the branch and the failed ones. */
 function ciCounts(context, state, warnings) {
   if (typeof state.branch !== 'string' || state.branch === '') {
     warnings.push('ticket has no branch: no CI count');
     return { runs: null, failed: null };
   }
-  const runs = parseJson(
-    context.gh([
-      'run',
-      'list',
-      '--branch',
-      state.branch,
-      '--json',
-      'conclusion',
-      '--limit',
-      String(RUN_LIST_LIMIT),
-    ]),
-    'gh run list',
-  );
-  if (!Array.isArray(runs)) fail('gh run list: not a list');
+  const runs = runList(context, state.branch);
+  if (runs === undefined) {
+    // An error text is not printed: it can hold anything of the host.
+    warnings.push('CI runs not readable: no CI count');
+    return { runs: null, failed: null };
+  }
   if (runs.length >= RUN_LIST_LIMIT) warnings.push(`CI run list is capped at ${RUN_LIST_LIMIT}`);
   return {
     runs: runs.length,
@@ -151,8 +168,20 @@ function buildMetrics(context, { ticket, state, outcome, warnings }) {
   ]);
 }
 
-/** @returns {number | undefined} The id of the last comment of the place with a `factory-metrics` block. */
+/** @returns {string} The login of the user of `gh`. Empty when it cannot be read: then no comment matches. */
+const loginOf = (context) => context.gh(['api', 'user', '--jq', '.login']).trim();
+
+// A comment of the factory starts with the marker line. A version 1 comment has no marker line.
+const isOwnMetrics = (entry, login) =>
+  login !== '' &&
+  entry?.user?.login === login &&
+  typeof entry.body === 'string' &&
+  METRICS_BLOCK.test(entry.body) &&
+  (entry.body.startsWith(MARKER_LINE) || !entry.body.includes(MARKER_LINE));
+
+/** @returns {number | undefined} The id of the last comment of the place with a `factory-metrics` block from the logged-in user. */
 function findComment(context, target) {
+  const login = loginOf(context);
   const pages = parseJson(
     context.gh(['api', `repos/{owner}/{repo}/issues/${target}/comments`, '--paginate', '--slurp']),
     'gh api comments',
@@ -160,7 +189,7 @@ function findComment(context, target) {
   if (!Array.isArray(pages)) fail('gh api comments: not a list');
   const found = pages
     .flat()
-    .filter((entry) => typeof entry?.body === 'string' && METRICS_BLOCK.test(entry.body))
+    .filter((entry) => isOwnMetrics(entry, login))
     .at(-1);
   return Number.isInteger(found?.id) ? found.id : undefined;
 }
