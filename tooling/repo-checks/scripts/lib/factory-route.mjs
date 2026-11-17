@@ -127,3 +127,22 @@ export function route({ base, changedFiles, size, checkConfig = false, table = r
     warnings,
   };
 }
+
+/**
+ * @param {object} result - The router JSON of `route`.
+ * @returns {string} One line for the PR body (R-20): tier, passes with models, skipped passes,
+ *   lines against the budget, and warnings (R-34).
+ */
+export function routingLine(result) {
+  const passes = result.passes.map((pass) => `${pass.name} (${pass.model})`).join(', ');
+  const skipped = result.skipped.map((pass) => `${pass.name} (${pass.reason})`).join(', ');
+  const over = result.overBudget ? ', over budget' : '';
+  const parts = [
+    `tier ${result.tier}`,
+    `passes ${passes}`,
+    ...(skipped === '' ? [] : [`skipped ${skipped}`]),
+    `${String(result.changedLines)}/${String(result.budget)} lines${over}`,
+    ...(result.warnings.length === 0 ? [] : [`warnings: ${result.warnings.join(', ')}`]),
+  ];
+  return `Routing: ${parts.join('; ')}`;
+}
