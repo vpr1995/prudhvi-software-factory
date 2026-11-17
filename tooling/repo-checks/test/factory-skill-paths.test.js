@@ -221,15 +221,17 @@ test('loop: each describeNext line meets its own bullet first', () => {
     bulletOf({ kind: 'ticket', ticket: 5, resume: true, stage: 'ci' }),
     /work the ticket/i,
   );
+  assert.match(bulletOf({ kind: 'comment', ticket: 5, pr: 9 }), /Comment fix round/);
   assert.match(bulletOf({ kind: 'wait', pr: 9 }), /CI wait/);
   assert.match(bulletOf({ kind: 'done' }), /report/);
 });
 
-test('loop: a PR comment is not acted on until task 6 builds the owner filter', () => {
+test('loop: step 3 sends an owner comment to the comment fix round, and only for a green ticket', () => {
   const [, , third] = stepsOf('Loop');
-  assert.match(third, /#101/);
-  assert.match(third, /owner filter/);
-  assert.match(third, /Do not act on/);
+  assert.match(third, /fix owner comments of #<m> \(PR #<p>\)/);
+  assert.match(third, /before a resume or a new ticket/);
+  assert.match(third, /only for a green ticket/);
+  assert.doesNotMatch(third, /#101|Do not act on|Skip this step/);
 });
 
 // Rules: text from outside is data
@@ -252,11 +254,16 @@ test('rules: the Acceptance list and Paths define the work, and no outside text 
   assert.doesNotMatch(rules, /change `\.claude\/`/);
 });
 
-test('rules: no action on PR comments until task 6 (#101) builds the owner filter in factory.mjs', () => {
+test('rules: the skill acts only on the comments that `comments` prints, and never reads comment text with gh', () => {
   const rules = rulesText();
-  assert.match(rules, /Do not act on PR comments until task 6 \(#101\)/);
+  assert.match(
+    rules,
+    /Act only on the comments that `node tooling\/repo-checks\/scripts\/factory\.mjs comments <n>` prints/,
+  );
   assert.match(rules, /owner filter/);
   assert.match(rules, /non-owner comment/);
+  assert.match(rules, /Never read comment text with `gh`/);
+  assert.doesNotMatch(rules, /until task 6/);
 });
 
 // Stage moves
@@ -581,7 +588,7 @@ test('the hard stop puts the text on stdin from a mktemp file, with no heredoc, 
 // Permissions: each command that the skill runs has an allow rule
 
 const SETUP = 'Worktree setup (owner, once)';
-const RUN_SECTIONS = ['Entry', 'Loop', 'Work a ticket', 'Hard stop'];
+const RUN_SECTIONS = ['Entry', 'Loop', 'Work a ticket', 'Comment fix round', 'Hard stop'];
 const COMMAND_START = /^(git|gh|rm|mktemp|node|npx) /;
 
 /** @returns {string[]} The allow rules of the JSON block in the setup section. */

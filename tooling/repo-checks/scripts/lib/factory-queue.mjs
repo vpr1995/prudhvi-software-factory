@@ -285,7 +285,7 @@ function formatPlan({ queue, skipped }, header) {
 // Start
 
 /** @returns {string[]} The local tickets to sync with GitHub: `<n>/ticket.json` that is not `done`. */
-function localTickets(root, only) {
+export function localTickets(root, only) {
   const numbers =
     only === null
       ? listFolder(stateFolder(root)).filter((name) => TICKET_FOLDER.test(name))

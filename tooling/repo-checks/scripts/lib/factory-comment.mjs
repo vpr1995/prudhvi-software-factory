@@ -4,11 +4,12 @@
 import path from 'node:path';
 
 import { fail, readInput, stateFolder, ticketNumber, withLock } from './factory-base.mjs';
-import { redact } from './factory-github.mjs';
+import { replyTarget, repliedState } from './factory-comments.mjs';
+import { MARKER, redact } from './factory-github.mjs';
 import { loadTicket, saveTicket } from './factory-state.mjs';
 import { removeFile, writeAtomic } from './fs-io.mjs';
 
-export const MARKER = '<!-- factory-agent -->';
+export { MARKER };
 export const MAX_COMMENT_CHARS = 60_000;
 const REDACTED = '[redacted]';
 const ZERO_WIDTH_SPACE = '\u200B';
@@ -106,14 +107,28 @@ export function buildComment(body) {
   return marked.slice(0, MAX_COMMENT_CHARS);
 }
 
+// The gh call of a comment. An answer to a review comment goes in its thread through the API: the
+// body is a file there too (`body=@<file>`), never argv. Any other comment is a PR or issue comment.
+function commentArguments({ ticket, pr, inReplyTo }, file) {
+  if (inReplyTo !== undefined) {
+    const thread = `repos/{owner}/{repo}/pulls/${pr}/comments/${inReplyTo}/replies`;
+    return ['api', thread, '--method', 'POST', '--field', `body=@${file}`];
+  }
+  return pr === undefined
+    ? ['issue', 'comment', ticket, '--body-file', file]
+    : ['pr', 'comment', pr, '--body-file', file];
+}
+
 /**
  * Posts one agent comment. The caller holds the lock.
  *
  * @param {object} context - Command context (root, gh, pid).
- * @param {{ ticket: string, pr?: string }} target - Ticket, and a PR number to post on the PR.
+ * @param {{ ticket: string, pr?: string, inReplyTo?: string }} target - Ticket, a PR number to post
+ *   on the PR, and the id of a review comment to answer in its thread (needs `pr`).
  * @param {string} body - Comment text.
  */
-export function postComment(context, { ticket, pr }, body) {
+export function postComment(context, target, body) {
+  const { ticket } = target;
   const file = path.join(
     stateFolder(context.root),
     ticket,
@@ -122,28 +137,28 @@ export function postComment(context, { ticket, pr }, body) {
   );
   writeAtomic(file, buildComment(body));
   try {
-    context.gh(
-      pr === undefined
-        ? ['issue', 'comment', ticket, '--body-file', file]
-        : ['pr', 'comment', pr, '--body-file', file],
-    );
+    context.gh(commentArguments(target, file));
   } finally {
     removeFile(file);
   }
 }
 
-// The reply thread target (PR review comment or issue comment) is task 6 (#101). Until then a reply
-// goes on the PR of ticket.json, or on the issue when the ticket has no PR. A hard stop goes on the issue.
+// A reply with no id goes on the PR of ticket.json, or on the issue when the ticket has no PR. A
+// hard stop goes on the issue. A reply with an id (R-30) goes where its comment is (`replyTarget`).
 function targetOf(kind, state) {
   const pr = state?.pr;
   return kind === 'reply' && Number.isInteger(pr) && pr > 0 ? String(pr) : undefined;
 }
 
-function markHandled(context, ticket, commentId) {
-  const state = loadTicket(context.root, ticket);
-  const handled = state.handledComments ?? [];
-  if (handled.map(String).includes(commentId)) return;
-  saveTicket(context.root, ticket, { ...state, handledComments: [...handled, Number(commentId)] });
+// The id is checked against GitHub before anything is posted (R-9). A review comment gets its answer
+// in its thread. The reply count of the thread (R-31) and the handled id are stored after the post.
+function replyWithId(context, { ticket, state, id }, body) {
+  const { pr, comment } = replyTarget(context, { ticket, state, id });
+  // GitHub takes a reply only on the first comment of a thread: a reply to a reply goes to the root.
+  const inReplyTo = comment.type === 'review-comment' ? String(comment.thread) : undefined;
+  postComment(context, { ticket, pr: String(pr), inReplyTo }, body);
+  saveTicket(context.root, ticket, repliedState(loadTicket(context.root, ticket), comment));
+  return `#${ticket}: reply to comment ${id} posted on PR #${String(pr)}\n`;
 }
 
 /** @returns {string} The line to print. Body on stdin. */
@@ -161,9 +176,9 @@ export function commentCommand(words, context) {
     if (replyTo !== undefined && state === undefined) {
       fail(`#${ticket} has no ticket state: cannot store comment ${replyTo} as handled`);
     }
+    if (replyTo !== undefined) return replyWithId(context, { ticket, state, id: replyTo }, body);
     const pr = targetOf(kind, state);
     postComment(context, { ticket, pr }, body);
-    if (replyTo !== undefined) markHandled(context, ticket, replyTo);
     return `#${ticket}: comment posted on ${pr === undefined ? 'the issue' : `PR #${pr}`}\n`;
   });
 }

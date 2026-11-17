@@ -294,48 +294,71 @@ test('R-8: comment refuses an empty body, an unknown kind, and a bad argument, a
   assert.equal(calls.length, 0);
 });
 
-test('R-8: comment reply with an id stores it in handledComments once, and keeps the other keys', () => {
+// A reply with an id (R-30) answers an owner comment of the open PR: the stub has the owner, the open
+// PR of the branch, and the comments of that PR. The first two comments are review comments.
+const ownerComment = (id, thread) => ({
+  id,
+  user: { login: 'vpr1995' },
+  body: 'please change this',
+  // GitHub names this field in snake case. A computed key keeps the naming rule quiet.
+  ...(thread === undefined ? {} : { ['in_reply_to_id']: thread }),
+});
+const ownerReplies = (comments, extra = {}) => ({
+  'repo view': JSON.stringify({ nameWithOwner: REPOSITORY, owner: { login: 'vpr1995' } }),
+  'pr list': JSON.stringify([{ number: 12 }]),
+  'api repos/{owner}/{repo}/pulls/12/comments': JSON.stringify([comments]),
+  'api repos/{owner}/{repo}/pulls/12/reviews': '[[]]',
+  ...extra,
+});
+const apiWrites = (calls) => calls.filter(({ args }) => args.includes('--method'));
+
+test('R-8: comment reply with an id stores it in handledComments once, counts its thread, and keeps the other keys', () => {
   const work = temporaryFolder();
   seedTicket(work, { pr: 12, handledComments: [55], threadReplies: { 9: 1 } });
-  const first = makeGh();
-  const post = (id, gh) =>
+  const { gh, calls } = makeGh(ownerReplies([ownerComment(56), ownerComment(57, 9)]));
+  const post = (id) =>
     runFactory(['comment', '7', 'reply', id], { root: work, gh, stdin: () => 'fixed' });
-  assert.equal(post('56', first.gh).code, 0);
+  assert.equal(post('56').code, 0);
   assert.deepEqual(readTicket(work).handledComments, [55, 56]);
-  assert.equal(post('56', first.gh).code, 0);
-  assert.equal(post('55', first.gh).code, 0);
-  assert.deepEqual(readTicket(work).handledComments, [55, 56], 'no duplicate');
-  assert.equal(first.calls.length, 3, 'each reply is posted');
+  assert.equal(post('57').code, 0);
+  assert.deepEqual(readTicket(work).handledComments, [55, 56, 57]);
+  const again = post('56');
+  assert.equal(again.code, 2);
+  assert.match(again.errors, /comment 56 is already handled/);
+  assert.equal(apiWrites(calls).length, 2, 'a handled comment gets no second reply');
   const state = readTicket(work);
   assert.equal(state.pr, 12);
-  assert.deepEqual(state.threadReplies, { 9: 1 });
+  assert.deepEqual(state.threadReplies, { 9: 2, 56: 1 });
 });
 
-test('R-8: comment reply with an id and no handledComments key creates the list', () => {
+test('R-8: comment reply with an id and no handledComments key creates the list and the thread count', () => {
   const work = temporaryFolder();
   seedTicket(work);
-  const { gh } = makeGh();
+  const { gh } = makeGh(ownerReplies([ownerComment(70)]));
   assert.equal(
     runFactory(['comment', '7', 'reply', '70'], { root: work, gh, stdin: () => 'x' }).code,
     0,
   );
   assert.deepEqual(readTicket(work).handledComments, [70]);
+  assert.deepEqual(readTicket(work).threadReplies, { 70: 1 });
 });
 
 test('R-8: comment reply with no id stores nothing, and a failed post stores nothing', () => {
   const work = temporaryFolder();
-  seedTicket(work, { handledComments: [1] });
+  seedTicket(work, { handledComments: [1], threadReplies: { 1: 1 } });
   const plain = makeGh();
   assert.equal(
     runFactory(['comment', '7', 'reply'], { root: work, gh: plain.gh, stdin: () => 'x' }).code,
     0,
   );
   assert.deepEqual(readTicket(work).handledComments, [1]);
-  const failing = makeGh({
-    'issue comment': () => {
-      throw new HardStopError('gh issue comment failed twice: network');
-    },
-  });
+  const failing = makeGh(
+    ownerReplies([ownerComment(2)], {
+      'api repos/{owner}/{repo}/pulls/12/comments/2/replies': () => {
+        throw new HardStopError('gh api failed twice: network');
+      },
+    }),
+  );
   const result = runFactory(['comment', '7', 'reply', '2'], {
     root: work,
     gh: failing.gh,
@@ -343,6 +366,7 @@ test('R-8: comment reply with no id stores nothing, and a failed post stores not
   });
   assert.equal(result.code, 3);
   assert.deepEqual(readTicket(work).handledComments, [1]);
+  assert.deepEqual(readTicket(work).threadReplies, { 1: 1 });
 });
 
 test('R-8: comment reply with an id and no ticket state is refused before it posts', () => {

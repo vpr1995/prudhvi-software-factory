@@ -95,6 +95,8 @@ const isRead = (args) =>
     : READ_CALLS.has(args.slice(0, 2).join(' '));
 
 function answerApi(world, args) {
+  // The review loop (task 6) reads the comments of the PR of a green ticket: there are none here.
+  if (/\/(?:comments|reviews)$/.test(args[1])) return '[[]]';
   const [number, ...rest] = args[1].split('/issues/')[1].split('/');
   const issue = world.issues.get(Number(number));
   const suffix = rest.join('/');
