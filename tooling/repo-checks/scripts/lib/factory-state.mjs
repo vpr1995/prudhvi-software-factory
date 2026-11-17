@@ -86,7 +86,7 @@ function logEvent(context, logFile, { ticket, event, from, to, detail }) {
 
 const ticketFile = (root, ticket) => path.join(stateFolder(root), ticket, 'ticket.json');
 
-function loadTicket(root, ticket) {
+export function loadTicket(root, ticket) {
   const file = ticketFile(root, ticket);
   const text = readOptional(file);
   if (text === undefined) return;
