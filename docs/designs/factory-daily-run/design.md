@@ -254,8 +254,8 @@ One CLI: `tooling/repo-checks/scripts/factory.mjs`. Logic in `lib/factory-*.mjs`
 | `metrics <n>`                               | Read the cost and turns, and create or edit the metrics comment.                                                                                                             |
 | `status`, `stop`, `report`                  | R-46, R-47, R-29.                                                                                                                                                            |
 | `read <n> <step>`                           | Print a step summary or the `pre-pr` findings for the orchestrator.                                                                                                          |
-| `wait <n>`                                  | Mark a CI wait, poll `gh pr checks` until CI ends, exit with the result or "timeout" after 60 minutes (R-49).                                                                |
-| `stop-check`                                | The `Stop` hook (R-44, R-48, R-56).                                                                                                                                          |
+| `wait <n>`                                  | Mark a CI wait, poll `gh pr checks` until CI ends, exit with the result or "timeout" after 60 minutes (R-49). `wait <pr>` accepts any PR number, including a blocker PR with no ticket.json (R-42). It logs the wait on the ticket whose ticket.json has that `pr`, else the current ticket, else ticket 0. |
+| `factory-stop-check.mjs`                    | The `Stop` hook, a separate script, not a `factory.mjs` command (4.7). R-44, R-48, R-56.                                                                                     |
 
 The skill calls it as `node tooling/repo-checks/scripts/factory.mjs <command>`. No command names `.claude/factory`. With no ticket, `round`, `findings`, and `route` use the ad hoc folder (R-27). `findings.md` keeps the current `pre-pr` row format: `id | round | severity | file:line | bug class | status | reason`.
 
@@ -361,7 +361,7 @@ Router output (printed, and stored in the ticket state, R-20):
 .claude/factory/
   lock                     lock file with the writer PID (R-53)
   stop-errors              count of stop-check errors in a row (R-56)
-  run.json                 active run: { runId, sessionId, sessionIds, active, stalled, startedAt, only (ticket or null), next, waiting: { pr, since }, stopChecks: { count, lastHash } }
+  run.json                 active run: { runId, sessionId, sessionIds, active, stalled, startedAt, only (ticket or null), next, waiting: { pr, since, pid }, stopped: { ticket, reason, failedSteps } or null, stopChecks: { count, lastHash } }
   runs/<runId>.jsonl       run log, one line per event (R-28)
   runs/<runId>-report.md   run report (R-29)
   <n>/ticket.json          ticket state (below)
@@ -370,6 +370,8 @@ Router output (printed, and stored in the ticket state, R-20):
   <n>/logs/                full gate logs and hard-stop patches (never posted)
   adhoc/pre-pr/            pre-pr state with no ticket (R-27)
 ```
+
+`waiting` is the CI wait of `wait <n>`: `pr` is the PR number, `since` is the ISO time the wait started, and `pid` is the process id of the `wait` command. The Stop hook ignores a `waiting` value when the pid is not alive or `since` is more than 60 minutes ago. `stopped` is written by hard-stop step 6 (R-12) and is null when no hard stop happened.
 
 `sessionId` is the session that owns the run (R-44). `sessionIds` lists each session that owned the run, for the cost read (R-33). `next` is the last `next` result. The script numbers the rounds of each `pre-pr` run. A new `pre-pr` run starts at round 1. `stop-check` writes `stop-errors` with a plain `node:fs` call in its own file, so a load error of `lib/` still counts (R-56).
 
@@ -458,7 +460,7 @@ Each `gh` call follows R-54 (one retry).
 
 ### 4.7 Hook and settings
 
-- `.claude/settings.json`, `Stop` event: a second command, `node "$CLAUDE_PROJECT_DIR"/tooling/repo-checks/scripts/factory.mjs stop-check || exit 0`, with a 10-second timeout. `stop-check` imports its code inside `try`, always exits 0, and blocks only through its JSON output, as `stop-gate.mjs` does. With no active run, or with `FACTORY_RUN=off`, it allows the stop.
+- `.claude/settings.json`, `Stop` event: a second command, `node "$CLAUDE_PROJECT_DIR"/tooling/repo-checks/scripts/factory-stop-check.mjs || exit 0`, with a 10-second timeout. The hook entry is the file `tooling/repo-checks/scripts/factory-stop-check.mjs`, a separate script, so the hook stays fast and fails open. The script imports its code inside `try`, always exits 0, and blocks only through its JSON output, as `stop-gate.mjs` does. With no active run, or with `FACTORY_RUN=off`, it allows the stop.
 - On an error during an active run, it blocks and names the error, at most 3 times in a row (R-56).
 - `.claude/settings.json` `allow`: only `Bash(node tooling/repo-checks/scripts/factory.mjs:*)`. The `gh` and `git push` calls of `factory.mjs` run inside this rule.
 - The factory worktree's `.claude/settings.local.json` (gitignored, set up once, section 6) `allow`: `git fetch`, `git add`, `git commit`, `git merge`, `git switch`, `gh pr create`, `gh pr ready`, `gh pr edit`, `gh pr checks`, `gh run view`, `gh issue view`, `gh issue edit`. No `git push`: each push goes through `factory.mjs push`. The main checkout keeps its current `allow` rules.
@@ -614,3 +616,4 @@ Task 8 starts after one clean real run: the first `/factory` run after task 7b m
 - 2026-11-16: advisor final check: `wait` polls and ends after 60 minutes, so the CI timeout has an actor; `push` runs the local test guard (R-17 in task 2a); a `stalled` run stays adoptable; a comment with a `factory-metrics` block is never owner input; the no-op rule covers R-12 step 7 (R-17, R-48, R-49, R-50, 4.5, section 8) (owner delegated, design review).
 - 2026-11-16: the stage moves set the Status field of project board 2 (Backlog, Ready, In progress, In review, Done), so the board shows where each ticket is (R-57, 4.4, 4.5) (owner, after design approval).
 - 2026-11-17: the hard-stop comment posts no error excerpt; the excerpt stays in a local file (mode 0o600) in `<n>/logs/` and the comment names it. Reason: redaction cannot catch each secret form, and the comment is public. Changes R-12 step (4) (owner, design).
+- 2026-11-17: waiting is { pr, since, pid } with a 60-minute stale rule; run.json has stopped; the Stop hook entry is scripts/factory-stop-check.mjs; wait accepts a blocker PR (agent, build of #99).
