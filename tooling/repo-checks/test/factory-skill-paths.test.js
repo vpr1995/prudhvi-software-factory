@@ -1,4 +1,5 @@
-// Tests for the /factory skill and the removal of /work-ticket (design factory-daily-run 6 and 8, task 4a).
+// Tests for the /factory skill and the removal of /work-ticket (design factory-daily-run 6 and 8, task 4a),
+// and for pre-pr and implement-feature (task 4b, #109: R-13, R-17, R-18, R-27).
 // R-2 (part): /factory is the only entry point, /work-ticket does not exist.
 // R-17 (part): the skill runs the local test guard before the push, one fix round, then a hard stop.
 // R-10, R-11, R-13 (part): the skill names the decision cases, the PR section and the hard-stop cases.
@@ -12,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { COMMAND_NAMES } from '../scripts/factory.mjs';
 import { describeNext } from '../scripts/lib/factory-next.mjs';
+import { routing } from '../scripts/lib/factory-routing.mjs';
 import { scanFolders } from '../scripts/lib/factory-skill-scan.mjs';
 import { STAGES } from '../scripts/lib/factory-state.mjs';
 import { exists, readRepositoryFile } from '../scripts/lib/fs-io.mjs';
@@ -625,4 +627,195 @@ test('the setup block has the rules for the lookup, the ownership check and the 
     assert.ok(allow.includes(rule), `the setup block has ${rule}`);
   }
   assert.ok(!allow.some((rule) => rule.includes('git push')), 'no git push rule');
+});
+
+// #109: pre-pr and implement-feature (task 4b). Each check reads one step of the skill, so that
+// deleting the step fails the test.
+
+const PRE_PR = '.claude/skills/pre-pr/SKILL.md';
+const IMPLEMENT = '.claude/skills/implement-feature/SKILL.md';
+const FACTORY_CALL = 'node tooling/repo-checks/scripts/factory.mjs';
+
+/** @returns {string[]} The numbered steps of the `## Steps` section of a skill file, each with its sub-lines. */
+function stepsOfFile(file) {
+  const lines = readRepositoryFile(ROOT, file).split('\n');
+  const start = lines.indexOf('## Steps');
+  assert.notEqual(start, -1, `${file} has a "## Steps" section`);
+  const end = lines.findIndex((line, index) => index > start && line.startsWith('## '));
+  const steps = [];
+  for (const line of lines.slice(start + 1, end === -1 ? undefined : end)) {
+    if (TOP_STEP.test(line)) steps.push(line);
+    else if (steps.length > 0) steps[steps.length - 1] += `\n${line}`;
+  }
+  return steps;
+}
+
+/** @returns {{ number: number, text: string }} The first step of the file that has the text (number from 1). */
+function fileStepWith(file, needle) {
+  const steps = stepsOfFile(file);
+  const index = steps.findIndex((step) => step.includes(needle));
+  assert.notEqual(index, -1, `a step of ${file} has "${needle}"`);
+  return { number: index + 1, text: steps[index] };
+}
+
+const prePrText = () => readRepositoryFile(ROOT, PRE_PR);
+
+test('#109 R-27: pre-pr starts each round with the round command, and the script gives the round number', () => {
+  const { text } = fileStepWith(PRE_PR, `${FACTORY_CALL} round`);
+  assert.match(text, /factory\.mjs round \[<n>\] start --new/);
+  assert.match(text, /factory\.mjs round \[<n>\] start`/);
+  assert.match(text, /prints `round <k>`/);
+  assert.match(text, /not count rounds yourself/i);
+  assert.ok(COMMAND_NAMES.has('round'), 'factory.mjs has the command round');
+});
+
+test('#109 R-27: pre-pr writes findings only with the findings command: add, set and list', () => {
+  const add = fileStepWith(PRE_PR, `${FACTORY_CALL} findings [<n>] add`);
+  assert.match(add.text, /severity \| file:line \| bug class \| reason/);
+  const set = fileStepWith(PRE_PR, `${FACTORY_CALL} findings [<n>] set`);
+  assert.match(set.text, /set <id> fixed/);
+  assert.match(set.text, /set <id> rejected/);
+  assert.match(prePrText(), /factory\.mjs findings \[<n>\] list/);
+  assert.ok(COMMAND_NAMES.has('findings'), 'factory.mjs has the command findings');
+  assert.ok(add.number < set.number, 'findings are added before they are set');
+});
+
+test('#109 R-27: pre-pr and implement-feature name no state folder, no mkdir and no state file', () => {
+  for (const file of [PRE_PR, IMPLEMENT]) {
+    const text = readRepositoryFile(ROOT, file);
+    assert.doesNotMatch(text, /\.claude\/(?:factory|state)/, `${file} names a state folder`);
+    assert.doesNotMatch(text, /mkdir/, `${file} makes a folder`);
+    assert.doesNotMatch(text, /round-<n>\.start|findings\.md/, `${file} names a state file`);
+  }
+});
+
+test('#109 R-27: pre-pr takes the ticket from the request or the branch name, else the script picks the ad hoc folder', () => {
+  const { text } = fileStepWith(PRE_PR, 'git branch --show-current');
+  assert.match(text, /number in the request/);
+  assert.match(text, /No number: no ticket/);
+  assert.match(prePrText(), /ad hoc folder that the script picks/);
+  assert.match(prePrText(), /`\[<n>\]` means/);
+});
+
+test('#109 R-18: pre-pr runs the router with factory.mjs route <n>, and uses base, passes and models of its output', () => {
+  const { text } = fileStepWith(PRE_PR, `${FACTORY_CALL} route <n>`);
+  assert.ok(COMMAND_NAMES.has('route'), 'factory.mjs has the command route');
+  for (const field of ['`base`', '`passes`', '`docOnly`', '`model`']) {
+    assert.ok(text.includes(field), `the route step names ${field}`);
+  }
+  assert.match(text, /Run only the passes of `passes`/);
+});
+
+test('#109 R-18: pre-pr names each pass of the routing table, and spawns it with the model of the router output', () => {
+  const { text } = fileStepWith(PRE_PR, 'Spawn each agent');
+  for (const name of Object.keys(routing.passes)) {
+    assert.ok(text.includes(`\`${name}\``), `the pass step names the pass ${name}`);
+  }
+  assert.match(
+    text,
+    /Spawn each agent with the Agent tool and its `model` set to the `model` of that pass/,
+  );
+  assert.match(text, /`session`: set no `model`/);
+  assert.match(text, /Never use a model from your own choice/);
+  assert.match(text, /bug-hunt[^\n]*`Model: <model>`/);
+});
+
+test('#109 R-18: a doc-only diff runs only the spec pass', () => {
+  const { text } = fileStepWith(PRE_PR, '`docOnly` is true');
+  assert.match(text, /`docOnly` is true/);
+  assert.match(text, /only the `spec-reviewer` pass/);
+  assert.match(text, /No other pass/);
+  assert.match(text, /no `code-review`/);
+});
+
+test('#109 R-17: the push step runs the guard with factory.mjs push, gives one fix round, then a hard stop', () => {
+  const { text } = fileStepWith(PRE_PR, `${FACTORY_CALL} push <n>`);
+  const guard = text.indexOf('test guard');
+  const push = text.indexOf(`${FACTORY_CALL} push <n>`);
+  const fixRound = text.indexOf('one fix round');
+  const stop = text.indexOf(`${FACTORY_CALL} hardstop <n>`);
+  assert.ok(COMMAND_NAMES.has('push') && COMMAND_NAMES.has('hardstop'), 'the commands exist');
+  assert.ok(
+    guard !== -1 && push !== -1 && fixRound !== -1 && stop !== -1,
+    'the step has each part',
+  );
+  assert.ok(guard < fixRound && fixRound < stop, 'order: test guard, one fix round, hard stop');
+  assert.match(text, /no PR labels/);
+  assert.match(text, /"test guard finding stays"/);
+  assert.match(text, /"script hard stop"/);
+  assert.ok(
+    HARD_STOP_PHRASES.includes('test guard finding stays'),
+    'the factory skill has the phrase',
+  );
+  assert.ok(HARD_STOP_PHRASES.includes('script hard stop'), 'the factory skill has the phrase');
+});
+
+test('#109 R-17: "check config changed" does not block the push, goes to the router and the PR body', () => {
+  const { text } = fileStepWith(PRE_PR, `${FACTORY_CALL} push <n>`);
+  const line = text.split('\n').find((entry) => entry.includes('check config changed'));
+  assert.ok(line !== undefined, 'the push step names the finding');
+  assert.match(line, /not block/);
+  assert.match(line, /factory\.mjs route <n>/);
+  assert.match(line, /risk:high/);
+  assert.match(line, /PR body/);
+});
+
+test('#109 R-17: the rounds, the last commit and the push come in this order, and no step pushes with git', () => {
+  const steps = stepsOfFile(PRE_PR);
+  const at = (needle) => steps.findIndex((step) => step.includes(needle));
+  const round = at(`${FACTORY_CALL} round`);
+  const commit = at('git commit');
+  const push = at(`${FACTORY_CALL} push <n>`);
+  assert.ok(round !== -1 && round < commit && commit < push, 'round, commit, push');
+  assert.equal(push, steps.length - 1, 'the push is the last step');
+  for (const file of [PRE_PR, IMPLEMENT]) {
+    assert.doesNotMatch(readRepositoryFile(ROOT, file), /git push/, `${file} runs git push`);
+  }
+});
+
+test('#109 R-13: pre-pr keeps the limit of 3 rounds, and a go-to step points to the round start', () => {
+  const steps = stepsOfFile(PRE_PR);
+  const start = steps.findIndex((step) => step.includes(`${FACTORY_CALL} round`)) + 1;
+  const loop = fileStepWith(PRE_PR, 'round < 3');
+  const targets = [...loop.text.matchAll(/go to step (\d+)/g)].map((match) => Number(match[1]));
+  assert.ok(targets.includes(start), `the round loop goes to step ${String(start)}`);
+  for (const [, target] of prePrText().matchAll(/go to step (\d+)/g)) {
+    assert.ok(Number(target) >= 1 && Number(target) <= steps.length, `step ${target} exists`);
+  }
+  const last = fileStepWith(PRE_PR, 'Do not start round 4');
+  assert.match(last.text, /open Important findings remain after round 3/);
+  assert.match(last.text, /Ask the human/);
+});
+
+test('#109: implement-feature hands the review to pre-pr, then the push to factory.mjs push, in the same step numbers as before', () => {
+  const steps = stepsOfFile(IMPLEMENT);
+  const commit = steps.findIndex((step) => step.includes('git commit'));
+  const review = steps.findIndex((step) => step.includes('`pre-pr`'));
+  const text = steps[review];
+  assert.ok(commit !== -1 && commit < review, 'the commit comes before pre-pr');
+  assert.match(text, /needs a clean tree/);
+  const push = text.indexOf(`${FACTORY_CALL} push <n>`);
+  assert.ok(push > text.indexOf('`pre-pr`'), 'the push command follows the pre-pr call');
+  assert.match(text.slice(push), /test guard first/);
+  assert.match(text, /Never push with git/);
+  assert.equal(review + 1, 10, '/factory skips steps 10, 11 and 12 of implement-feature');
+  assert.equal(steps.length, 12, '/factory skips steps 10, 11 and 12: no step after 12');
+  assert.match(steps[10], /`pr-description`/);
+});
+
+test('#109: implement-feature names the branch with the ticket number', () => {
+  const { text } = fileStepWith(IMPLEMENT, 'git checkout -b');
+  assert.match(text, /<type>\/<n>-<short-kebab>/);
+});
+
+test('#109: each node command of pre-pr and implement-feature has an allow rule in .claude/settings.json', () => {
+  const rules = JSON.parse(readRepositoryFile(ROOT, '.claude/settings.json')).permissions.allow;
+  const commands = [PRE_PR, IMPLEMENT]
+    .flatMap((file) => [...readRepositoryFile(ROOT, file).matchAll(/`([^`]+)`/g)])
+    .map((match) => match[1])
+    .filter((span) => /^(?:node tooling|git status)/.test(span))
+    .map((span) => span.replace(/ <.*$/, ''));
+  assert.ok(commands.length >= 8, `found ${String(commands.length)} commands`);
+  const open = commands.filter((command) => !rules.some((rule) => ruleMatches(rule, command)));
+  assert.deepEqual([...new Set(open)], []);
 });
