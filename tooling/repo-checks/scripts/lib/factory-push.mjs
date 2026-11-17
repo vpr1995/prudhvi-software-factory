@@ -129,6 +129,7 @@ function pushTarget(context, ticket) {
 // than the stored count: no progress. Fixing 1 of 2 findings of one message is progress.
 function checkGuard(context, plan) {
   const { ticket, base, round } = plan;
+  if (plan.skipGuard) return;
   const findings = context.guard(base);
   const blocking = findings.filter((finding) => finding.message !== CHECK_CONFIG_MESSAGE);
   const counts = {};
@@ -157,16 +158,43 @@ function checkGuard(context, plan) {
   }
 }
 
+/**
+ * Pushes HEAD of the ticket branch. The caller holds the lock. The hard stop passes
+ * `forHardStop`: the push then skips the local test guard (before the push and after a merge) and
+ * does nothing when the branch has no commit that is not on the base (R-12 step 2). Only the
+ * hard stop code sets it: no CLI flag reaches it.
+ *
+ * @param {object} context - Command context.
+ * @param {string} ticket - Ticket number as text.
+ * @param {{ forHardStop?: boolean }} [options] - Hard stop mode.
+ */
+export function pushBranch(context, ticket, { forHardStop = false } = {}) {
+  const { branch, base } = pushTarget(context, ticket);
+  if (forHardStop) {
+    const ahead = Number(context.git(['rev-list', '--count', `${base}..HEAD`]).trim());
+    if (ahead === 0) {
+      context.print(`#${ticket}: no commit that is not on ${base}: nothing to push\n`);
+      return;
+    }
+  }
+  const plan = {
+    ticket,
+    branch,
+    base,
+    round: loadRound(context.root, ticket),
+    skipGuard: forHardStop,
+  };
+  checkGuard(context, plan);
+  const merged = pushWithRecovery(context, plan);
+  context.print(`#${ticket}: pushed ${branch}${merged ? ' after fetch and merge' : ''}\n`);
+}
+
 /** @returns {string} Empty text: each step prints its own line. */
 export function pushCommand([ticketWord, ...extra], context) {
   const ticket = ticketNumber(ticketWord);
   if (extra.length > 0) fail('Usage: push <n>');
   return withLock(context, () => {
-    const { branch, base } = pushTarget(context, ticket);
-    const plan = { ticket, branch, base, round: loadRound(context.root, ticket) };
-    checkGuard(context, plan);
-    const merged = pushWithRecovery(context, plan);
-    context.print(`#${ticket}: pushed ${branch}${merged ? ' after fetch and merge' : ''}\n`);
+    pushBranch(context, ticket);
     return '';
   });
 }

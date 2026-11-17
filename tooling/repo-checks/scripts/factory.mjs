@@ -9,11 +9,17 @@
 // push <n>: the local test guard, then `git push origin HEAD:<branch>` (task 2a2, R-17, R-54).
 // stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
 //
+// comment <n> [--pr <m>]: post an agent comment from stdin with the marker line (R-8).
+// hardstop <n> "<reason>": the R-12 steps, error excerpt on stdin (lib/factory-hard-stop.mjs).
+// caps <n>: derive the cap counts, print JSON, exit 3 when a cap is reached (lib/factory-caps.mjs).
+//
 // A `gh` call that fails twice, or a second push reject, is a hard stop: exit 3 and the message
 // `hard stop: <reason>` (lib/factory-github.mjs).
 //
 // Run from the repo root: node tooling/repo-checks/scripts/factory.mjs route 98
 import { fail, parseJson, withLock } from './lib/factory-base.mjs';
+import { capsCommand } from './lib/factory-caps.mjs';
+import { commentCommand } from './lib/factory-comment.mjs';
 import {
   COMMAND_TIMEOUT_MS,
   gh,
@@ -21,6 +27,7 @@ import {
   HardStopError,
   run,
 } from './lib/factory-github.mjs';
+import { hardstopCommand } from './lib/factory-hard-stop.mjs';
 import { pushCommand } from './lib/factory-push.mjs';
 import { parseSize, route, routingLine } from './lib/factory-route.mjs';
 import { COMMANDS, FactoryError, loadTicket, saveTicket, SYNOPSES } from './lib/factory-state.mjs';
@@ -37,7 +44,14 @@ const EXIT_HARD_STOP = 3;
 const FIRST_USER_ARGUMENT = 2;
 const DEFAULT_BASE = 'origin/main';
 const TICKET = /^\d+$/;
-const USAGE = ['route <n> [--base <ref>]', 'push <n>', ...SYNOPSES]
+const USAGE = [
+  'route <n> [--base <ref>]',
+  'push <n>',
+  'comment <n> [--pr <m>]   (body on stdin)',
+  'hardstop <n> "<reason>"   (error excerpt on stdin)',
+  'caps <n>',
+  ...SYNOPSES,
+]
   .map((synopsis) => `Usage: node tooling/repo-checks/scripts/factory.mjs ${synopsis}\n`)
   .join('');
 
@@ -100,7 +114,14 @@ function routeCommand({ ticket, base }, context) {
   return `${JSON.stringify(result, undefined, 2)}\n`;
 }
 
-const HANDLERS = new Map([...COMMANDS, ['push', pushCommand], ['route', routeCommand]]);
+const HANDLERS = new Map([
+  ...COMMANDS,
+  ['caps', capsCommand],
+  ['comment', commentCommand],
+  ['hardstop', hardstopCommand],
+  ['push', pushCommand],
+  ['route', routeCommand],
+]);
 
 /** @returns {object} The context of the commands. A test replaces any part. */
 function commandContext(overrides) {
