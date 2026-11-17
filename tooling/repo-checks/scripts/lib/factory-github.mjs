@@ -9,6 +9,11 @@ export const COMMAND_TIMEOUT_MS = 30_000;
 // git push and git fetch go to the network and run the repo hooks: give them more time.
 export const GIT_TIMEOUT_MS = 120_000;
 const MAX_REASON_CHARS = 300;
+// `scheme://user:pass@` and `scheme://token@`, then bare tokens of GitHub.
+const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*):\/\/[^\s/@]+@/gi;
+const TOKENS = /gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}/g;
+
+const redact = (text) => text.replaceAll(URL_CREDENTIALS, '$1://***@').replaceAll(TOKENS, '***');
 
 /** @returns {string} Stdout of the command. A command that runs longer than the timeout throws. */
 export function run(command, args, timeout = COMMAND_TIMEOUT_MS) {
@@ -34,11 +39,13 @@ export const hardStop = (reason, ticket) => {
   throw new HardStopError(reason, ticket);
 };
 
-/** @returns {string} The stderr of a failed command, else the error message, on one capped line. */
+/** @returns {string} The stderr of a failed command, else the error message, on one capped line. Secrets are redacted first. */
 export function failureReason(error) {
   const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr).trim() : '';
   const text = stderr === '' ? (error instanceof Error ? error.message : String(error)) : stderr;
-  return text.replaceAll(/\s*\n\s*/g, ' | ').slice(0, MAX_REASON_CHARS);
+  return redact(text)
+    .replaceAll(/\s*\n\s*/g, ' | ')
+    .slice(0, MAX_REASON_CHARS);
 }
 
 /**

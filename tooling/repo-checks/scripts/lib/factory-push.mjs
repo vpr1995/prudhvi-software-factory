@@ -1,19 +1,23 @@
 // `push <n>` of the /factory script (design factory-daily-run 4.1, R-17, R-37, R-54). It runs the
-// local test guard, then `git push origin HEAD:<branch>` with no `+` and no force flag. A rejected
-// push gets a fetch, a merge of the remote branch (no rebase) and one more push. Context:
+// local test guard, then `git push origin HEAD:<branch>` with no `+` and no force flag. A push that
+// git rejects as non-fast-forward gets a fetch, a merge of the remote branch (no rebase), the guard
+// again and one more push. Any other push failure is a hard stop. The fix-round state is the `push`
+// key of `ticket.json` (design 4.3). With no `ticket.json` it lives in memory, and a warning says a
+// repeated finding cannot be tracked. Context:
 //   { root, git(args) -> stdout, guard(base) -> findings, print(text), pid }
-import path from 'node:path';
-
-import { fail, parseJson, relative, stateFolder, ticketNumber, withLock } from './factory-base.mjs';
+import { fail, ticketNumber, withLock } from './factory-base.mjs';
 import { failureReason, hardStop } from './factory-github.mjs';
-import { loadTicket } from './factory-state.mjs';
-import { readOptional, writeAtomic } from './fs-io.mjs';
+import { loadTicket, saveTicket } from './factory-state.mjs';
 import { CHECK_CONFIG_MESSAGE } from './test-guard-rules.mjs';
 
 const DEFAULT_BASE = 'origin/main';
-// Letters, digits, ".", "_", "-" and "/", and no leading "-" or "+".
+const PROTECTED_BRANCHES = ['main', 'master'];
+// Letters, digits, ".", "_", "-" and "/", and no leading "-", "+" or ".".
 const BRANCH = /^[A-Za-z0-9][\w./-]*$/;
-const BAD_BRANCH_PARTS = ['..', '//', '.lock/'];
+// git refuses a path component that starts with ".": "/." covers it.
+const BAD_BRANCH_PARTS = ['..', '//', '.lock/', '/.'];
+// git prints `! [rejected] HEAD -> <branch> (fetch first)` or `(non-fast-forward)`.
+const NON_FAST_FORWARD = /\[rejected\].*\((?:fetch first|non-fast-forward)\)/;
 
 /** Refuses a branch name that is not safe in `git push origin HEAD:<branch>`. */
 export function checkBranch(name) {
@@ -25,91 +29,130 @@ export function checkBranch(name) {
   if (bad) fail(`refused branch name "${name}": use letters, digits, ".", "_", "-" and "/" only`);
 }
 
-const pushFile = (root, ticket) => path.join(stateFolder(root), ticket, 'push.json');
 const findingKey = (finding) => `${finding.file}: ${finding.message}`;
 
-function loadPushState(root, ticket) {
-  const file = pushFile(root, ticket);
-  const text = readOptional(file);
-  if (text === undefined) return { blocked: {}, checkConfig: false };
-  return parseJson(text, relative(root, file));
+// The fix-round state: { state: ticket state or undefined, blocked: { key: count } }.
+function loadRound(root, ticket) {
+  const state = loadTicket(root, ticket);
+  const blocked = state?.push?.blocked;
+  const isMap = typeof blocked === 'object' && blocked !== null && !Array.isArray(blocked);
+  return { state, blocked: isMap ? blocked : {} };
 }
 
-const savePushState = (root, ticket, state) =>
-  writeAtomic(pushFile(root, ticket), `${JSON.stringify(state, undefined, 2)}\n`);
+function saveRound(root, { ticket, round }, blocked) {
+  round.blocked = blocked;
+  if (round.state === undefined) return;
+  round.state = { ...round.state, push: { blocked } };
+  saveTicket(root, ticket, round.state);
+}
 
-/** @returns {Error | undefined} The error of the git call, or undefined when it worked. */
-function tryGit(context, args) {
+/** @returns {{ error: Error | undefined, output: string }} The error of the git call, if any. */
+function attempt(context, args) {
   context.print(`git ${args.join(' ')}\n`);
   try {
-    context.git(args);
-    return;
+    return { error: undefined, output: context.git(args) };
   } catch (error) {
-    return error;
+    return { error, output: '' };
   }
 }
 
-// R-55: a conflict aborts the merge and stops the run, with the conflict paths.
+/** @returns {Error | undefined} The error of the git call, or undefined when it worked. */
+const tryGit = (context, args) => attempt(context, args).error;
+
+function isNonFastForward(error) {
+  const text = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+  return NON_FAST_FORWARD.test(text);
+}
+
+// R-55: a merge that fails aborts and stops the run. The reason is the merge failure. The conflict
+// paths are listed when there are some. The merge may fail with no conflict (dirty tree, hook).
 function mergeRemote(context, branch, ticket) {
   const failure = tryGit(context, ['merge', '--no-edit', 'FETCH_HEAD']);
   if (failure === undefined) return;
-  const paths = context.git(['diff', '--name-only', '--diff-filter=U']).trim().split('\n');
-  context.git(['merge', '--abort']);
+  const paths = attempt(context, ['diff', '--name-only', '--diff-filter=U'])
+    .output.split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+  const aborted = tryGit(context, ['merge', '--abort']);
+  const abortText =
+    aborted === undefined ? 'Merge aborted.' : `Merge abort failed: ${failureReason(aborted)}.`;
+  const conflicts = paths.length > 0 ? ` Conflicts: ${paths.join(', ')}` : '';
   hardStop(
-    `merge of origin/${branch} failed (${failureReason(failure)}). Merge aborted. Conflicts: ${paths.join(', ')}`,
+    `merge of origin/${branch} failed (${failureReason(failure)}). ${abortText}${conflicts}`,
     ticket,
   );
 }
 
-/** @returns {boolean} True when the push needed the fetch and merge. A second reject throws. */
-function pushWithRecovery(context, branch, ticket) {
+/** @returns {boolean} True when the push needed the fetch and merge. A second failure throws. */
+function pushWithRecovery(context, plan) {
+  const { branch, ticket } = plan;
   const push = ['push', 'origin', `HEAD:${branch}`];
   const rejected = tryGit(context, push);
   if (rejected === undefined) return false;
   context.print(`push rejected: ${failureReason(rejected)}\n`);
+  if (!isNonFastForward(rejected)) {
+    hardStop(`push failed, not a non-fast-forward reject: ${failureReason(rejected)}`, ticket);
+  }
   const fetchFailure = tryGit(context, ['fetch', 'origin', branch]);
   if (fetchFailure !== undefined) {
     hardStop(`fetch after a rejected push failed: ${failureReason(fetchFailure)}`, ticket);
   }
   mergeRemote(context, branch, ticket);
+  checkGuard(context, plan);
   const second = tryGit(context, push);
   if (second !== undefined) hardStop(`push rejected twice: ${failureReason(second)}`, ticket);
   return true;
 }
 
 // The ticket state gives the branch and the stack base (R-37). Without it: HEAD and origin/main.
+// A push to main, master or the base branch of the stack is refused.
 function pushTarget(context, ticket) {
   const state = loadTicket(context.root, ticket);
   const current = context.git(['branch', '--show-current']).trim();
   const branch = state?.branch ?? current;
   checkBranch(branch);
   if (current !== branch) fail(`HEAD is on "${current}", but the ticket branch is "${branch}"`);
+  const protectedNames = [
+    ...PROTECTED_BRANCHES,
+    ...(typeof state?.base === 'string' ? [state.base] : []),
+  ];
+  if (protectedNames.includes(branch)) {
+    fail(
+      `refused: "${branch}" is a base branch (${protectedNames.join(', ')}). Push a ticket branch`,
+    );
+  }
   const base = typeof state?.base === 'string' ? `origin/${state.base}` : DEFAULT_BASE;
   return { branch, base };
 }
 
-// R-17: each other finding gets one fix round. One that is still there at the next push stops the run.
-function checkGuard(context, ticket, base) {
-  const previous = loadPushState(context.root, ticket);
+// R-17: each other finding gets one fix round. A key stays when its count is above 0 and not lower
+// than the stored count: no progress. Fixing 1 of 2 findings of one message is progress.
+function checkGuard(context, plan) {
+  const { ticket, base, round } = plan;
   const findings = context.guard(base);
   const blocking = findings.filter((finding) => finding.message !== CHECK_CONFIG_MESSAGE);
-  const checkConfig = blocking.length < findings.length;
-  const keys = blocking.map(findingKey);
-  const stayed = keys.filter((key) => (previous.blocked[key] ?? 0) > 0);
-  if (stayed.length > 0) {
-    hardStop(`test guard finding stayed after the fix round: ${stayed.join('; ')}`, ticket);
-  }
-  savePushState(context.root, ticket, {
-    blocked: Object.fromEntries(keys.map((key) => [key, 1])),
-    checkConfig,
+  const counts = {};
+  for (const finding of blocking)
+    counts[findingKey(finding)] = (counts[findingKey(finding)] ?? 0) + 1;
+  const stayed = Object.entries(counts).filter(([key, count]) => {
+    const stored = round.blocked[key];
+    return typeof stored === 'number' && stored > 0 && count >= stored;
   });
-  if (keys.length > 0) {
+  if (stayed.length > 0) {
+    const keys = stayed.map(([key]) => key).join('; ');
+    hardStop(`test guard finding stayed after the fix round: ${keys}`, ticket);
+  }
+  saveRound(context.root, plan, counts);
+  if (blocking.length > 0) {
+    if (round.state === undefined) {
+      context.print('warning: no ticket state: a repeated finding cannot be tracked\n');
+    }
     const lines = blocking.map((finding) => `${finding.file}:${finding.line} ${finding.message}`);
     fail(
       `test guard blocks the push. Fix, commit, then push again (one fix round):\n${lines.join('\n')}`,
     );
   }
-  if (checkConfig) {
+  if (blocking.length < findings.length) {
     context.print(`#${ticket}: check config changed: risk:high, for the router and the PR body\n`);
   }
 }
@@ -120,8 +163,9 @@ export function pushCommand([ticketWord, ...extra], context) {
   if (extra.length > 0) fail('Usage: push <n>');
   return withLock(context, () => {
     const { branch, base } = pushTarget(context, ticket);
-    checkGuard(context, ticket, base);
-    const merged = pushWithRecovery(context, branch, ticket);
+    const plan = { ticket, branch, base, round: loadRound(context.root, ticket) };
+    checkGuard(context, plan);
+    const merged = pushWithRecovery(context, plan);
     context.print(`#${ticket}: pushed ${branch}${merged ? ' after fetch and merge' : ''}\n`);
     return '';
   });

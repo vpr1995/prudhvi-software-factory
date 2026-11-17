@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { main } from '../scripts/factory.mjs';
 import { FactoryError } from '../scripts/lib/factory-base.mjs';
-import { createGh, HardStopError } from '../scripts/lib/factory-github.mjs';
+import { createGh, failureReason, HardStopError } from '../scripts/lib/factory-github.mjs';
 import { checkBranch, pushCommand } from '../scripts/lib/factory-push.mjs';
 import { routingLine } from '../scripts/lib/factory-route.mjs';
 import { readOptional, readRepositoryFile, writeAtomic } from '../scripts/lib/fs-io.mjs';
@@ -88,6 +88,12 @@ function makeGit({ branch = 'feat/7-x', pushes = [], mergeFails = false } = {}) 
   return { git, calls };
 }
 
+// What git prints for a push that needs a fetch first. The text is the part the code matches.
+const rejection = (reason = 'fetch first') =>
+  Object.assign(new Error('Command failed: git push'), {
+    stderr: `! [rejected]        HEAD -> feat/7-x (${reason})\n`,
+  });
+
 function makeContext({ findings = [], ...gitOptions } = {}) {
   const { git, calls } = makeGit(gitOptions);
   const bases = [];
@@ -132,7 +138,7 @@ test('R-54: push runs only git push origin HEAD:<branch>, with no + and no force
 });
 
 test('R-54: a rejected push fetches, merges the remote branch and pushes once more', () => {
-  const { context, calls, out } = makeContext({ pushes: [new Error('rejected')] });
+  const { context, calls, out } = makeContext({ pushes: [rejection()] });
   push(context);
   assert.deepEqual(calls, [
     BRANCH_CALL,
@@ -148,7 +154,7 @@ test('R-54: a rejected push fetches, merges the remote branch and pushes once mo
 });
 
 test('R-54: a second reject is a hard stop', () => {
-  const rejected = new Error('rejected');
+  const rejected = rejection();
   const { context, calls } = makeContext({ pushes: [rejected, rejected] });
   assert.throws(
     () => push(context),
@@ -158,7 +164,7 @@ test('R-54: a second reject is a hard stop', () => {
 });
 
 test('R-54: a failed fetch after a reject is a hard stop with no merge and no second push', () => {
-  const { context, calls } = makeContext({ pushes: [new Error('rejected')] });
+  const { context, calls } = makeContext({ pushes: [rejection()] });
   const original = context.git;
   context.git = (args) => {
     if (args[0] === 'fetch') {
@@ -173,7 +179,7 @@ test('R-54: a failed fetch after a reject is a hard stop with no merge and no se
 });
 
 test('R-55: a merge conflict aborts the merge and is a hard stop that lists the paths', () => {
-  const { context, calls } = makeContext({ pushes: [new Error('rejected')], mergeFails: true });
+  const { context, calls } = makeContext({ pushes: [rejection()], mergeFails: true });
   assert.throws(
     () => push(context),
     (error) =>
@@ -188,8 +194,156 @@ test('R-55: a merge conflict aborts the merge and is a hard stop that lists the 
   assert.equal(pushed(calls).length, 1);
 });
 
+test('R-55: a merge that fails with no conflict is a hard stop with the merge reason', () => {
+  const { context, calls } = makeContext({ pushes: [rejection()] });
+  const original = context.git;
+  context.git = (args) => {
+    if (args[0] === 'merge' && args[1] === '--no-edit') {
+      calls.push(args);
+      throw new Error('untracked working tree file would be overwritten');
+    }
+    if (args[0] === 'diff') {
+      calls.push(args);
+      return '\n';
+    }
+    if (args[0] === 'merge' && args[1] === '--abort') {
+      calls.push(args);
+      throw new Error('There is no merge to abort');
+    }
+    return original(args);
+  };
+  assert.throws(
+    () => push(context),
+    (error) =>
+      error instanceof HardStopError &&
+      error.message.includes('untracked working tree file would be overwritten') &&
+      !error.message.includes('Conflicts:'),
+  );
+  assert.equal(pushed(calls).length, 1);
+});
+
+test('R-54: a push that fails for another reason than a non-fast-forward is a hard stop at once', () => {
+  for (const reason of ['pre-push hook declined', 'Authentication failed']) {
+    const { context, calls } = makeContext({
+      pushes: [Object.assign(new Error(reason), { stderr: `${reason}\n` })],
+    });
+    assert.throws(
+      () => push(context),
+      (error) => error instanceof HardStopError && error.message.includes(reason),
+    );
+    assert.deepEqual(calls, [BRANCH_CALL, PUSH_ARGUMENTS], reason);
+  }
+});
+
+test('R-54: both git reject texts, fetch first and non-fast-forward, start the fetch and merge', () => {
+  for (const reason of ['fetch first', 'non-fast-forward']) {
+    const { context, calls } = makeContext({ pushes: [rejection(reason)] });
+    push(context);
+    assert.deepEqual(
+      calls.map((call) => call[0]),
+      ['branch', 'push', 'fetch', 'merge', 'push'],
+      reason,
+    );
+  }
+});
+
+test('R-17: the test guard runs again after the merge, and a blocking finding stops the second push', () => {
+  const { context, calls } = makeContext({ pushes: [rejection()] });
+  seedTicket(context, {});
+  let runs = 0;
+  context.guard = () => {
+    runs += 1;
+    return runs === 1 ? [] : [blocking];
+  };
+  assert.throws(
+    () => push(context),
+    (error) =>
+      error instanceof FactoryError &&
+      !(error instanceof HardStopError) &&
+      error.message.includes('test file deleted'),
+  );
+  assert.equal(runs, 2);
+  assert.equal(pushed(calls).length, 1);
+  assert.deepEqual(stateFile(context, 'ticket.json').push.blocked, {
+    'a.test.js: test file deleted': 1,
+  });
+});
+
+test('R-17: fixing 1 of 2 findings with the same message is progress, not a hard stop', () => {
+  const second = { ...blocking, line: 9 };
+  const { context, calls } = makeContext({ findings: [blocking, second] });
+  seedTicket(context, {});
+  assert.throws(() => push(context), FactoryError);
+  assert.deepEqual(stateFile(context, 'ticket.json').push.blocked, {
+    'a.test.js: test file deleted': 2,
+  });
+  const one = { ...context, guard: () => [blocking] };
+  assert.throws(
+    () => push(one),
+    (error) => error instanceof FactoryError && !(error instanceof HardStopError),
+  );
+  assert.deepEqual(pushed(calls), []);
+  assert.throws(
+    () => push(one),
+    (error) => error instanceof HardStopError && /stayed after the fix round/.test(error.message),
+  );
+  assert.deepEqual(pushed(calls), []);
+});
+
+test('R-17: a push.blocked value that is not an object counts as no stored round', () => {
+  const { context } = makeContext({ findings: [blocking] });
+  seedTicket(context, { push: { blocked: 'junk' } });
+  assert.throws(
+    () => push(context),
+    (error) => error instanceof FactoryError && !(error instanceof HardStopError),
+  );
+  assert.deepEqual(stateFile(context, 'ticket.json').push.blocked, {
+    'a.test.js: test file deleted': 1,
+  });
+});
+
+test('R-17: the fix-round state keeps the other keys of ticket.json', () => {
+  const { context } = makeContext({ findings: [blocking] });
+  seedTicket(context, { pr: 12, routing: { tier: 'low' } });
+  assert.throws(() => push(context), FactoryError);
+  const state = stateFile(context, 'ticket.json');
+  assert.equal(state.pr, 12);
+  assert.deepEqual(state.routing, { tier: 'low' });
+  assert.equal(readOptional(path.join(context.root, STATE, '7', 'push.json')), undefined);
+});
+
+test('R-17: with no ticket state, a blocking finding blocks and a warning says it is not tracked', () => {
+  const { context, calls, out } = makeContext({ findings: [blocking] });
+  assert.throws(() => push(context), FactoryError);
+  assert.match(out.join(''), /warning: .*cannot be tracked/);
+  assert.deepEqual(pushed(calls), []);
+  assert.equal(readOptional(path.join(context.root, STATE, '7', 'push.json')), undefined);
+  assert.equal(readOptional(path.join(context.root, STATE, '7', 'ticket.json')), undefined);
+});
+
+test('push refuses to push to main, master or the stored base branch', () => {
+  for (const [branch, extra] of [
+    ['main', {}],
+    ['master', {}],
+    ['feat/92-table', { branch: 'feat/92-table', base: 'feat/92-table' }],
+  ]) {
+    const { context, calls, bases } = makeContext({ branch });
+    seedTicket(context, { branch, ...extra });
+    assert.throws(
+      () => push(context),
+      (error) => error instanceof FactoryError && error.message.includes(branch),
+    );
+    assert.deepEqual(pushed(calls), [], branch);
+    assert.deepEqual(bases, [], branch);
+  }
+  const bare = makeContext({ branch: 'main' });
+  assert.throws(() => push(bare.context), FactoryError);
+  assert.deepEqual(pushed(bare.calls), []);
+});
+
 test('R-17: a non-config finding makes push fail with no git push, and stores the finding', () => {
   const { context, calls } = makeContext({ findings: [blocking] });
+  seedTicket(context, {});
   assert.throws(
     () => push(context),
     (error) =>
@@ -199,11 +353,14 @@ test('R-17: a non-config finding makes push fail with no git push, and stores th
       error.message.includes('a.test.js'),
   );
   assert.deepEqual(pushed(calls), []);
-  assert.deepEqual(stateFile(context, 'push.json').blocked, { 'a.test.js: test file deleted': 1 });
+  assert.deepEqual(stateFile(context, 'ticket.json').push.blocked, {
+    'a.test.js: test file deleted': 1,
+  });
 });
 
 test('R-17: the same finding on the next push is a hard stop with no git push', () => {
   const { context, calls } = makeContext({ findings: [blocking] });
+  seedTicket(context, {});
   assert.throws(() => push(context), FactoryError);
   assert.throws(
     () => push(context),
@@ -214,15 +371,17 @@ test('R-17: the same finding on the next push is a hard stop with no git push', 
 
 test('R-17: a fixed finding lets the next push through and clears the stored round', () => {
   const { context, calls } = makeContext({ findings: [blocking] });
+  seedTicket(context, {});
   assert.throws(() => push(context), FactoryError);
   const fixed = { ...context, guard: () => [] };
   push(fixed);
   assert.equal(pushed(calls).length, 1);
-  assert.deepEqual(stateFile(context, 'push.json').blocked, {});
+  assert.deepEqual(stateFile(context, 'ticket.json').push.blocked, {});
 });
 
 test('R-17: a new finding after a fix round gets its own fix round', () => {
   const { context } = makeContext({ findings: [blocking] });
+  seedTicket(context, {});
   assert.throws(() => push(context), FactoryError);
   const other = { file: 'b.test.js', line: 2, message: 'test file deleted' };
   const changed = { ...context, guard: () => [other] };
@@ -232,22 +391,25 @@ test('R-17: a new finding after a fix round gets its own fix round', () => {
   );
 });
 
-test('R-17: the check-config finding does not block, and is stored for the router and PR body', () => {
+test('R-17: the check-config finding does not block, and is printed for the router and PR body', () => {
   const { context, calls, out } = makeContext({ findings: [configFinding] });
+  seedTicket(context, {});
   push(context);
   assert.equal(pushed(calls).length, 1);
-  assert.equal(stateFile(context, 'push.json').checkConfig, true);
   assert.match(out.join(''), /check config changed/);
-  const clean = { ...context, guard: () => [] };
-  push(clean);
-  assert.equal(stateFile(context, 'push.json').checkConfig, false);
+  // Design 4.3 has no push.json, and the router computes the flag again: it is not stored.
+  assert.equal(readOptional(path.join(context.root, STATE, '7', 'push.json')), undefined);
+  assert.equal(stateFile(context, 'ticket.json').push.checkConfig, undefined);
 });
 
 test('R-17: a config finding next to a blocking finding still blocks', () => {
   const { context, calls } = makeContext({ findings: [configFinding, blocking] });
+  seedTicket(context, {});
   assert.throws(() => push(context), FactoryError);
   assert.deepEqual(pushed(calls), []);
-  assert.equal(stateFile(context, 'push.json').checkConfig, true);
+  assert.deepEqual(stateFile(context, 'ticket.json').push.blocked, {
+    'a.test.js: test file deleted': 1,
+  });
 });
 
 test('R-37: the guard base is origin/<stored base>, or origin/main with no stored base', () => {
@@ -261,7 +423,20 @@ test('R-37: the guard base is origin/<stored base>, or origin/main with no store
 });
 
 test('push refuses a branch name that is not safe, with no guard run and no git push', () => {
-  for (const name of ['-x', '+x', '--force', 'a b', 'a..b', 'a:b', 'a//b', 'x.lock', 'a/']) {
+  for (const name of [
+    '-x',
+    '+x',
+    '--force',
+    'a b',
+    'a..b',
+    'a:b',
+    'a//b',
+    'x.lock',
+    'a/',
+    '.x',
+    'feat/.x',
+    'a/./b',
+  ]) {
     assert.throws(() => checkBranch(name), FactoryError, name);
   }
   for (const name of ['feat/7-x', 'fix/a.b_c-1']) assert.doesNotThrow(() => checkBranch(name));
@@ -284,6 +459,21 @@ test('push with a bad ticket number exits through FactoryError', () => {
   const { context } = makeContext();
   assert.throws(() => pushCommand(['abc'], context), FactoryError);
   assert.throws(() => pushCommand([], context), FactoryError);
+});
+
+test('failureReason redacts URL credentials and tokens', () => {
+  const token = `ghp_${'a1B2'.repeat(6)}`;
+  const pat = `github_pat_${'x_Y9'.repeat(6)}`;
+  const error = Object.assign(new Error('Command failed'), {
+    stderr: `fatal: https://user:pass@github.com/a/b.git and ssh://${token}@host/x failed, ${pat} gho_${'Z'.repeat(25)}\n`,
+  });
+  const text = failureReason(error);
+  assert.match(text, /https:\/\/\*\*\*@github\.com/);
+  assert.match(text, /ssh:\/\/\*\*\*@host/);
+  for (const secret of ['user', 'pass', token, pat, 'gho_']) {
+    assert.ok(!text.includes(secret), secret);
+  }
+  assert.ok(failureReason(new Error(`boom ${token}`)).includes('boom ***'));
 });
 
 // route stores its JSON (R-20)
@@ -329,8 +519,7 @@ function makeRepository() {
   return { folder, remote, work };
 }
 
-test('R-20: route stores the JSON in the ticket state, and the routing line next to it', () => {
-  const { work } = makeRepository();
+function routeRun(work) {
   const out = [];
   const errors = [];
   const gh = (args) => (args[0] === 'issue' ? JSON.stringify({ body: 'Size: 2' }) : '');
@@ -340,16 +529,41 @@ test('R-20: route stores the JSON in the ticket state, and the routing line next
     print: (text) => out.push(text),
     err: (text) => errors.push(text),
   });
-  assert.equal(code, 0, errors.join(''));
-  const stored = readRepositoryFile(work, `${STATE}/7/route.json`);
-  assert.deepEqual(JSON.parse(stored), JSON.parse(out.join('')));
-  const result = JSON.parse(stored);
-  assert.equal(result.base, 'main');
-  assert.equal(result.budget, 300);
-  assert.ok(result.passes.some((pass) => pass.name === 'spec-reviewer'));
-  const line = readRepositoryFile(work, `${STATE}/7/route-line.txt`);
-  assert.equal(line, `${routingLine(result)}\n`);
-  assert.equal(errors.join(''), line);
+  return { code, out: out.join(''), errors: errors.join('') };
+}
+
+const ticketPath = (work, name = 'ticket.json') => path.join(work, STATE, '7', name);
+
+test('R-20: route stores the JSON in the routing field of ticket.json and keeps the other keys', () => {
+  const { work } = makeRepository();
+  writeAtomic(
+    ticketPath(work),
+    JSON.stringify({ issue: 7, stage: 'building', branch: 'feat/7-x', pr: 12, routing: {} }),
+  );
+  const { code, out, errors } = routeRun(work);
+  assert.equal(code, 0, errors);
+  const state = JSON.parse(readRepositoryFile(work, `${STATE}/7/ticket.json`));
+  assert.deepEqual(state.routing, JSON.parse(out));
+  assert.equal(state.pr, 12);
+  assert.equal(state.branch, 'feat/7-x');
+  assert.equal(state.routing.base, 'main');
+  assert.equal(state.routing.budget, 300);
+  assert.ok(state.routing.passes.some((pass) => pass.name === 'spec-reviewer'));
+  // The routing line goes to stderr only. No extra files.
+  assert.equal(errors, `${routingLine(state.routing)}\n`);
+  assert.equal(readOptional(ticketPath(work, 'route.json')), undefined);
+  assert.equal(readOptional(ticketPath(work, 'route-line.txt')), undefined);
+});
+
+test('R-20: route with no ticket.json prints the JSON, warns that nothing was stored, exits 0', () => {
+  const { work } = makeRepository();
+  const { code, out, errors } = routeRun(work);
+  assert.equal(code, 0, errors);
+  assert.equal(JSON.parse(out).base, 'main');
+  assert.match(errors, /warning: .*nothing stored/);
+  assert.match(errors, /Routing: tier /);
+  assert.equal(readOptional(ticketPath(work)), undefined);
+  assert.equal(readOptional(ticketPath(work, 'route.json')), undefined);
 });
 
 test('R-20: routingLine has the tier, each pass with its model, each skipped pass and warnings', () => {
@@ -412,6 +626,11 @@ test('CLI: a deleted test file makes push exit non-zero and nothing reaches the 
   git(work, 'checkout', '-q', 'feat/7-x');
   git(work, 'rm', '-q', 'src/a.test.js');
   git(work, 'commit', '-qm', 'drop test');
+  // The fix-round count lives in ticket.json (design 4.3): without it a repeat is not tracked.
+  writeAtomic(
+    ticketPath(work),
+    JSON.stringify({ issue: 7, stage: 'building', branch: 'feat/7-x', base: null }),
+  );
   const result = run(work, 'push', '7');
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /test file deleted/);

@@ -2,8 +2,9 @@
 //
 // route <n> [--base <ref>]: print the router JSON (4.2) for the diff <ref>...HEAD (default
 // origin/main) and the `Size:` line of ticket <n>. The local test guard gives the check-config
-// finding (R-21). The JSON is stored in `.claude/factory/<n>/route.json` and the one routing line
-// for the PR body in `route-line.txt` (R-20). The line goes to stderr too.
+// finding (R-21). The JSON is stored in the `routing` field of `.claude/factory/<n>/ticket.json`
+// (R-20, design 4.3). The one routing line for the PR body goes to stderr only: `routingLine`
+// builds it from the stored JSON. With no `ticket.json`, nothing is stored and stderr has a warning.
 //
 // push <n>: the local test guard, then `git push origin HEAD:<branch>` (task 2a2, R-17, R-54).
 // stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
@@ -12,9 +13,7 @@
 // `hard stop: <reason>` (lib/factory-github.mjs).
 //
 // Run from the repo root: node tooling/repo-checks/scripts/factory.mjs route 98
-import path from 'node:path';
-
-import { fail, parseJson, stateFolder, withLock } from './lib/factory-base.mjs';
+import { fail, parseJson, withLock } from './lib/factory-base.mjs';
 import {
   COMMAND_TIMEOUT_MS,
   gh,
@@ -24,8 +23,8 @@ import {
 } from './lib/factory-github.mjs';
 import { pushCommand } from './lib/factory-push.mjs';
 import { parseSize, route, routingLine } from './lib/factory-route.mjs';
-import { COMMANDS, FactoryError, SYNOPSES } from './lib/factory-state.mjs';
-import { readStdin, writeAtomic } from './lib/fs-io.mjs';
+import { COMMANDS, FactoryError, loadTicket, saveTicket, SYNOPSES } from './lib/factory-state.mjs';
+import { readStdin } from './lib/fs-io.mjs';
 import { readDiff } from './lib/test-guard-diff.mjs';
 import { CHECK_CONFIG_MESSAGE } from './lib/test-guard-rules.mjs';
 import { guardDiff, guardRepository } from './test-guard.mjs';
@@ -70,11 +69,13 @@ export function buildRoute({ base, body, files, findings }) {
   return route({ base, changedFiles: files, size: parseSize(body), checkConfig });
 }
 
-function storeRoute(context, ticket, { result, line }) {
-  const folder = path.join(stateFolder(context.root), ticket);
-  withLock(context, () => {
-    writeAtomic(path.join(folder, 'route.json'), `${JSON.stringify(result, undefined, 2)}\n`);
-    writeAtomic(path.join(folder, 'route-line.txt'), `${line}\n`);
+/** @returns {boolean} True when the JSON is stored. False when the ticket has no state. */
+function storeRoute(context, ticket, result) {
+  return withLock(context, () => {
+    const state = loadTicket(context.root, ticket);
+    if (state === undefined) return false;
+    saveTicket(context.root, ticket, { ...state, routing: result });
+    return true;
   });
 }
 
@@ -92,7 +93,9 @@ function routeCommand({ ticket, base }, context) {
     findings: guardDiff(context.root, diff),
   });
   const line = routingLine(result);
-  storeRoute(context, ticket, { result, line });
+  if (!storeRoute(context, ticket, result)) {
+    context.err(`warning: #${ticket} has no ticket state: nothing stored\n`);
+  }
   context.err(`${line}\n`);
   return `${JSON.stringify(result, undefined, 2)}\n`;
 }
