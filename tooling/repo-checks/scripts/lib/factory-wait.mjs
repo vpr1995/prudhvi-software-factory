@@ -1,7 +1,7 @@
 // `wait <n>` of the /factory script (design factory-daily-run 4.1; R-49). The agent runs it as a
 // background command while CI runs. It stores `waiting: { pr, since, pid }` in run.json, so the
-// Stop hook allows the stop. It refuses a PR that is not the `pr` of a ticket.json. The hook and
-// `next` ignore a wait of a dead pid, or older than 60 minutes (`liveWait`).
+// Stop hook allows the stop. It accepts any PR number: a blocker PR (R-42) has no ticket.json. The
+// hook and `next` ignore a wait of a dead pid, or older than 60 minutes (`liveWait`).
 // It polls `gh pr checks` every 30 seconds. It ends when no check is pending and clears `waiting`.
 // It prints `passed` or `failed`. After 60 minutes it prints `timeout` and ends with a hard stop
 // (exit 3, message `hard stop: CI timeout`): the agent then runs `hardstop`. The same rule applies
@@ -19,6 +19,7 @@ import {
   withPatientLock,
 } from './factory-base.mjs';
 import { HardStopError } from './factory-github.mjs';
+import { currentTicket } from './factory-report.mjs';
 import { loadRun, saveRun } from './factory-run.mjs';
 import { checksGreen, ghJson, loadTicket, writeRunLog } from './factory-state.mjs';
 import { listFolder } from './fs-io.mjs';
@@ -27,12 +28,13 @@ export const POLL_MS = 30_000;
 export const TIMEOUT_MS = 60 * 60_000;
 const TICKET_FOLDER = /^[1-9]\d*$/;
 
-// The ticket of the PR: the ticket.json that names it. A PR that no ticket names is refused.
-function ticketOfPr(context, pr) {
+// The ticket for the wait log lines: the ticket.json that names the PR, else the current ticket,
+// else ticket 0 (a blocker PR has no ticket.json).
+function ticketOfPr(context, run, pr) {
   const folders = listFolder(stateFolder(context.root)).filter((name) => TICKET_FOLDER.test(name));
   const match = folders.find((name) => loadTicket(context.root, name)?.pr === pr);
-  if (match === undefined) fail(`PR #${String(pr)} is not a PR of this run`);
-  return Number(match);
+  if (match !== undefined) return Number(match);
+  return currentTicket(context, run)?.ticket ?? 0;
 }
 
 const logWait = (context, ticket, detail) =>
@@ -42,7 +44,7 @@ function begin(context, pr) {
   return withLock(context, () => {
     const run = loadRun(context.root);
     if (run?.active !== true) fail('no active run: run `start` first');
-    const ticket = ticketOfPr(context, pr);
+    const ticket = ticketOfPr(context, run, pr);
     const waiting = { pr, since: timestamp(context.now()), pid: context.pid };
     saveRun(context.root, { ...run, waiting });
     logWait(context, ticket, 'start');

@@ -99,23 +99,29 @@ function ownerCheck(context, session) {
 /**
  * @param {string} text - The hook input (JSON text, with `session_id`).
  * @param {object} context - root, now, pid, runOff, err. `sleep` and `isAlive` are for tests.
- * @returns {string | undefined} The hook output that blocks, or undefined to allow. An error throws.
+ * @returns {{ output: string | undefined, lockHeld: boolean }} `output` is the hook output that
+ *   blocks, or undefined to allow. `lockHeld` is true when a held lock allowed the stop: the entry
+ *   leaves the error count as it is. An error throws.
  */
 export function handleStopCheck(text, context) {
   const session = sessionOf(text);
   const run = loadRun(context.root);
-  if (run === undefined) return;
+  if (run === undefined) return { output: undefined, lockHeld: false };
   try {
     if (context.runOff()) {
       if (isOpenRun(run)) withPatientLock(context, () => clearRun(context));
-      return;
+      return { output: undefined, lockHeld: false };
     }
-    if (!isOpenRun(run) || run.stalled === true) return;
+    if (!isOpenRun(run) || run.stalled === true) return { output: undefined, lockHeld: false };
     const owner = run.sessionId ?? null;
-    if (owner !== null && owner !== '' && owner !== session) return;
-    return withPatientLock(context, () => ownerCheck(context, session));
+    if (owner !== null && owner !== '' && owner !== session) {
+      return { output: undefined, lockHeld: false };
+    }
+    const output = withPatientLock(context, () => ownerCheck(context, session));
+    return { output, lockHeld: false };
   } catch (error) {
     if (!(error instanceof LockHeldError)) throw error;
     context.err('factory stop check: lock held, stop allowed\n');
+    return { output: undefined, lockHeld: true };
   }
 }

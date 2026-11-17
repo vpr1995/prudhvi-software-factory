@@ -81,8 +81,8 @@ function check(root, session, extra = {}) {
     ...extra,
   };
   const input = hookInput(session);
-  const output = handleStopCheck(input, context);
-  return { output: output === undefined ? undefined : JSON.parse(output), errors };
+  const { output, lockHeld } = handleStopCheck(input, context);
+  return { output: output === undefined ? undefined : JSON.parse(output), errors, lockHeld };
 }
 
 const blocked = (result) => result.output?.decision === 'block';
@@ -291,6 +291,7 @@ test('R-56: a lock held by a live process is retried for about 2 s, then the sto
   const result = check(root, 's1', { pid: OTHER_PID, sleep: (ms) => sleeps.push(ms) });
   assert.equal(result.output, undefined);
   assert.deepEqual(result.errors, ['factory stop check: lock held, stop allowed\n']);
+  assert.equal(result.lockHeld, true);
   const total = sleeps.reduce((sum, ms) => sum + ms, 0);
   assert.ok(total >= 1500 && total <= 3000, `slept ${String(total)} ms`);
   assert.equal(readOptional(stateFile(root, 'run.json')), before);
@@ -336,6 +337,13 @@ const PASS = [{ name: 'ci', state: 'SUCCESS', bucket: 'pass' }];
 const FAIL = [{ name: 'ci', state: 'FAILURE', bucket: 'fail' }];
 const seedPr = (root, pr = 7) =>
   writeAtomic(stateFile(root, '5/ticket.json'), JSON.stringify({ stage: 'ci', pr }));
+const waitLines = (root) =>
+  readFileSync(runLogFile(root), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+    .filter((line) => line.event === 'wait')
+    .map(({ ticket, detail }) => ({ ticket, detail }));
 const runWait = (world, words = ['7']) =>
   main(['node', 'factory.mjs', 'wait', ...words], world.overrides);
 
@@ -393,14 +401,36 @@ test('R-49: wait with no checks yet keeps polling', () => {
   assert.equal(world.polls, 2);
 });
 
-test('R-49: wait refuses a PR that is not the PR of a ticket of this run', () => {
+test('R-49: wait accepts a PR with no ticket.json (a blocker PR, R-42) and logs it on the current ticket or ticket 0', () => {
+  // Current ticket 5 has no `pr`. PR 7 is the PR of no ticket.
   const root = setup({ sessionId: 's1' });
-  seedPr(root, 7);
+  writeAtomic(runLogFile(root), logLine('stage', 'ci', 5));
+  writeAtomic(stateFile(root, '5/ticket.json'), JSON.stringify({ stage: 'ci' }));
   const world = waitWorld(root, () => PASS);
-  assert.equal(runWait(world, ['9']), 2);
-  assert.match(world.errText, /wait: PR #9 is not a PR of this run/);
-  assert.equal(world.polls, 0);
+  assert.equal(runWait(world), 0, world.errText);
+  assert.equal(world.polls, 1);
   assert.equal(readJson(root, 'run.json').waiting, null);
+  assert.deepEqual(waitLines(root), [
+    { ticket: 5, detail: 'start' },
+    { ticket: 5, detail: 'end' },
+  ]);
+  // No ticket at all: ticket 0.
+  const bare = setup({ sessionId: 's1' });
+  assert.equal(runWait(waitWorld(bare, () => PASS)), 0);
+  assert.deepEqual(waitLines(bare), [
+    { ticket: 0, detail: 'start' },
+    { ticket: 0, detail: 'end' },
+  ]);
+  // A ticket.json with the same `pr` gets the lines, even when it is not the current ticket.
+  const owned = setup({ sessionId: 's1' });
+  writeAtomic(runLogFile(owned), logLine('stage', 'ci', 5));
+  writeAtomic(stateFile(owned, '5/ticket.json'), JSON.stringify({ stage: 'ci' }));
+  writeAtomic(stateFile(owned, '6/ticket.json'), JSON.stringify({ stage: 'ci', pr: 7 }));
+  assert.equal(runWait(waitWorld(owned, () => PASS)), 0);
+  assert.deepEqual(waitLines(owned), [
+    { ticket: 6, detail: 'start' },
+    { ticket: 6, detail: 'end' },
+  ]);
 });
 
 test('R-53: the end of wait retries a held lock before it clears the wait', () => {
@@ -548,6 +578,25 @@ test('R-56: a clean stop of another session does not reset the count of the owne
   assert.equal(readOptional(stateFile(root, 'stop-errors')).trim(), '1');
   assert.equal(JSON.parse(hook(root, 's1').stdout).decision, 'block');
   assert.equal(exists(stateFile(root, 'stop-errors')), false);
+});
+
+test('R-56: a stop that hits a held lock does not reset the error count of the owner', () => {
+  const root = setupProcess(OWNED);
+  breakCore(root);
+  hook(root, 's1');
+  hook(root, 's1');
+  assert.equal(readOptional(stateFile(root, 'stop-errors')).trim(), '2');
+  fixCore(root);
+  writeAtomic(lockOf(root), String(process.pid));
+  const held = hook(root, 's1');
+  assert.equal(held.stdout, '');
+  assert.match(held.stderr, /lock held, stop allowed/);
+  assert.equal(readOptional(stateFile(root, 'stop-errors')).trim(), '2');
+  removeFile(lockOf(root));
+  breakCore(root);
+  const third = hook(root, 's1');
+  assert.equal(third.stdout, '', 'the next owner error is the 3rd and allows');
+  assert.equal(readOptional(stateFile(root, 'stop-errors')).trim(), '3');
 });
 
 test('R-56: the 3rd error in a row of the owner allows, with other sessions between', () => {
