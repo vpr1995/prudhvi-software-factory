@@ -7,7 +7,7 @@
 // `report` derives it from run.json. A hard stop (`recordStop`) stores `stopped` in run.json:
 // `{ ticket, reason, failedSteps }`. `failedSteps` are the R-12 steps that failed before step 6, as
 // `<number> <name>` ("4 comment"). A second hard stop of the same run writes the same report.
-import { fail, relative, withLock } from './factory-base.mjs';
+import { fail, IN_FLIGHT, relative, withLock } from './factory-base.mjs';
 import { redactText } from './factory-comment.mjs';
 import { clearRun, isOpenRun, loadRun, onlyOf, saveRun, warnBadOnly } from './factory-run.mjs';
 import { loadTicket, runLogFile, writeRunLog } from './factory-state.mjs';
@@ -18,8 +18,6 @@ const STATUS_STOP = 'stopped by the owner (R-47)';
 const STATUS_HARD_STOP = 'hard stop (R-12)';
 const STATUS_ACTIVE = 'active';
 const STATUS_STALLED = 'stalled: run `/factory` to resume (R-48)';
-// The stages of a ticket that the run still works on. `green` waits for the owner (design 4.4).
-export const IN_FLIGHT = new Set(['building', 'reviewing', 'ci']);
 const LOG_SUFFIX = '.jsonl';
 const REASON_LIMIT = 300;
 const NO_WORDS = (name, words) => {

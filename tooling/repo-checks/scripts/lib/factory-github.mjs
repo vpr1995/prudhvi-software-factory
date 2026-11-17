@@ -3,7 +3,7 @@
 // `HardStopError` in one place and exits 3. The agent then runs `hardstop` with the reason.
 import { execFileSync } from 'node:child_process';
 
-import { FactoryError } from './factory-base.mjs';
+import { FactoryError, fail, parseJson } from './factory-base.mjs';
 
 export const COMMAND_TIMEOUT_MS = 30_000;
 // git push and git fetch go to the network and run the repo hooks: give them more time.
@@ -73,3 +73,69 @@ export function createGh(exec = run) {
 }
 
 export const gh = createGh();
+
+// PR comments (R-9, design 4.5). `readPrComments` reads the three kinds of PR comment through the gh
+// wrapper. `ownerComments` keeps the ones that may be input: the author is the owner, and the body
+// has no agent marker and no `factory-metrics` block (a version 1 metrics comment has no marker).
+// The marker is searched anywhere in the body, not only at the start: a doubt drops the comment.
+
+/** The first line of each agent comment (R-8). */
+export const MARKER = '<!-- factory-agent -->';
+export const METRICS_BLOCK = /^```factory-metrics$/m;
+// A review that is only an approval, a draft or a dismissed review is no request.
+const REVIEW_STATES = new Set(['COMMENTED', 'CHANGES_REQUESTED']);
+
+function listOf(run, endpoint) {
+  const pages = parseJson(run(['api', endpoint, '--paginate', '--slurp']), `gh api ${endpoint}`);
+  if (!Array.isArray(pages)) fail(`gh api ${endpoint}: not a list`);
+  return pages.flat();
+}
+
+// A review comment has the id of its thread root in `in_reply_to_id`. Any other comment is a thread
+// of its own (R-31).
+function describe(item, type, thread = item?.id) {
+  const line = item?.line ?? item?.original_line;
+  return {
+    id: item?.id,
+    type,
+    thread,
+    author: item?.user?.login,
+    body: typeof item?.body === 'string' ? item.body : '',
+    location: typeof item?.path === 'string' ? `${item.path}${line ? `:${String(line)}` : ''}` : '',
+  };
+}
+
+/**
+ * @param {(args: string[]) => string} run - The gh wrapper.
+ * @param {number} pr - PR number.
+ * @returns {{ id: number, type: string, thread: number, author: unknown, body: string, location: string }[]}
+ *   Each review comment, review body and issue comment of the PR, with no filter.
+ */
+export function readPrComments(run, pr) {
+  const base = 'repos/{owner}/{repo}';
+  const inline = listOf(run, `${base}/pulls/${String(pr)}/comments`).map((item) =>
+    describe(item, 'review-comment', item?.in_reply_to_id ?? item?.id),
+  );
+  const reviews = listOf(run, `${base}/pulls/${String(pr)}/reviews`)
+    .filter((item) => REVIEW_STATES.has(item?.state))
+    .map((item) => describe(item, 'review'));
+  const plain = listOf(run, `${base}/issues/${String(pr)}/comments`).map((item) =>
+    describe(item, 'issue-comment'),
+  );
+  return [...inline, ...reviews, ...plain].filter(
+    (comment) => Number.isInteger(comment.id) && comment.id > 0,
+  );
+}
+
+/** @returns {object[]} The comments that the owner wrote, with a body, no marker and no metrics block. */
+export function ownerComments(comments, owner) {
+  const login = owner.toLowerCase();
+  return comments.filter(
+    ({ author, body }) =>
+      typeof author === 'string' &&
+      author.toLowerCase() === login &&
+      body.trim() !== '' &&
+      !body.includes(MARKER) &&
+      !METRICS_BLOCK.test(body),
+  );
+}

@@ -13,6 +13,8 @@ export const fail = (message) => {
   throw new FactoryError(message);
 };
 
+// The stages of a ticket that the run still works on. `green` waits for the owner (design 4.4).
+export const IN_FLIGHT = new Set(['building', 'reviewing', 'ci']);
 export const AD_HOC = 'adhoc';
 export const PRE_PR = 'pre-pr';
 const PLAIN_NAME = /^[a-z][a-z0-9-]*$/;

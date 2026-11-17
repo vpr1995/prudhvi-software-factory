@@ -22,7 +22,10 @@
 // stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
 //
 // comment <n> <hard-stop|reply> [<reply-to-id>]: post an agent comment from stdin with the marker
-// line (R-8). A reply with an id stores the id in `handledComments` of `ticket.json`.
+// line (R-8). A reply with an id answers a new owner comment of the open PR (R-9), stores the id in
+// `handledComments` and adds 1 to `threadReplies` of its thread (R-30, R-31).
+// comments <n>: print the new owner comments of ticket <n>. `next` gives them first (R-30).
+// Code: lib/factory-comments.mjs.
 // hardstop <n> "<reason>": the R-12 steps, error excerpt on stdin (lib/factory-hard-stop.mjs).
 // caps <n>: derive the cap counts, print JSON, exit 3 when a cap is reached (lib/factory-caps.mjs).
 // metrics <n>: create the `factory-metrics` comment of the ticket, or edit it in place, with the
@@ -36,6 +39,7 @@
 import { fail, parseJson, withLock } from './lib/factory-base.mjs';
 import { capsCommand } from './lib/factory-caps.mjs';
 import { commentCommand } from './lib/factory-comment.mjs';
+import { commentsCommand } from './lib/factory-comments.mjs';
 import {
   COMMAND_TIMEOUT_MS,
   gh,
@@ -76,6 +80,7 @@ const USAGE = [
   'push <n>',
   'wait <n>',
   'comment <n> <hard-stop|reply> [<reply-to-id>]   (body on stdin)',
+  'comments <n>',
   'hardstop <n> "<reason>"   (error excerpt on stdin)',
   'caps <n>',
   'metrics <n>',
@@ -147,6 +152,7 @@ const HANDLERS = new Map([
   ...COMMANDS,
   ['caps', capsCommand],
   ['comment', commentCommand],
+  ['comments', commentsCommand],
   ['hardstop', hardstopCommand],
   ['metrics', metricsCommand],
   ['next', nextCommand],

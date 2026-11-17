@@ -18,13 +18,12 @@ import { fail, parseJson, stateFolder, ticketNumber, withLock } from './factory-
 import { FAILED, logLines } from './factory-caps.mjs';
 import { buildComment, postComment } from './factory-comment.mjs';
 import { readCost } from './factory-cost.mjs';
+import { MARKER, METRICS_BLOCK } from './factory-github.mjs';
 import { currentSession, loadRun } from './factory-run.mjs';
 import { loadTicket } from './factory-state.mjs';
 import { listFolder, removeFile, writeAtomic } from './fs-io.mjs';
 
-const MARKER_LINE = '<!-- factory-agent -->';
 const FENCE = '`'.repeat(3);
-const METRICS_BLOCK = /^```factory-metrics$/m;
 const ROUND_FILE = /^round-\d+\.json$/;
 const VERSION = /^\d+\.\d+\.\d+\S*/;
 const COMMENT_ID_PATH = (id) => `repos/{owner}/{repo}/issues/comments/${String(id)}`;
@@ -188,7 +187,7 @@ const isOwnMetrics = (entry, login) =>
   entry?.user?.login === login &&
   typeof entry.body === 'string' &&
   METRICS_BLOCK.test(entry.body) &&
-  (entry.body.startsWith(MARKER_LINE) || !entry.body.includes(MARKER_LINE));
+  (entry.body.startsWith(MARKER) || !entry.body.includes(MARKER));
 
 /** @returns {number | undefined} The id of the last comment of the place with a `factory-metrics` block from the logged-in user. */
 function findComment(context, target, warnings) {
@@ -236,7 +235,7 @@ export function postMetrics(context, { ticket, outcome }) {
     outcome: outcome ?? (state.stage === 'needs-human' ? 'needs-human' : 'green'),
     warnings,
   });
-  const body = `${MARKER_LINE}\n${FENCE}factory-metrics\n${JSON.stringify(metrics)}\n${FENCE}\n`;
+  const body = `${MARKER}\n${FENCE}factory-metrics\n${JSON.stringify(metrics)}\n${FENCE}\n`;
   const pr = positive(state.pr);
   const place = pr === null ? ticket : String(pr);
   const id = findComment(context, place, warnings);
