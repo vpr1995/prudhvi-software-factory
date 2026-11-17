@@ -380,13 +380,19 @@ test('#110 round 1: the real CLI prints the Routing line on stderr and the JSON 
   writeFileSync(path.join(work, 'src', 'a.js'), 'export const a = 1;\n');
   git('add', '.');
   git('commit', '-qm', 'change');
-  // The skill runs `route <n> 2>&1`: one stream, as the agent sees it.
+  // The skill runs `route <n> 2>&1`: one stream, as the agent sees it. Only a real 2>&1 keeps
+  // the write order. The shell text is fixed; the node and script paths are arguments ($0, $1).
   const merged = spawnSync(
-    process.execPath,
-    [path.join(ROOT, 'tooling/repo-checks/scripts/factory.mjs'), 'route', '7', '--base', 'main'],
-    { cwd: work, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    'sh',
+    [
+      '-c',
+      '"$0" "$1" route 7 --base main 2>&1',
+      process.execPath,
+      path.join(ROOT, 'tooling/repo-checks/scripts/factory.mjs'),
+    ],
+    { cwd: work, env, encoding: 'utf8' },
   );
-  const mergedOutput = `${merged.stdout ?? ''}${merged.stderr ?? ''}`;
+  const mergedOutput = merged.stdout ?? '';
   assert.equal(merged.status, 0, mergedOutput);
   const lines = mergedOutput.split('\n');
   assert.match(
