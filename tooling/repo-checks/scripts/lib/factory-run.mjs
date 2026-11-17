@@ -12,6 +12,8 @@ import { readOptional, removeFile, writeAtomic } from './fs-io.mjs';
 const runFile = (root) => path.join(stateFolder(root), 'run.json');
 const NO_CHECKS = { count: 0, lastHash: null };
 const WAIT_STALE_MS = 60 * 60_000;
+// A ticket resumed over many runs keeps its earlier sessions, up to this many (the last ones).
+const MAX_SESSION_IDS = 50;
 
 /** @returns {string | undefined} The current session id of the context, when it is set and valid. */
 export function currentSession(context) {
@@ -19,10 +21,10 @@ export function currentSession(context) {
   return isSessionId(id) ? id : undefined;
 }
 
-/** @returns {string[]} The strings of the lists, no duplicates, in order. */
+/** @returns {string[]} The strings of the lists without duplicates, in order, and the last 50. */
 function mergeSessionIds(...lists) {
   const ids = lists.flatMap((list) => (Array.isArray(list) ? list : []));
-  return [...new Set(ids.filter((id) => typeof id === 'string'))];
+  return [...new Set(ids.filter((id) => typeof id === 'string'))].slice(-MAX_SESSION_IDS);
 }
 
 /**
@@ -63,8 +65,9 @@ const newRunId = (now) => timestamp(now).replaceAll(/[-:]/g, '');
 /**
  * R-50. An active or `stalled` run is adopted: the owning session is cleared (the next `stop-check`
  * claims it), `stalled` and the stop counts and the CI wait go (the old session is gone), `only` is
- * the new value. Else a new run starts. The current session id goes into `sessionIds` of both. A new
- * run starts with only that id: it does not carry the ids of the run it replaces. `resume` is not logged here: see `logAdoption`.
+ * the new value. Else a new run starts. The current session id goes into `sessionIds` of both, and
+ * a new run keeps the `sessionIds` of the run.json it replaces (the cost read, R-33). The list keeps
+ * the last 50 ids. `resume` is not logged here: see `logAdoption`.
  *
  * @param {object} context - Command context (root, now).
  * @param {number | null} only - The ticket of `start <n>`, or null.
@@ -95,7 +98,7 @@ export function beginRun(context, only) {
   const run = {
     runId: newRunId(context.now()),
     sessionId: null,
-    sessionIds: mergeSessionIds([currentSession(context)]),
+    sessionIds: mergeSessionIds(existing?.sessionIds, [currentSession(context)]),
     active: true,
     stalled: false,
     startedAt: timestamp(context.now()),

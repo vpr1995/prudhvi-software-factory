@@ -802,6 +802,21 @@ test('R-12 step 5: a gh user that cannot be read still posts a new metrics comme
   assert.equal(metricsComments(calls).length, 1);
 });
 
+test('R-12 step 5: an empty gh user warns and posts a new metrics comment', () => {
+  const { work } = makeRepository();
+  seedTicket(work, { pr: 12 });
+  seedLog(work, [logLine(T0)]);
+  const replies = { 'api user': () => '\n' };
+  const { calls, overrides } = hardstopOverrides(work, { replies });
+  const result = runFactory(['hardstop', '7', REASON], overrides);
+  assert.equal(result.code, 0, result.errors);
+  assert.match(
+    result.out,
+    /step 5 metrics: created on PR #12;.* warning: gh user not readable: a new metrics comment is made/,
+  );
+  assert.equal(metricsComments(calls).length, 1);
+});
+
 test('R-12 step 5: a second hard stop edits the metrics comment, it does not post a second one', () => {
   const { work } = makeRepository();
   seedTicket(work, { pr: 12 });

@@ -11,6 +11,7 @@ import { after, test } from 'node:test';
 import { main } from '../scripts/factory.mjs';
 import { MARKER } from '../scripts/lib/factory-comment.mjs';
 import { priceOf } from '../scripts/lib/factory-prices.mjs';
+import { beginRun, clearRun } from '../scripts/lib/factory-run.mjs';
 import { writeAtomic } from '../scripts/lib/fs-io.mjs';
 
 const STATE = '.claude/factory';
@@ -342,18 +343,74 @@ test('R-33: a usage field that is not a number is a parse failure', () => {
   assert.match(result.errors, /warning: .*sess-a\.jsonl line 1.*usage/);
 });
 
-test('R-33: a missing transcript, a bad session id and no session id give cost null and a warning', () => {
+test('R-33: a session with no transcript is skipped with a warning: the cost is the sum of the others', () => {
   const setup = fullSetup();
-  seedRun(setup.work, { sessionIds: ['sess-a', 'sess-missing', '../sess-other'] });
-  const missing = runMetrics(setup);
-  assert.equal(metricsOf(postedBody(missing)).cost, null);
-  assert.match(missing.errors, /warning: transcript of session sess-missing not found/);
-  assert.match(missing.errors, /warning: session id #3 is not valid/);
+  seedRun(setup.work, { sessionIds: ['sess-a', 'sess-missing'] });
+  const result = runMetrics(setup);
+  const metrics = metricsOf(postedBody(result));
+  assert.equal(metrics.cost, 11.8);
+  assert.equal(metrics.turns, 4);
+  assert.match(result.errors, /warning: transcript of session sess-missing not found: skipped/);
+  assert.doesNotMatch(result.errors, /no transcript found/);
+});
+
+test('R-33: no session with a transcript gives cost null, turns null and a warning', () => {
+  const setup = fullSetup();
+  seedRun(setup.work, { sessionIds: ['sess-missing', 'sess-gone'] });
+  const result = runMetrics(setup);
+  const metrics = metricsOf(postedBody(result));
+  assert.equal(metrics.cost, null);
+  assert.equal(metrics.turns, null);
+  assert.match(result.errors, /warning: transcript of session sess-missing not found: skipped/);
+  assert.match(result.errors, /warning: no transcript found/);
+});
+
+test('R-33: a bad session id and no session id give cost null and a warning', () => {
+  const setup = fullSetup();
+  seedRun(setup.work, { sessionIds: ['sess-a', '../sess-other'] });
+  const bad = runMetrics(setup);
+  assert.equal(metricsOf(postedBody(bad)).cost, null);
+  assert.match(bad.errors, /warning: session id #2 is not valid/);
   const none = fullSetup();
   seedRun(none.work, { sessionIds: [] });
   const empty = runMetrics(none);
   assert.equal(metricsOf(postedBody(empty)).cost, null);
   assert.match(empty.errors, /warning: run\.json has no session id/);
+});
+
+test('R-33: a ticket resumed in a new run counts the sessions of both runs', () => {
+  const setup = makeWork();
+  seedTicket(setup.work);
+  let session = 'sess-a';
+  let at = T0;
+  const context = { root: setup.work, now: () => new Date(at), sessionId: () => session };
+  const first = beginRun(context, null).run.runId;
+  writeAtomic(
+    stateFile(setup.work, 'runs', `${first}.jsonl`),
+    `${[logLine(T0, 'building'), logLine(T0 + 10 * MINUTE, 'reviewing')].join('\n')}\n`,
+  );
+  clearRun(context);
+  session = 'sess-b';
+  at = T0 + 20 * MINUTE;
+  const second = beginRun(context, null).run;
+  assert.notEqual(second.runId, first);
+  writeAtomic(
+    stateFile(setup.work, 'runs', `${second.runId}.jsonl`),
+    `${[logLine(T0 + 25 * MINUTE, 'ci'), logLine(T0 + 30 * MINUTE, 'green')].join('\n')}\n`,
+  );
+  // sess-a: sonnet 1.6 in the old run. sess-b: opus in 1M, out 100k = 6 in the new run.
+  writeTranscript(setup.project, 'sess-a.jsonl', [
+    assistant(T0 + MINUTE, 'a1', [SONNET, usage(500_000, 50_000, [0, MILLION])]),
+  ]);
+  writeTranscript(setup.project, 'sess-b.jsonl', [
+    assistant(T0 + 26 * MINUTE, 'b1', [OPUS, usage(MILLION, 100_000)]),
+  ]);
+  const result = runMetrics(setup);
+  assert.equal(result.code, 0, result.errors);
+  const metrics = metricsOf(postedBody(result));
+  assert.equal(metrics.cost, 7.6);
+  assert.equal(metrics.turns, 2);
+  assert.equal(result.errors, '');
 });
 
 test('R-33: only the transcripts of the run sessions are opened', () => {
