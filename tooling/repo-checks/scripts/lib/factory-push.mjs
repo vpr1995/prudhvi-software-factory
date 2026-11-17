@@ -64,11 +64,15 @@ function isNonFastForward(error) {
   return NON_FAST_FORWARD.test(text);
 }
 
-// R-55: a merge that fails aborts and stops the run. The reason is the merge failure. The conflict
-// paths are listed when there are some. The merge may fail with no conflict (dirty tree, hook).
+// R-55: a merge that fails stops the run. The reason is the merge failure. A merge that stopped with a
+// conflict is in progress (MERGE_HEAD): it is aborted, and the conflict paths are listed. A merge that
+// failed before it started (a dirty tree, a hook) has no MERGE_HEAD and nothing to abort.
 function mergeRemote(context, branch, ticket) {
   const failure = tryGit(context, ['merge', '--no-edit', 'FETCH_HEAD']);
   if (failure === undefined) return;
+  const reason = `merge of origin/${branch} failed (${failureReason(failure)}).`;
+  const merging = tryGit(context, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']) === undefined;
+  if (!merging) hardStop(reason, ticket);
   const paths = attempt(context, ['diff', '--name-only', '--diff-filter=U'])
     .output.split('\n')
     .map((line) => line.trim())
@@ -77,10 +81,7 @@ function mergeRemote(context, branch, ticket) {
   const abortText =
     aborted === undefined ? 'Merge aborted.' : `Merge abort failed: ${failureReason(aborted)}.`;
   const conflicts = paths.length > 0 ? ` Conflicts: ${paths.join(', ')}` : '';
-  hardStop(
-    `merge of origin/${branch} failed (${failureReason(failure)}). ${abortText}${conflicts}`,
-    ticket,
-  );
+  hardStop(`${reason} ${abortText}${conflicts}`, ticket);
 }
 
 /** @returns {boolean} True when the push needed the fetch and merge. A second failure throws. */

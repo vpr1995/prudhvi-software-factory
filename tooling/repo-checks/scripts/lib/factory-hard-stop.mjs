@@ -22,10 +22,12 @@ import {
 } from './factory-base.mjs';
 import { postComment, redactText } from './factory-comment.mjs';
 import { pushBranch } from './factory-push.mjs';
-import { loadTicket, logEvent, moveStage, runLogFile, saveTicket } from './factory-state.mjs';
-import { listFolder, readOptional, writeAtomic } from './fs-io.mjs';
+import { loadTicket, moveStage, saveTicket, writeRunLog } from './factory-state.mjs';
+import { fileSize, listFolder, readOptional, writeAtomic } from './fs-io.mjs';
 
 const EXCERPT_LINES = 40;
+const MAX_UNTRACKED_BYTES = 1024 * 1024;
+const PATCH_MODE = 0o600;
 const NEXT = 'Next: node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>"';
 const USAGE = 'Usage: hardstop <n> "<reason>"   (error excerpt on stdin)';
 const STATE_FOLDER = ['.claude', 'factory'].join('/');
@@ -107,15 +109,25 @@ function diffText(context, args) {
   }
 }
 
+// An untracked file above 1 MiB stays out of the patch. Its name goes on the step line.
 function patchText(context) {
   const tracked = diffText(context, ['HEAD', ...NOT_STATE]);
   const listed = context.git(['ls-files', '--others', '--exclude-standard', '-z', ...NOT_STATE]);
-  const untracked = listed
-    .split('\0')
-    .filter((file) => file !== '' && !file.endsWith('/'))
+  const files = listed.split('\0').filter((file) => file !== '' && !file.endsWith('/'));
+  const isBig = (file) => fileSize(path.join(context.root, file)) > MAX_UNTRACKED_BYTES;
+  const skipped = files.filter(isBig);
+  const untracked = files
+    .filter((file) => !skipped.includes(file))
     .map((file) => diffText(context, ['--no-index', '--', '/dev/null', file]));
-  return [tracked, ...untracked].join('');
+  return { text: [tracked, ...untracked].join(''), skipped };
 }
+
+const skippedNote = (skipped) =>
+  skipped.length === 0
+    ? ''
+    : oneLine(
+        `; skipped ${String(skipped.length)} ${skipped.length === 1 ? 'file' : 'files'} over 1 MiB: ${skipped.join(', ')}`,
+      );
 
 // An earlier patch with the same text is reused: a second run saves no second patch.
 function findPatch(context, ticket, text) {
@@ -130,17 +142,18 @@ function findPatch(context, ticket, text) {
 
 function stepPatch(context, hs) {
   const { ticket } = hs;
-  const text = patchText(context);
-  if (text.trim() === '') return 'nothing to save';
+  const { text, skipped } = patchText(context);
+  const note = skippedNote(skipped);
+  if (text.trim() === '') return `nothing to save${note}`;
   const existing = findPatch(context, ticket, text);
   if (existing !== undefined) {
     hs.patch = existing;
-    return `already saved: ${existing}`;
+    return `already saved: ${existing}${note}`;
   }
   const stamp = timestamp(context.now()).replaceAll(/[-:]/g, '');
   hs.patch = `hardstop-${stamp}.patch`;
-  writeAtomic(path.join(logsOf(context, ticket), hs.patch), text);
-  return `saved ${hs.patch}`;
+  writeAtomic(path.join(logsOf(context, ticket), hs.patch), text, PATCH_MODE);
+  return `saved ${hs.patch}${note}`;
 }
 
 // Step 4
@@ -205,9 +218,10 @@ const STEPS = [
   { name: 'clear', task: '2c' },
 ];
 
-function runSteps(context, hs) {
+// A run log that cannot be written must not stop a hard stop: each log call is best effort.
+function runSteps(strict, hs) {
+  const context = { ...strict, bestEffortLog: true };
   const { ticket } = hs;
-  const logFile = runLogFile(context.root);
   const failed = [];
   for (const [index, step] of STEPS.entries()) {
     const label = `step ${String(index + 1)} ${step.name}`;
@@ -226,13 +240,7 @@ function runSteps(context, hs) {
       }
       context.print(`${label}: ${detail}\n`);
     }
-    logEvent(context, logFile, {
-      ticket,
-      event,
-      from: null,
-      to: null,
-      detail: `${label}: ${detail}`,
-    });
+    writeRunLog(context, { ticket, event, from: null, to: null, detail: `${label}: ${detail}` });
   }
   context.print(`${NEXT}\n`);
   if (failed.length > 0) {

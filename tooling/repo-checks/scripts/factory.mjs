@@ -9,7 +9,8 @@
 // push <n>: the local test guard, then `git push origin HEAD:<branch>` (task 2a2, R-17, R-54).
 // stage, note, read, round, findings: the state commands of lib/factory-state.mjs (task 2a1).
 //
-// comment <n> [--pr <m>]: post an agent comment from stdin with the marker line (R-8).
+// comment <n> <hard-stop|reply> [<reply-to-id>]: post an agent comment from stdin with the marker
+// line (R-8). A reply with an id stores the id in `handledComments` of `ticket.json`.
 // hardstop <n> "<reason>": the R-12 steps, error excerpt on stdin (lib/factory-hard-stop.mjs).
 // caps <n>: derive the cap counts, print JSON, exit 3 when a cap is reached (lib/factory-caps.mjs).
 //
@@ -47,7 +48,7 @@ const TICKET = /^\d+$/;
 const USAGE = [
   'route <n> [--base <ref>]',
   'push <n>',
-  'comment <n> [--pr <m>]   (body on stdin)',
+  'comment <n> <hard-stop|reply> [<reply-to-id>]   (body on stdin)',
   'hardstop <n> "<reason>"   (error excerpt on stdin)',
   'caps <n>',
   ...SYNOPSES,
