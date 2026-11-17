@@ -2,10 +2,11 @@
 // `gh` and `git` are stubs. No test calls the real gh or the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
+import fs, { chmodSync, mkdtempSync, rmSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { after, test } from 'node:test';
+import { after, mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { main } from '../scripts/factory.mjs';
@@ -19,6 +20,7 @@ import {
   STAGES,
 } from '../scripts/lib/factory-state.mjs';
 import {
+  createExclusive,
   exists,
   listFolder,
   readOptional,
@@ -863,6 +865,90 @@ test('CLI: note reads stdin, and main reports a refusal through the error stream
   });
   assert.notEqual(code, 0);
   assert.match(errors.join(''), /no state/);
+});
+
+// Review round 2 fixes
+
+const staleNames = (context) =>
+  listFolder(path.dirname(lockPath(context))).filter((name) => name.includes('.stale.'));
+
+test('R-53: a failed restore keeps the stale file and tells the owner two holders can exist', () => {
+  const context = makeContext();
+  const file = lockPath(context);
+  const stale = `${file}.stale.${String(context.pid)}`;
+  writeAtomic(file, '99999999');
+  // Another process creates the lock in the window between the rename and the restore.
+  const realRename = fs.renameSync;
+  mock.method(fs, 'renameSync', (from, to) => {
+    realRename(from, to);
+    createExclusive(file, String(process.ppid));
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.throws(
+      () => takeOverStale(context, '12345'),
+      (error) =>
+        error instanceof FactoryError &&
+        error.message.includes(`${STATE}/lock`) &&
+        error.message.includes(`${STATE}/lock.stale.${String(context.pid)}`) &&
+        /two holders/i.test(error.message) &&
+        /owner/.test(error.message),
+    );
+  } finally {
+    mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+  assert.equal(readOptional(stale), '99999999');
+  assert.equal(readOptional(file), String(process.ppid));
+});
+
+test('R-53: a stale file left by an earlier crash does not break a later takeover', () => {
+  const context = makeContext();
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  writeAtomic(lockPath(context), String(dead));
+  writeAtomic(`${lockPath(context)}.stale.${String(context.pid)}`, 'left by a crash');
+  takeOverStale(context, String(dead));
+  assert.equal(readOptional(lockPath(context)), String(process.pid));
+  assert.deepEqual(staleNames(context), []);
+});
+
+const READ_STDIN = `import { readStdin } from ${JSON.stringify(
+  new URL('../scripts/lib/fs-io.mjs', import.meta.url).href,
+)};
+const limit = process.argv[1] === undefined ? undefined : Number(process.argv[1]);
+process.stdout.write(String(readStdin(limit).length));
+`;
+const readStdinIn = (input, limit) =>
+  spawnSync(
+    process.execPath,
+    ['--input-type=module', '-e', READ_STDIN, ...(limit === undefined ? [] : [String(limit)])],
+    { input, encoding: 'utf8' },
+  );
+
+test('stdin is read with a byte limit and stops at the limit', () => {
+  const result = readStdinIn('x'.repeat(2 * MIB), MIB + 1);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, String(MIB + 1));
+});
+
+test('stdin under the limit is read whole, with no limit it is read whole, empty gives empty', () => {
+  assert.equal(readStdinIn('abc', MIB + 1).stdout, '3');
+  assert.equal(readStdinIn('x'.repeat(2 * MIB)).stdout, String(2 * MIB));
+  const empty = readStdinIn('', MIB + 1);
+  assert.equal(empty.status, 0, empty.stderr);
+  assert.equal(empty.stdout, '0');
+});
+
+test('CLI: note refuses more than 1 MiB on stdin and stores nothing', () => {
+  const environment = cliEnvironment();
+  const result = spawnSync(process.execPath, [FACTORY, 'note', '7', 'build'], {
+    cwd: environment.repository,
+    input: `${SUMMARY}${'x'.repeat(2 * MIB)}`,
+    encoding: 'utf8',
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /stdin is bigger than 1 MiB/);
+  assert.equal(exists(path.join(environment.repository, STATE, '7/steps/build.md')), false);
 });
 
 // R-25
