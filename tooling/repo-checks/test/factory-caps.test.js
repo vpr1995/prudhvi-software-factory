@@ -741,9 +741,10 @@ test('R-12: the steps run in order, push needs no guard, and nothing opens a PR'
     lines.at(-1),
     'Next: node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>"',
   );
+  // Step 5 reads the open PR of the branch (`pr list`). No other PR call: nothing opens a PR.
   assert.ok(
-    calls.every(({ args }) => args[0] !== 'pr'),
-    'no PR call',
+    calls.every(({ args }) => args[0] !== 'pr' || args[1] === 'list'),
+    'no PR call except the read of the open PR',
   );
   const edit = calls.find(({ args }) => args[0] === 'issue' && args[1] === 'edit');
   assert.deepEqual(edit.args, [
@@ -1130,10 +1131,11 @@ test('R-12: a second run changes nothing: no gh write, no second patch, no secon
   const result = runFactory(['hardstop', '7', REASON], second.overrides);
   assert.equal(result.code, 0, result.errors);
   assert.deepEqual(writes(second.calls), []);
-  // Step 5 reads the comments and the CI runs, and edits its own comment in place.
+  // Step 5 reads the open PR, the comments and the CI runs, and edits its own comment in place.
   const isStepFive = ({ args }) =>
     (args[0] === 'api' && (args[1].includes('/comments') || args[1] === 'user')) ||
-    (args[0] === 'run' && args[1] === 'list');
+    (args[0] === 'run' && args[1] === 'list') ||
+    (args[0] === 'pr' && args[1] === 'list');
   assert.deepEqual(
     second.calls.filter((call) => !isStepFive(call)),
     [],

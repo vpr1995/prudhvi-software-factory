@@ -19,6 +19,7 @@ import {
   withLock,
 } from './factory-base.mjs';
 import { listFindings, findingsCommand, roundCommand } from './factory-findings.mjs';
+import { openPr } from './factory-github.mjs';
 import { isSafeBranch } from './factory-queue-rules.mjs';
 import { BOARD } from './factory.config.mjs';
 import { appendText, readOptional, writeAtomic } from './fs-io.mjs';
@@ -284,6 +285,21 @@ function checkLegal(from, to) {
 }
 
 /**
+ * @returns {number | undefined} The open PR of the ticket branch. Undefined, with a warning on
+ * stderr, when there is none or `gh` fails: the move goes on.
+ */
+function findPr(context, ticket, state) {
+  try {
+    const pr = openPr(context, state);
+    if (pr === undefined) context.err(`warning: #${ticket} has no open PR: pr not stored\n`);
+    return pr;
+  } catch {
+    // An error text is not printed: it can hold anything of the host.
+    context.err(`warning: #${ticket} open PR not readable: pr not stored\n`);
+  }
+}
+
+/**
  * Moves the stage of a ticket: board and labels first, then the state and the run log. The caller
  * holds the lock.
  *
@@ -303,7 +319,10 @@ export function moveStage(context, ticket, to) {
   const boardArguments = boardEdit(context, ticket, target.status);
   moveLabels(context, ticket, target.labels);
   context.gh(boardArguments);
-  saveTicket(context.root, ticket, { ...(state ?? newTicket(context, ticket, to)), stage: to });
+  const next = { ...(state ?? newTicket(context, ticket, to)), stage: to };
+  // R-32: `metrics` and the run report read `pr` of ticket.json. The move to `ci` stores it.
+  if (to === 'ci') next.pr = findPr(context, ticket, next) ?? next.pr;
+  saveTicket(context.root, ticket, next);
   const labels = [
     ...target.labels.add.map((label) => `+${label}`),
     ...target.labels.remove.map((label) => `-${label}`),

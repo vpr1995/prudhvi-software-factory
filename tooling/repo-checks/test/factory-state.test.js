@@ -95,6 +95,7 @@ function makeContext({ answers = new Map(), items = ITEMS } = {}) {
     pid: process.pid,
     stdin: () => '',
     print: (text) => out.push(text),
+    err: () => {},
   };
 }
 
