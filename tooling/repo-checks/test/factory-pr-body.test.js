@@ -382,15 +382,13 @@ test('#110 round 1: the real CLI prints the Routing line on stderr and the JSON 
   git('commit', '-qm', 'change');
   // The skill runs `route <n> 2>&1`: one stream, as the agent sees it.
   const merged = spawnSync(
-    'sh',
-    [
-      '-c',
-      `${process.execPath} ${path.join(ROOT, 'tooling/repo-checks/scripts/factory.mjs')} route 7 --base main 2>&1`,
-    ],
-    { cwd: work, env, encoding: 'utf8' },
+    process.execPath,
+    [path.join(ROOT, 'tooling/repo-checks/scripts/factory.mjs'), 'route', '7', '--base', 'main'],
+    { cwd: work, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
   );
-  assert.equal(merged.status, 0, merged.stdout);
-  const lines = merged.stdout.split('\n');
+  const mergedOutput = `${merged.stdout ?? ''}${merged.stderr ?? ''}`;
+  assert.equal(merged.status, 0, mergedOutput);
+  const lines = mergedOutput.split('\n');
   assert.match(
     lines[0],
     /^warning: #7 has no ticket state/,
@@ -398,7 +396,7 @@ test('#110 round 1: the real CLI prints the Routing line on stderr and the JSON 
   );
   const routing = lines.filter((line) => line.startsWith('Routing: '));
   assert.equal(routing.length, 1, 'exactly one line starts with "Routing: "');
-  const result = JSON.parse(merged.stdout.slice(merged.stdout.indexOf('{\n')));
+  const result = JSON.parse(mergedOutput.slice(mergedOutput.indexOf('{\n')));
   assert.equal(routing[0], routingLine(result), 'the line is the router line of the JSON');
   assert.equal(result.budget, 300);
 });
