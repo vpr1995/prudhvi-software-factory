@@ -13,6 +13,9 @@ const SCOPE = /'([^']+)'/g;
 const CLOSES = /\bCloses #(\d+)/gi;
 // The paths that a ticket must not name (R-43), in lower case: a file system can ignore the case.
 const FORBIDDEN = ['tooling/repo-checks', '.claude/settings.json'];
+// Names that the body backstop looks for, in lower case. `.claude/settings` also covers
+// settings.local.json.
+const BACKSTOP = ['repo-checks', '.claude/settings'];
 const MAIN = 'main';
 // A stack is at most 2 PRs deep (R-36). A chain with a loop stops at this many steps.
 const MAX_CHAIN = 10;
@@ -29,33 +32,73 @@ export function hasAcceptance(body) {
   return false;
 }
 
+const HAS_NAME_CHARACTER = /[\p{L}\p{N}]/u;
+
 /**
  * @param {string} body - Ticket body.
- * @returns {string[]} The tokens of every `Paths:` line (also `**Paths:**`): the backticked parts
- *   and the bare words. A token is raw: `namesForbiddenPath` cleans it.
+ * @returns {string[]} The tokens of every `Paths:` line (also `**Paths:**`). A line with backticked
+ *   parts gives only those parts. A line with none gives its bare words. A token with no letter and
+ *   no digit (`.`, `/`) is prose: it goes. A token is raw: `namesForbiddenPath` cleans it.
  */
 export function pathsOf(body) {
-  return [...body.matchAll(PATHS_LINE)].flatMap((match) => {
-    const line = match[1];
-    const ticked = [...line.matchAll(BACKTICKED)].map((tick) => tick[1].trim());
-    const words = line.replaceAll(BACKTICKED, ' ').split(SPLIT_WORDS);
-    return [...ticked, ...words].filter((token) => token !== '');
-  });
+  return [...body.matchAll(PATHS_LINE)]
+    .flatMap((match) => {
+      const line = match[1];
+      const ticked = [...line.matchAll(BACKTICKED)].map((tick) => tick[1].trim());
+      return ticked.length > 0 ? ticked : line.split(SPLIT_WORDS);
+    })
+    .filter((token) => HAS_NAME_CHARACTER.test(token));
+}
+
+// Characters that hide a name in a text: zero-width, soft hyphen, BOM, and C0 controls but \n, \t.
+const HIDDEN = new Set([0x20_0b, 0x20_0c, 0x20_0d, 0x20_60, 0xfe_ff, 0xad]);
+const isHidden = (character) => {
+  const code = character.codePointAt(0);
+  return HIDDEN.has(code) || (code < 0x20 && code !== 0x0a && code !== 0x09);
+};
+
+/**
+ * Backstop of R-43. The `Paths:` parser can miss a format (a list, a quote, a link). So the whole
+ * body is searched, after a clean-up that undoes the usual tricks. A false positive only skips a
+ * ticket: the owner builds it by hand.
+ *
+ * @param {string} body - Ticket body.
+ * @returns {boolean} True when the body text holds a forbidden name, whatever the format.
+ */
+export function bodyNamesForbiddenPath(body) {
+  const text = [...body.normalize('NFKC').toLowerCase()]
+    .filter((character) => !isHidden(character))
+    .join('')
+    .replaceAll('%2f', '/')
+    .replaceAll('\\', '/');
+  return BACKSTOP.some((name) => text.includes(name));
+}
+
+/** @returns {string} The text without the characters of `marks` at its end. Linear. */
+function trimEndOf(text, marks) {
+  let end = text.length;
+  while (end > 0 && marks.includes(text.charAt(end - 1))) end -= 1;
+  return text.slice(0, end);
+}
+
+// A dot at the end is prose, but a dot after `/` or `.` is a path part (`..`, `./`): it stays.
+function trimDots(text) {
+  const end = trimEndOf(text, '.').length;
+  return end === 0 || end === text.length || text.charAt(end - 1) === '/'
+    ? text
+    : text.slice(0, end);
 }
 
 /** @returns {string} The token as a clean path from the repo root: no `./`, `..`, `//`, or `/` at the ends. */
 function cleanPath(token) {
-  // Trailing punctuation goes. A dot after `/` or `.` is a path part (`..`), so it stays.
-  const unpunctuated = token
-    .replace(/^\(+/, '')
-    .replace(/([^./])\.+$/, '$1')
-    .replace(/[,;)]+$/, '')
-    .replace(/([^./])\.+$/, '$1');
-  const clean = path.posix
-    .normalize(unpunctuated.length === 0 ? '.' : unpunctuated)
-    .replace(/^\/+/, '')
-    .replace(/^(?:\.\.\/)+/, '')
-    .replace(/\/+$/, '');
+  const unpunctuated = trimDots(trimEndOf(trimDots(token.replace(/^\(+/, '')), ',;)'));
+  const clean = trimEndOf(
+    path.posix
+      .normalize(unpunctuated.length === 0 ? '.' : unpunctuated)
+      .replace(/^\/+/, '')
+      .replace(/^(?:\.\.\/)+/, ''),
+    '/',
+  );
   return clean === '..' || clean === '' ? '.' : clean.toLowerCase();
 }
 
@@ -118,7 +161,7 @@ export function closedBy(body) {
 
 /**
  * @param {{ headRefName: string, baseRefName: string }} pr - A PR.
- * @param {object[]} prs - The open PRs.
+ * @param {object[]} prs - All the open PRs, from any author: a link of the chain counts, whoever owns it.
  * @returns {number} The stack depth of the PR: 1 for a PR on `main`, else 1 + the depth of the PR
  *   that owns its base branch.
  */

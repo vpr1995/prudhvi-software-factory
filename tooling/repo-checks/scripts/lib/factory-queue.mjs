@@ -15,6 +15,7 @@ import { fail, stateFolder, ticketNumber, withLock } from './factory-base.mjs';
 import { applyRestart } from './factory-caps.mjs';
 import {
   activeScopes,
+  bodyNamesForbiddenPath,
   closedBy,
   hasAcceptance,
   hasNeedsHuman,
@@ -80,7 +81,7 @@ const NEW_RULES = [
   ['no Acceptance checkbox', ({ issue }) => !hasAcceptance(issue.body)],
   [
     'Paths: names tooling/repo-checks or .claude/settings.json',
-    ({ issue }) => namesForbiddenPath(pathsOf(issue.body)),
+    ({ issue }) => namesForbiddenPath(pathsOf(issue.body)) || bodyNamesForbiddenPath(issue.body),
   ],
   ['parent issue, or sub-issue count not readable', isParent],
   ['agent:ready was not added by the owner (R-7)', addedByOther],
@@ -88,8 +89,7 @@ const NEW_RULES = [
 
 // Blockers (R-6, R-36). R-42 (wait for a pending CI) belongs to `next`: here a pending CI skips.
 
-// Only a PR of this repository by the owner is a stack base (R-7): a fork or a PR of another
-// author is as if it did not exist.
+// The list has every open PR: a stack is as deep as the whole chain, whoever owns a link.
 const openPrs = (env) => {
   env.prs ??= ghJson(env.context, [
     'pr',
@@ -100,13 +100,20 @@ const openPrs = (env) => {
     'number,headRefName,baseRefName,body,labels,author,isCrossRepository',
     '--limit',
     LIMIT,
-  ]).filter((pr) => pr.isCrossRepository === false && isOwner(pr.author?.login, env.owner));
+  ]);
   return env.prs;
 };
 
+// Only a PR of this repository by the owner is a stack base (R-7): a fork or a PR of another
+// author is as if it did not exist as a base.
+const isOwnerPr = (env, pr) =>
+  pr.isCrossRepository === false && isOwner(pr.author?.login, env.owner);
+
 function stackOn(env, blocker) {
   const prs = openPrs(env);
-  const pr = prs.find((entry) => closedBy(entry.body).includes(blocker.number));
+  const pr = prs.find(
+    (entry) => isOwnerPr(env, entry) && closedBy(entry.body).includes(blocker.number),
+  );
   const name = `blocked by #${String(blocker.number)}`;
   if (pr === undefined) return { skip: `${name}: no open PR (R-6)` };
   if (hasNeedsHuman(blocker.labels) || hasNeedsHuman(pr.labels)) {
@@ -307,6 +314,19 @@ function planAndLog(context, only, begun) {
   return plan;
 }
 
+// The restore can fail too. The caller still gets the original error, with the restore failure in
+// its message: the original cause must not be lost.
+function restoreRun(begun, error) {
+  try {
+    begun.undo();
+  } catch (undoError) {
+    if (error instanceof Error) {
+      const reason = undoError instanceof Error ? undoError.message : String(undoError);
+      error.message = `${error.message}; run.json restore also failed: ${reason}`;
+    }
+  }
+}
+
 // The ticket files that applyRestart and reconcile write are per ticket and safe to run again. A
 // failure puts run.json back as it was: the start did not happen.
 function startRun(context, only) {
@@ -315,7 +335,7 @@ function startRun(context, only) {
   try {
     plan = planAndLog(context, only, begun);
   } catch (error) {
-    begun.undo();
+    restoreRun(begun, error);
     throw error;
   }
   return formatPlan(
