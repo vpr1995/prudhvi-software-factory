@@ -11,20 +11,24 @@
 // A ticket in the queue is `new` (agent:ready) or `resume` (agent:in-progress with a local
 // ticket.json, R-43). Only the number and a fixed reason of a skipped ticket reach the output and
 // the log: a title or a body is never printed.
+//
+// #146: a `new` ticket with a protected path in its `Paths:` line needs the approval of the owner.
+// It stays in the queue with `approval: { paths, hash }`, and the plan lists it on its own. An
+// approval in run.json with the same hash of the `Paths:` lines clears it. A decline skips it.
 import { fail, stateFolder, ticketNumber, withLock } from './factory-base.mjs';
 import { applyRestart } from './factory-caps.mjs';
 import {
   activeScopes,
-  bodyNamesForbiddenPath,
   hasAcceptance,
   isOwner,
   issuePath,
   labelActor,
-  namesForbiddenPath,
+  pathsHash,
   pathsOf,
+  protectedPaths,
 } from './factory-queue-rules.mjs';
 import { parseSize, route, routingLine } from './factory-route.mjs';
-import { beginRun, logAdoption } from './factory-run.mjs';
+import { beginRun, isOpenRun, loadRun, logAdoption, saveRun } from './factory-run.mjs';
 import { blockerVerdict, noteStackMerge } from './factory-stack.mjs';
 import { ghJson, loadTicket, reconcile, writeRunLog } from './factory-state.mjs';
 import { BOARD } from './factory.config.mjs';
@@ -35,6 +39,8 @@ const IN_PROGRESS = 'agent:in-progress';
 const USAGE = 'Usage: start [<n>] [--dry-run]';
 const LIMIT = '1000';
 const TICKET_FOLDER = /^[1-9]\d*$/;
+/** The skip reason, and the run log detail, of a ticket that the owner did not approve (#146). */
+export const DECLINED = 'owner declined approval';
 
 /** @returns {{ only: number | null, dryRun: boolean }} The arguments of `start`. */
 export function parseStartArguments(words) {
@@ -74,13 +80,18 @@ const NEW_RULES = [
   ],
   ['[owner] in the title', ({ issue }) => issue.title.toLowerCase().includes('[owner]')],
   ['no Acceptance checkbox', ({ issue }) => !hasAcceptance(issue.body)],
-  [
-    'Paths: names tooling/repo-checks or .claude/settings.json',
-    ({ issue }) => namesForbiddenPath(pathsOf(issue.body)) || bodyNamesForbiddenPath(issue.body),
-  ],
   ['parent issue, or sub-issue count not readable', isParent],
   ['agent:ready was not added by the owner (R-7)', addedByOther],
+  [DECLINED, ({ env, number }) => env.declined.has(number)],
 ];
+
+/** @returns {{ paths: string[], hash: string } | undefined} What the owner must approve, if anything. */
+function approvalOf(env, number, body) {
+  const paths = protectedPaths(body);
+  if (paths.length === 0) return;
+  const hash = pathsHash(body);
+  return env.approvals[String(number)]?.hash === hash ? undefined : { paths, hash };
+}
 
 // Plan
 
@@ -116,12 +127,15 @@ function judge(env, number) {
       ...(blocked.wait === undefined ? {} : { wait: blocked.wait }),
     };
   }
+  // #146: checked after each skip rule, so that R-7 and the parent check still skip the ticket.
+  const approval = resume ? undefined : approvalOf(env, number, issue.body);
   return {
     number,
     kind: resume ? 'resume' : 'new',
     stage: local?.stage,
     stack: blocked.stack,
     routing: routedPasses(issue.body, blocked.stack),
+    ...(approval === undefined ? {} : { approval }),
   };
 }
 
@@ -173,16 +187,40 @@ function candidates(context, repository) {
   };
 }
 
+const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** @returns {{ approvals: object, declined: Set<number> }} The answers of the owner in the open run (#146). */
+function answersOf(root) {
+  const run = loadRun(root);
+  if (!isOpenRun(run)) return { approvals: {}, declined: new Set() };
+  return {
+    approvals: isRecord(run.approvals) ? run.approvals : {},
+    declined: new Set(Array.isArray(run.declined) ? run.declined : []),
+  };
+}
+
+/** @returns {{ ticket: number, paths: string[] }[]} The tickets of the queue that need approval. */
+export const needsApproval = (queue) =>
+  queue
+    .filter((entry) => entry.approval !== undefined)
+    .map((entry) => ({ ticket: entry.number, paths: entry.approval.paths }));
+
 /**
  * Builds the queue. Only reads. The caller decides what to write.
  *
  * @param {object} context - Command context (root, gh).
  * @param {number | null} only - The ticket of `start <n>`, or null.
- * @returns {{ queue: object[], skipped: object[] }} The queue in board order, and the skips.
+ * @returns {{ queue: object[], skipped: object[] }} The queue in board order, and the skips. A
+ *   queue entry with `approval` needs the approval of the owner (#146).
  */
 export function buildPlan(context, only) {
   const repository = ghJson(context, ['repo', 'view', '--json', 'nameWithOwner,owner']);
-  const env = { context, owner: repository.owner.login, prs: undefined };
+  const env = {
+    context,
+    owner: repository.owner.login,
+    prs: undefined,
+    ...answersOf(context.root),
+  };
   const { ordered, offBoard } =
     only === null
       ? candidates(context, repository.nameWithOwner)
@@ -207,11 +245,15 @@ function describe(entry, index) {
   return `${place} ${how}\n       ${entry.routing}`;
 }
 
-function formatPlan({ queue, skipped }, header) {
+function formatPlan({ queue: all, skipped }, header) {
+  const queue = all.filter((entry) => entry.approval === undefined);
+  const asks = needsApproval(all);
   const lines = [
     header,
     queue.length === 0 ? 'queue: empty' : `queue (${String(queue.length)}, board order):`,
     ...queue.map((entry, index) => describe(entry, index)),
+    ...(asks.length === 0 ? [] : [`needs approval (${String(asks.length)}):`]),
+    ...asks.map((ask) => `  #${String(ask.ticket)}: protected paths: ${ask.paths.join(', ')}`),
     ...(skipped.length === 0 ? [] : [`skipped (${String(skipped.length)}):`]),
     ...skipped.map((entry) => `  #${String(entry.number)}: ${entry.skip}`),
   ];
@@ -245,6 +287,7 @@ function planAndLog(context, only, begun) {
   syncTickets(context, only);
   const plan = buildPlan(context, only);
   logAdoption(context, begun);
+  saveRun(context.root, { ...loadRun(context.root), needsApproval: needsApproval(plan.queue) });
   for (const entry of plan.skipped) {
     writeRunLog(context, {
       ticket: entry.number,

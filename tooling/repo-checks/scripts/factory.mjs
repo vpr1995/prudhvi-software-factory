@@ -13,6 +13,8 @@
 // it writes the run report and clears the run (R-5). status: print the run state, read only
 // (R-46). stop: clear the run, keep each ticket.json, change no label, write the report (R-47).
 // report: write the run report (R-29). Code: lib/factory-next.mjs, lib/factory-report.mjs.
+// approve <n>, decline <n>: the answer of the owner to the step `approve #<n>` of a ticket with a
+// protected path in its `Paths:` line (#146). Stored in run.json. No label change.
 //
 // wait <n>: mark a CI wait, poll `gh pr checks` every 30 s until CI ends, exit "timeout" (exit 3,
 // hard stop "CI timeout") after 60 minutes (R-49). Code: lib/factory-wait.mjs. The Stop hook is the
@@ -54,7 +56,7 @@ import {
 } from './lib/factory-github.mjs';
 import { hardstopCommand } from './lib/factory-hard-stop.mjs';
 import { metricsCommand } from './lib/factory-metrics.mjs';
-import { nextCommand, statusCommand } from './lib/factory-next.mjs';
+import { approveCommand, declineCommand, nextCommand, statusCommand } from './lib/factory-next.mjs';
 import { pushCommand } from './lib/factory-push.mjs';
 import { baseRef, MAIN_REF } from './lib/factory-queue-rules.mjs';
 import { startCommand } from './lib/factory-queue.mjs';
@@ -80,6 +82,8 @@ const TICKET = /^\d+$/;
 const USAGE = [
   'start [<n>] [--dry-run]',
   'next',
+  'approve <n>',
+  'decline <n>',
   'status',
   'stop',
   'report',
@@ -161,9 +165,11 @@ function routeCommand({ ticket, base: requested }, context) {
 
 const HANDLERS = new Map([
   ...COMMANDS,
+  ['approve', approveCommand],
   ['caps', capsCommand],
   ['comment', commentCommand],
   ['comments', commentsCommand],
+  ['decline', declineCommand],
   ['hardstop', hardstopCommand],
   ['metrics', metricsCommand],
   ['next', nextCommand],

@@ -1,5 +1,6 @@
 // Pure rules of the `start` queue (design factory-daily-run 2: R-7, R-36, R-43; 4.5). No gh, no
 // file system. lib/factory-queue.mjs calls them with data that it read from GitHub.
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 const ACCEPTANCE_HEADING = '### Acceptance';
@@ -11,11 +12,9 @@ const SPLIT_WORDS = /[\s,]+/;
 const GLOB_CHARACTER = /[*?[{]/;
 const SCOPE = /'([^']+)'/g;
 const CLOSES = /\bCloses #(\d+)/gi;
-// The paths that a ticket must not name (R-43), in lower case: a file system can ignore the case.
+// The protected paths (R-43, #146), in lower case: a file system can ignore the case. A ticket that
+// names one in its `Paths:` line needs the approval of the owner.
 const FORBIDDEN = ['tooling/repo-checks', '.claude/settings.json'];
-// Names that the body backstop looks for, in lower case. `.claude/settings` also covers
-// settings.local.json.
-const BACKSTOP = ['repo-checks', '.claude/settings'];
 const MAIN = 'main';
 /** The diff base of a ticket that is not stacked (R-37). */
 export const MAIN_REF = `origin/${MAIN}`;
@@ -51,19 +50,20 @@ const isBareWord = (word) => GLOB_CHARACTER.test(word) || HAS_NAME_CHARACTER.tes
  *   union of two sets. Set 1: each backticked part. It always stays: `*`, `**\/*` and `.` are paths.
  *   Set 2: each bare word (the text outside the ticks) that is a path. See `isBarePath`. A line with
  *   no ticks keeps every bare word with a letter, a digit or a glob character (`isBareWord`).
- *   A token is raw: `namesForbiddenPath` cleans it.
+ *   A token is raw: `protectedPaths` cleans it.
  */
 export function pathsOf(body) {
-  return [...body.matchAll(PATHS_LINE)].flatMap((match) => {
-    const line = match[1];
-    const ticked = [...line.matchAll(BACKTICKED)].map((tick) => tick[1].trim());
-    const keep = ticked.length > 0 ? isBarePath : isBareWord;
-    const bare = line
-      .replaceAll(BACKTICKED, ' ')
-      .split(SPLIT_WORDS)
-      .filter((word) => keep(word));
-    return [...ticked, ...bare];
-  });
+  return [...body.matchAll(PATHS_LINE)].flatMap((match) => tokensOf(match[1]));
+}
+
+function tokensOf(line) {
+  const ticked = [...line.matchAll(BACKTICKED)].map((tick) => tick[1].trim());
+  const keep = ticked.length > 0 ? isBarePath : isBareWord;
+  const bare = line
+    .replaceAll(BACKTICKED, ' ')
+    .split(SPLIT_WORDS)
+    .filter((word) => keep(word));
+  return [...ticked, ...bare];
 }
 
 // Characters that hide a name in a text: zero-width, soft hyphen, BOM, and C0 controls but \n, \t.
@@ -73,21 +73,19 @@ const isHidden = (character) => {
   return HIDDEN.has(code) || (code < 0x20 && code !== 0x0a && code !== 0x09);
 };
 
-/**
- * Backstop of R-43. The `Paths:` parser can miss a format (a list, a quote, a link). So the whole
- * body is searched, after a clean-up that undoes the usual tricks. A false positive only skips a
- * ticket: the owner builds it by hand.
- *
- * @param {string} body - Ticket body.
- * @returns {boolean} True when the body text holds a forbidden name, whatever the format.
- */
-export function bodyNamesForbiddenPath(body) {
-  const text = [...body.normalize('NFKC').toLowerCase()]
+// Undoes the usual tricks on one `Paths:` line, before the split into tokens: a hidden character
+// can split a word. The case stays: `cleanPath` makes it lower case.
+const unhide = (line) =>
+  [...line.normalize('NFKC')]
     .filter((character) => !isHidden(character))
     .join('')
-    .replaceAll('%2f', '/')
+    .replaceAll(/%2f/gi, '/')
     .replaceAll('\\', '/');
-  return BACKSTOP.some((name) => text.includes(name));
+
+/** @returns {string} A SHA-256 hash of the raw `Paths:` lines of the body. A change asks again. */
+export function pathsHash(body) {
+  const lines = [...body.matchAll(PATHS_LINE)].map((match) => match[0]).join('\n');
+  return createHash('sha256').update(lines).digest('hex');
 }
 
 /** @returns {string} The text without the characters of `marks` at its end. Linear. */
@@ -120,28 +118,31 @@ function cleanPath(token) {
 
 const insideOrSame = (file, folder) => file === folder || file.startsWith(`${folder}/`);
 
-function isForbidden(token) {
-  const clean = cleanPath(token);
+/** @returns {boolean} True when the clean token can reach the protected entry. */
+function reaches(clean, entry) {
   const glob = GLOB_CHARACTER.exec(clean);
   if (glob !== null) {
-    // The part before the glob is fixed. The glob can reach a forbidden path when that part is a
+    // The part before the glob is fixed. The glob can reach a protected path when that part is a
     // parent of it, or is inside it.
     const prefix = clean.slice(0, glob.index);
-    return FORBIDDEN.some((entry) => entry.startsWith(prefix) || insideOrSame(prefix, entry));
+    return entry.startsWith(prefix) || insideOrSame(prefix, entry);
   }
-  return (
-    clean === '.' ||
-    FORBIDDEN.some((entry) => insideOrSame(clean, entry) || insideOrSame(entry, clean))
-  );
+  return clean === '.' || insideOrSame(clean, entry) || insideOrSame(entry, clean);
 }
 
 /**
- * @param {string[]} paths - Tokens of `pathsOf`.
- * @returns {boolean} True when a token names tooling/repo-checks or .claude/settings.json, or a
- *   parent folder of them, or a glob that can reach them (R-43).
+ * R-43 (#146). Only the `Paths:` lines count. Each line is cleaned first (see `unhide`).
+ *
+ * @param {string} body - Ticket body.
+ * @returns {string[]} The protected paths (tooling/repo-checks, .claude/settings.json) that a token
+ *   names, or that a parent folder or a glob of a token can reach. Fixed names, never ticket text.
  */
-export function namesForbiddenPath(paths) {
-  return paths.some((token) => isForbidden(token));
+export function protectedPaths(body) {
+  // A lone CR, U+2028 or U+2029 ends a regex line: it could cut a `Paths:` line in two.
+  const clean = [...body.replaceAll(/\r(?!\n)|[\u2028\u2029]/g, '').matchAll(PATHS_LINE)]
+    .flatMap((match) => tokensOf(unhide(match[1])))
+    .map((token) => cleanPath(token));
+  return FORBIDDEN.filter((entry) => clean.some((token) => reaches(token, entry)));
 }
 
 /**

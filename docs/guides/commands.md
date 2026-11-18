@@ -31,6 +31,8 @@ node tooling/repo-checks/scripts/test-guard.mjs "$(git merge-base main HEAD)" # 
 node tooling/repo-checks/scripts/stop-gate.mjs defer "<reason>" # verify gate: let the main session stop without proof (logged)
 node tooling/repo-checks/scripts/factory.mjs start [<n>] [--dry-run]  # factory: start the run (the /factory skill drives it). --dry-run writes nothing
 node tooling/repo-checks/scripts/factory.mjs next      # factory: find and store the next step
+node tooling/repo-checks/scripts/factory.mjs approve <n>  # factory: store the owner approval for a ticket on a protected path (the skill runs it only after the owner says yes)
+node tooling/repo-checks/scripts/factory.mjs decline <n>  # factory: skip that ticket for this run, log "owner declined approval", change no label
 node tooling/repo-checks/scripts/factory.mjs status    # factory: print the run state (read only)
 node tooling/repo-checks/scripts/factory.mjs stop      # factory: end the run, keep each ticket state
 node tooling/repo-checks/scripts/factory.mjs route <n> [--base <ref>]  # factory: router JSON (passes, models, risk tier) for a ticket

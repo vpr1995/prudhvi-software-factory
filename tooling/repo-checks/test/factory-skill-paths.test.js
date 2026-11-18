@@ -224,6 +224,60 @@ test('loop: each describeNext line meets its own bullet first', () => {
   assert.match(bulletOf({ kind: 'comment', ticket: 5, pr: 9 }), /Comment fix round/);
   assert.match(bulletOf({ kind: 'wait', pr: 9 }), /CI wait/);
   assert.match(bulletOf({ kind: 'done' }), /report/);
+  const approve = { kind: 'approve', ticket: 5, paths: ['tooling/repo-checks'], hash: 'a' };
+  assert.match(bulletOf(approve), /AskUserQuestion/);
+});
+
+// #146: the owner approves a ticket with a protected path. The skill only asks.
+
+const APPROVE = 'node tooling/repo-checks/scripts/factory.mjs approve <m>';
+const DECLINE = 'node tooling/repo-checks/scripts/factory.mjs decline <m>';
+const DENIED = 'owner denied an edit of a protected path';
+
+test('#146: the script has the approve and decline commands', () => {
+  assert.ok(COMMAND_NAMES.has('approve'));
+  assert.ok(COMMAND_NAMES.has('decline'));
+});
+
+test('#146: the approve bullet asks the owner once with AskUserQuestion: yes runs approve, else decline', () => {
+  const step = { kind: 'approve', ticket: 5, paths: ['tooling/repo-checks'], hash: 'a' };
+  const text = bulletOf(step);
+  for (const needle of [
+    'AskUserQuestion',
+    'once',
+    'ticket number',
+    'title',
+    'protected paths',
+    APPROVE,
+    DECLINE,
+  ]) {
+    assert.ok(text.includes(needle), `the approve bullet names "${needle}"`);
+  }
+  const yes = text.indexOf('Yes');
+  assert.ok(yes !== -1 && yes < text.indexOf(APPROVE), 'yes runs approve');
+  for (const needle of ['No', 'cannot ask', 'no answer']) {
+    const at = text.indexOf(needle);
+    assert.ok(at !== -1 && at < text.lastIndexOf(DECLINE), `"${needle}" runs decline`);
+  }
+  assert.match(text, /Never run `approve` on your own/);
+  assert.match(text, /before the branch and the claim/);
+});
+
+test('#146: only the approve bullet runs approve', () => {
+  const lines = skillText()
+    .split('\n')
+    .filter((line) => /factory\.mjs approve\b/.test(line));
+  assert.equal(lines.length, 1, lines.join('\n'));
+  assert.ok(lines[0].startsWith('   - `approve #<m>'), lines[0]);
+});
+
+test('#146: a denied edit prompt on an approved ticket is a hard stop with no retry', () => {
+  const hard = sectionLines('Hard stop').join('\n');
+  assert.ok(hard.includes(`- "${DENIED}"`), 'the closed list has the reason');
+  const { text } = stepWith(WORK, `the reason "${DENIED}"`);
+  assert.match(text, /denied/);
+  assert.match(text, /Do not retry the edit/);
+  assert.match(text, /applies in each later step of the ticket/);
 });
 
 test('loop: step 3 sends an owner comment to the comment fix round, and only for a green ticket', () => {
@@ -555,6 +609,7 @@ const HARD_STOP_PHRASES = [
   'cap reached',
   'script hard stop',
   'question from a sub-skill',
+  'owner denied an edit of a protected path',
 ];
 
 test('the hard stop section has a closed list of reasons, and the skill uses only these', () => {

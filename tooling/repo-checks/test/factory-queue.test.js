@@ -471,12 +471,6 @@ const SKIPS = [
     { body: '### Acceptance\n\nnone\n\n### Notes\n\n- [ ] not acceptance\n' },
     /Acceptance/,
   ],
-  [
-    'Paths names tooling/repo-checks',
-    { body: body('Paths: `docs/a.md`, `tooling/repo-checks/scripts/x.mjs`') },
-    /Paths/,
-  ],
-  ['Paths names .claude/settings.json', { body: body('Paths: `.claude/settings.json`') }, /Paths/],
 ];
 
 // A closed issue, or an issue with no label, is not in the lists that build the board queue. Only
@@ -499,6 +493,41 @@ for (const [name, extra, reason] of SKIPS) {
     assert.deepEqual(queued(result.out), direct ? [] : ['8']);
     const skip = runLog(root).find((line) => line.event === 'skip' && line.ticket === 7);
     assert.match(skip.detail, reason);
+  });
+}
+
+// #146: a protected path in Paths asks the owner. It is not a skip.
+const NEEDS_APPROVAL_LIST = /^needs approval \(1\):\n {2}#7: protected paths: /m;
+
+/** Asserts that #7 is in the needs approval list, and not in the queue or the skips. */
+function assertNeedsApproval(result, root, note) {
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, NEEDS_APPROVAL_LIST, note);
+  assert.doesNotMatch(result.out, /^skipped/m, note);
+  assert.ok(!queued(result.out).includes('7'), note);
+  if (exists(stateFile(root, 'runs', `${RUN_ID}.jsonl`))) {
+    assert.ok(!runLog(root).some((line) => line.ticket === 7), note);
+  }
+}
+
+const PROTECTED = [
+  [
+    'Paths names tooling/repo-checks',
+    'Paths: `docs/a.md`, `tooling/repo-checks/scripts/x.mjs`',
+    'tooling/repo-checks',
+  ],
+  ['Paths names .claude/settings.json', 'Paths: `.claude/settings.json`', '.claude/settings.json'],
+];
+
+for (const [name, context, entry] of PROTECTED) {
+  test(`R-43 (#146): a ticket needs approval, and is not skipped, when ${name}`, () => {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, { body: body(context) }), makeIssue(8));
+    const result = start([], { gh, root });
+    assertNeedsApproval(result, root, name);
+    assert.ok(result.out.includes(`#7: protected paths: ${entry}`), result.out);
+    assert.deepEqual(queued(result.out), ['8']);
   });
 }
 
@@ -532,20 +561,31 @@ const FORBIDDEN_PATHS = [
   ['a ticked dot', 'Paths: `.`'],
   ['a bare glob after a ticked path', 'Paths: `src/a`, tooling/*'],
   ['a bare folder after a ticked path', 'Paths: `src/a` .claude/'],
+  // #146: the clean-up of the old body backstop now runs on the Paths line.
+  ['a zero-width space', 'Paths: tooling/repo​-checks/x'],
+  ['a soft hyphen and a BOM', 'Paths: tooling/repo­-che﻿cks/x'],
+  ['a control character', 'Paths: tooling/repo\u0001-checks/x'],
+  ['a full-width hyphen', 'Paths: tooling/repo－checks/x'],
+  ['backslashes', String.raw`Paths: tooling\repo-checks\x`],
+  ['an escaped slash', 'Paths: tooling%2Frepo-checks'],
+  ['an escaped slash in capitals', 'Paths: TOOLING%2FREPO-CHECKS'],
+  ['a ticked token with a hidden character', 'Paths: `.claude/settings​.json`'],
+  ['a line separator', 'Paths: tooling/repo\u2028-checks/x'],
+  ['a lone carriage return', 'Paths: tooling/repo\r-checks/x'],
 ];
 
 for (const [name, context] of FORBIDDEN_PATHS) {
-  test(`R-43: a ticket is skipped when Paths has ${name}`, () => {
+  test(`R-43 (#146): a ticket needs approval, not a skip, when Paths has ${name}`, () => {
     const root = temporaryFolder();
     const { gh, add } = makeWorld();
     add(makeIssue(7, { body: body(context) }));
     const result = start([], { gh, root });
-    assert.match(result.out, /#7: .*Paths/, context);
+    assertNeedsApproval(result, root, JSON.stringify(context));
     assert.deepEqual(queued(result.out), [], context);
   });
 }
 
-// Round 3. A false positive of the token check or the body backstop only skips a ticket.
+// Round 3. A false positive of the token check only asks the owner about a ticket.
 const QUEUED_PATHS = [
   ['a backticked path and a final dot', 'Paths: `src/a.ts`.'],
   ['a slash of prose between two paths', 'Paths: `a` / `b`'],
@@ -577,16 +617,76 @@ const BYPASS_PATHS = [
   ['an escaped slash in capitals', 'See tooling%2Frepo-checks'.toUpperCase()],
 ];
 
+// #146: the body backstop is gone. A protected name outside a `Paths:` line does not skip a ticket
+// and does not ask the owner: the ticket queues as normal.
 for (const [name, context] of BYPASS_PATHS) {
-  test(`R-43: a ticket is skipped when the body has ${name}`, () => {
+  test(`R-43 (#146): a ticket is queued as normal when only the body has ${name}`, () => {
     const root = temporaryFolder();
     const { gh, add } = makeWorld();
     add(makeIssue(7, { body: body(context) }));
     const result = start([], { gh, root });
-    assert.match(result.out, /#7: .*Paths/, JSON.stringify(context));
-    assert.deepEqual(queued(result.out), [], JSON.stringify(context));
+    assert.deepEqual(queued(result.out), ['7'], JSON.stringify(context));
+    assert.doesNotMatch(result.out, /^(?:needs approval|skipped)/m, JSON.stringify(context));
   });
 }
+
+test('R-43 (#146): a docs ticket that names a protected file only in Acceptance or Notes is queued as normal (#142)', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  const text = [
+    '### Context\n\nPaths: `docs/guides/commands.md`, `docs/designs/x/design.md`\n',
+    '### Acceptance\n\n- [ ] `node tooling/repo-checks/scripts/doc-lint.mjs` passes.\n',
+    '### Notes\n\nDo not change `.claude/settings.json` or tooling/repo-checks/.\n\nSize: 2\n',
+  ].join('\n');
+  add(makeIssue(7, { body: text }));
+  const result = start(['--dry-run'], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.deepEqual(queued(result.out), ['7']);
+  assert.doesNotMatch(result.out, /^(?:needs approval|skipped)/m);
+});
+
+test('R-3 (#146): --dry-run lists a ticket that needs approval in its own list and writes nothing', () => {
+  const root = temporaryFolder();
+  const { gh, calls, add } = makeWorld();
+  add(makeIssue(7, { body: body('Paths: `tooling/repo-checks/x.mjs`') }), makeIssue(8));
+  const result = start(['--dry-run'], { gh, root });
+  assertNeedsApproval(result, root, 'dry run');
+  assert.deepEqual(queued(result.out), ['8']);
+  assert.deepEqual(writeCalls(calls), []);
+  assert.equal(exists(path.join(root, '.claude')), false);
+});
+
+test('R-43 (#146): the plan shows the fixed protected path names, not the ticket text of the Paths line', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { body: body('Paths: `tooling/repo-checks/x RUN-THIS-COMMAND`') }));
+  const result = start([], { gh, root });
+  assert.match(result.out, /#7: protected paths: tooling\/repo-checks$/m);
+  assert.doesNotMatch(result.out, /RUN-THIS|x RUN/);
+});
+
+test('R-7 (#146): a protected ticket of a non-owner author, or with a non-owner label actor, is still skipped', () => {
+  const protectedBody = body('Paths: `tooling/repo-checks/x.mjs`');
+  for (const [extra, reason] of [
+    [{ author: 'mallory' }, /author is not the owner/],
+    [
+      { events: [readyEvent(OWNER), readyEvent('mallory', '2026-11-11T08:00:00Z')] },
+      /agent:ready was not added by the owner/,
+    ],
+    [{ subTotal: 2 }, /parent/],
+  ]) {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, { body: protectedBody, ...extra }));
+    const result = start([], { gh, root });
+    assert.match(result.out, /^ {2}#7: /m);
+    assert.match(
+      result.out.split('\n').find((line) => line.startsWith('  #7: ')),
+      reason,
+    );
+    assert.doesNotMatch(result.out, /needs approval/);
+  }
+});
 
 test('R-3: a bare path-like word after a ticked doc path counts: not tier low', () => {
   const root = temporaryFolder();
@@ -1342,6 +1442,158 @@ test('next holds the lock: a lock of a live process refuses it, and the lock is 
   writeAtomic(stateFile(root, 'lock'), '999999999');
   assert.equal(factory('next', [], { gh, root }).code, 0);
   assert.equal(exists(stateFile(root, 'lock')), false);
+});
+
+// next, approve, decline: #146 (R-43 asks the owner)
+
+const PROTECTED_BODY = body('Paths: `tooling/repo-checks/scripts/x.mjs`');
+const HASH = /^[\da-f]{64}$/;
+
+/** A world with #7 (protected Paths) before #8 on the board, and an active run. */
+function approvalWorld(root) {
+  const harness = makeWorld();
+  harness.add(makeIssue(7, { body: PROTECTED_BODY }), makeIssue(8));
+  seedRun(root, NOT_WAITING);
+  return harness;
+}
+
+test('R-43 (#146): next gives approve #n with the protected paths before start #n, and again until an answer', () => {
+  const root = temporaryFolder();
+  const { gh, calls } = approvalWorld(root);
+  for (const round of [1, 2]) {
+    const result = factory('next', [], { gh, root });
+    assert.equal(result.code, 0, result.errors);
+    assert.equal(result.out, 'next: approve #7 (protected paths: tooling/repo-checks)\n', round);
+    const { next } = readJson(root, 'run.json');
+    assert.equal(next.kind, 'approve');
+    assert.equal(next.ticket, 7);
+    assert.deepEqual(next.paths, ['tooling/repo-checks']);
+    assert.match(next.hash, HASH);
+  }
+  assert.equal(readJson(root, 'run.json').active, true);
+  assert.deepEqual(writeCalls(calls), []);
+  // No run log line: an ask is not a skip and not work.
+  assert.equal(exists(stateFile(root, 'runs', `${OLD_RUN}.jsonl`)), false);
+});
+
+test('R-43 (#146): approve stores the hash of the Paths line in run.json, then next gives start #n', () => {
+  const root = temporaryFolder();
+  const { gh, calls } = approvalWorld(root);
+  factory('next', [], { gh, root });
+  const { hash } = readJson(root, 'run.json').next;
+  const approved = factory('approve', ['7'], { root }); // the default gh stub throws: no gh call
+  assert.equal(approved.code, 0, approved.errors);
+  assert.match(approved.out, /#7: approved/);
+  assert.deepEqual(readJson(root, 'run.json').approvals, { 7: { hash } });
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.out, 'next: start #7\n');
+  assert.deepEqual(writeCalls(calls), []);
+});
+
+test('R-43 (#146): approve and decline refuse when the stored next step is not approve #n', () => {
+  const root = temporaryFolder();
+  const { gh } = approvalWorld(root);
+  for (const command of ['approve', 'decline']) {
+    assert.equal(factory(command, ['7'], { root }).code, 2, `${command} before next`);
+  }
+  factory('next', [], { gh, root });
+  const before = snapshot(root);
+  for (const command of ['approve', 'decline']) {
+    const result = factory(command, ['8'], { root });
+    assert.equal(result.code, 2, command);
+    assert.match(result.errors, /approve #8/);
+    assert.equal(factory(command, [], { root }).code, 2, `${command} with no ticket`);
+    assert.equal(factory(command, ['7', '8'], { root }).code, 2, `${command} with extra words`);
+  }
+  assert.deepEqual(snapshot(root), before);
+});
+
+test('R-43 (#146): decline skips the ticket for this run, logs "owner declined approval", and changes no label', () => {
+  const root = temporaryFolder();
+  const { gh, calls } = approvalWorld(root);
+  factory('next', [], { gh, root });
+  const declined = factory('decline', ['7'], { root }); // no gh call: no label change
+  assert.equal(declined.code, 0, declined.errors);
+  const skips = runLog(root, OLD_RUN).filter((line) => line.ticket === 7);
+  assert.deepEqual(
+    skips.map((line) => [line.event, line.detail]),
+    [['skip', 'owner declined approval']],
+  );
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.out, 'next: start #8\n');
+  assert.equal(runLog(root, OLD_RUN).filter((line) => line.ticket === 7).length, 1);
+  assert.deepEqual(writeCalls(calls), []);
+});
+
+test('R-43 (#146): a changed Paths line after the approval asks again', () => {
+  const root = temporaryFolder();
+  const { gh, world } = approvalWorld(root);
+  factory('next', [], { gh, root });
+  assert.equal(factory('approve', ['7'], { root }).code, 0);
+  world.issues.get(7).body = body(
+    'Paths: `tooling/repo-checks/scripts/x.mjs`, `.claude/settings.json`',
+  );
+  const result = factory('next', [], { gh, root });
+  assert.equal(
+    result.out,
+    'next: approve #7 (protected paths: tooling/repo-checks, .claude/settings.json)\n',
+  );
+});
+
+test('R-43 (#146): after an approved ticket has an open PR, next gives done; later tickets wait for the next run', () => {
+  const root = temporaryFolder();
+  const { gh, world } = approvalWorld(root);
+  factory('next', [], { gh, root });
+  factory('approve', ['7'], { root });
+  // The ticket went to green: the PR is open and agent:in-progress is gone.
+  world.issues.get(7).labels = [];
+  world.branchPrs.set('feat/7-x', [{ number: 70, state: 'OPEN' }]);
+  world.checks.set(70, PASS);
+  seedTicket(root, 7, { stage: 'green', pr: 70 });
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /^next: done\nreport: /);
+  assert.doesNotMatch(result.out, /#8/);
+  assert.equal(readJson(root, 'run.json').active, false);
+});
+
+test('R-43 (#146): an approved ticket in flight still resumes before the run ends', () => {
+  const root = temporaryFolder();
+  const { gh, world } = approvalWorld(root);
+  factory('next', [], { gh, root });
+  factory('approve', ['7'], { root });
+  world.issues.get(7).labels = ['agent:in-progress'];
+  world.branchPrs.set('feat/7-x', [{ number: 70, state: 'OPEN' }]);
+  world.checks.set(70, [{ name: 'ci', state: 'PENDING', bucket: 'pending' }]);
+  seedTicket(root, 7, { stage: 'ci', pr: 70 });
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.match(result.out, /next: resume #7 \(stage ci\)/);
+});
+
+test('R-46 (#146): status lists the tickets that need approval in their own line, from start and next', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { body: PROTECTED_BODY }), makeIssue(8));
+  assert.equal(start([], { gh, root }).code, 0);
+  const afterStart = factory('status', [], { root });
+  assert.match(afterStart.out, /^needs approval: #7 \(tooling\/repo-checks\)$/m);
+  factory('next', [], { gh, root });
+  factory('decline', ['7'], { root });
+  const afterDecline = factory('status', [], { root });
+  assert.match(afterDecline.out, /^needs approval: none$/m);
+});
+
+test('R-46 (#146): status shows no ticket that needs approval right after approve', () => {
+  const root = temporaryFolder();
+  const { gh } = approvalWorld(root);
+  factory('next', [], { gh, root });
+  assert.match(
+    factory('status', [], { root }).out,
+    /^needs approval: #7 \(tooling\/repo-checks\)$/m,
+  );
+  factory('approve', ['7'], { root });
+  assert.match(factory('status', [], { root }).out, /^needs approval: none$/m);
 });
 
 // status: R-46

@@ -35,11 +35,12 @@ Rules for the whole run:
    - Exit 3 with `hard stop: <reason>` is a hard stop (a thread with 3 agent replies, a `gh` call that failed twice). Use the ticket number `#<n>` of the message and the reason "script hard stop". Go to "Hard stop".
 2. Read the line `next: ...` and go to the matching step.
    - `fix owner comments of #<m> (PR #<p>)`: a new owner comment waits on a green ticket. It comes after a ticket in flight resumes, and before any new ticket. Go to "Comment fix round" with ticket `<m>`.
+   - `approve #<m> (protected paths: <p>)`: ticket `<m>` changes a protected path (`tooling/repo-checks` or `.claude/settings.json`). Ask the owner once, before the branch and the claim. Use AskUserQuestion with the ticket number, the title (from `gh issue view <m> --json title`), and the protected paths `<p>`. Yes: run `node tooling/repo-checks/scripts/factory.mjs approve <m>`. No, or the session cannot ask, or no answer: run `node tooling/repo-checks/scripts/factory.mjs decline <m>`. Never run `approve` on your own. Do nothing else for ticket `<m>` before the answer is stored. Then run `node tooling/repo-checks/scripts/factory.mjs next` again.
    - `start #<m>, stacked on #<k>`: the line has `(PR #<p>, branch <base>)` after it. Check this one first, before the plain `start`. Work the ticket (next section) with the stack steps: `<base>` is the blocker branch. Step 2 branches from it, and step 8 opens a draft PR to it. `#<p>` is the blocker PR.
    - `start #<m>`: a new ticket, or an owner restart. Work the ticket (next section).
    - `resume #<m> (stage <s>)`: work the ticket (next section).
    - `wait for the CI of PR #<m>`: a CI wait. No ticket can start, and a blocked ticket waits for the CI of its blocker PR `<m>` (R-42). If a `wait` of this session runs already, wait for its end. Else run `node tooling/repo-checks/scripts/factory.mjs wait <m>` as a background command. The `Stop` hook allows the stop while it runs. When it ends, run `next` again: it stacks the ticket after `passed`, and skips it after `failed`. On `timeout` (exit 3, `hard stop: CI timeout`): hard stop with the reason "CI timeout", for the ticket of PR `<m>`.
-   - `done`: show the run report path that `next` prints. Report the tickets done, the PRs that wait for a merge, and the skips. The `Stop` hook allows the stop.
+   - `done`: show the run report path that `next` prints. Report the tickets done, the PRs that wait for a merge, and the skips. The `Stop` hook allows the stop. After an approved ticket is green, `next` gives `done`: the other tickets wait for the next run.
 3. Owner review comments come as the step `fix owner comments of #<m> (PR #<p>)`. The order is: a ticket in flight finishes first, then owner comments, then a new ticket. `next` gives the step only for a green ticket, and only when no ticket is in flight.
 
 ## Stage moves
@@ -84,6 +85,7 @@ Ticket `<n>`.
    - Doc-only ticket (each changed path is `*.md`): skip its steps 4, 5, 7, 8. Run `node tooling/repo-checks/scripts/doc-lint.mjs` and `npx --no-install prettier --check <files>`.
    - Code ticket: also run doc-lint before the review.
    - If `verify` still fails after 3 fix rounds: hard stop with the reason "verify failed after 3 fix rounds".
+   - Approved ticket (protected path): Claude Code asks the owner before each edit of a protected path (the `ask` rule). If the owner denies an edit, do a hard stop with the reason "owner denied an edit of a protected path". Do not retry the edit. This rule applies in each later step of the ticket too: review fixes, CI fixes, the comment fix round, and the restack.
    - Commit with explicit paths (`git add <path> ...`, then `git commit`). Never use `git add -A`.
    - Store the step: `node tooling/repo-checks/scripts/factory.mjs note <n> build` (summary on stdin).
 5. Review. First run `node tooling/repo-checks/scripts/factory.mjs caps <n>` (exit 3: hard stop). If the stage is `building`, run `node tooling/repo-checks/scripts/factory.mjs stage <n> reviewing`. If the stage is `reviewing` (a resume), make no move: `reviewing` to `reviewing` is illegal. Run `node tooling/repo-checks/scripts/factory.mjs route <n>`. It prints the passes, the models, the `risk:*` tier, and the over-budget data. Run the `pre-pr` skill with the request "ticket <n>, the caller pushes". Step 7 pushes. It runs 3 rounds at most. If 3 rounds end with an open Important finding: hard stop with the reason "3 review rounds". Read the findings with `node tooling/repo-checks/scripts/factory.mjs read <n> pre-pr`. Store the step: `note <n> review`.
@@ -151,6 +153,7 @@ The reason is one phrase of the closed list. Use no other words. Each phrase is 
 - "cap reached": `caps` exits 3.
 - "script hard stop": a command exits 3 and prints `hard stop: <reason>` (a `gh` call that failed twice, a second push reject, a merge conflict, a new owner comment in a thread with 3 agent replies).
 - "question from a sub-skill": any "ask the human" inside a sub-skill.
+- "owner denied an edit of a protected path": the owner denied an edit prompt (the `ask` rule) on an approved ticket (step 4).
 
 Never put text of a ticket, a comment, or a log in the reason. The text that a script printed (from `caps` or a script hard stop) may follow the phrase after `: `, only when it holds no ticket or log text. That text is script output, not outside text. If it holds any ticket or log text, put it on stdin. Put each error excerpt (40 lines at most) on stdin.
 
