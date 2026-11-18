@@ -517,6 +517,11 @@ const PROTECTED = [
     'tooling/repo-checks',
   ],
   ['Paths names .claude/settings.json', 'Paths: `.claude/settings.json`', '.claude/settings.json'],
+  [
+    'Paths names .claude/settings.local.json',
+    'Paths: `.claude/settings.local.json`',
+    '.claude/settings.local.json',
+  ],
 ];
 
 for (const [name, context, entry] of PROTECTED) {
@@ -572,6 +577,20 @@ const FORBIDDEN_PATHS = [
   ['a ticked token with a hidden character', 'Paths: `.claude/settings​.json`'],
   ['a line separator', 'Paths: tooling/repo\u2028-checks/x'],
   ['a lone carriage return', 'Paths: tooling/repo\r-checks/x'],
+  // Pre-PR round 1 of #146: a separator before the label, or between two tokens.
+  ['a lone carriage return before the label', 'intro\rPaths: tooling/repo-checks'],
+  ['a line separator before the label', 'intro\u{2028}Paths: .claude/settings.json'],
+  ['a paragraph separator before the label', 'intro\u{2029}Paths: tooling/repo-checks'],
+  ['a line separator between two tokens', 'Paths: docs/a.md\u{2028}tooling/repo-checks'],
+  // Other label formats (moved here from the body cases: they are Paths lines now).
+  ['a list dash', '- Paths: tooling/repo-checks/x'],
+  ['a quoted value in lower case', 'paths: "tooling/repo-checks/x"'],
+  ['a star list marker', '* Paths: tooling/repo-checks/x'],
+  ['a quote marker', '> Paths: tooling/repo-checks/x'],
+  ['a bold word and a colon after it', '**Paths**: tooling/repo-checks/x'],
+  ['an indented list dash and a bold label', '  - **Paths:** .claude/settings.json'],
+  ['a lower-case label', 'paths: tooling/repo-checks/x'],
+  ['a label in capitals', 'PATHS: tooling/repo-checks/x'],
 ];
 
 for (const [name, context] of FORBIDDEN_PATHS) {
@@ -602,8 +621,6 @@ for (const [name, context] of QUEUED_PATHS) {
 }
 
 const BYPASS_PATHS = [
-  ['a list dash', '- Paths: tooling/repo-checks/x'],
-  ['a quoted value in lower case', 'paths: "tooling/repo-checks/x"'],
   ['a list on the next lines', 'Paths:\n- tooling/repo-checks/x'],
   ['angle brackets', '<tooling/repo-checks>'],
   ['a line anchor', 'See .claude/settings.json#L3'],
@@ -615,6 +632,9 @@ const BYPASS_PATHS = [
   ['backslashes', String.raw`See tooling\repo-checks\x`],
   ['an escaped slash', 'See tooling%2Frepo-checks'],
   ['an escaped slash in capitals', 'See tooling%2Frepo-checks'.toUpperCase()],
+  ['a Proof checkbox', '- [ ] Proof: node tooling/repo-checks/scripts/doc-lint.mjs passes'],
+  ['a Commands line', 'Commands: `node tooling/repo-checks/scripts/doc-lint.mjs`'],
+  ['a word that ends in paths', 'Other paths: tooling/repo-checks/x'],
 ];
 
 // #146: the body backstop is gone. A protected name outside a `Paths:` line does not skip a ticket
@@ -637,6 +657,21 @@ test('R-43 (#146): a docs ticket that names a protected file only in Acceptance 
     '### Context\n\nPaths: `docs/guides/commands.md`, `docs/designs/x/design.md`\n',
     '### Acceptance\n\n- [ ] `node tooling/repo-checks/scripts/doc-lint.mjs` passes.\n',
     '### Notes\n\nDo not change `.claude/settings.json` or tooling/repo-checks/.\n\nSize: 2\n',
+  ].join('\n');
+  add(makeIssue(7, { body: text }));
+  const result = start(['--dry-run'], { gh, root });
+  assert.equal(result.code, 0, result.errors);
+  assert.deepEqual(queued(result.out), ['7']);
+  assert.doesNotMatch(result.out, /^(?:needs approval|skipped)/m);
+});
+
+test('R-43 (#146): a docs ticket with doc-lint in a Proof checkbox and a Commands line is queued as normal', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  const text = [
+    '### Context\n\nPaths: `docs/guides/commands.md`\n',
+    '### Acceptance\n\n- [ ] Proof: node tooling/repo-checks/scripts/doc-lint.mjs passes\n',
+    '### Notes\n\nCommands: `node tooling/repo-checks/scripts/doc-lint.mjs`\n\nSize: 2\n',
   ].join('\n');
   add(makeIssue(7, { body: text }));
   const result = start(['--dry-run'], { gh, root });
@@ -1538,6 +1573,19 @@ test('R-43 (#146): a changed Paths line after the approval asks again', () => {
     result.out,
     'next: approve #7 (protected paths: tooling/repo-checks, .claude/settings.json)\n',
   );
+});
+
+test('R-43 (#146): a changed text after a line separator in the Paths line asks again', () => {
+  const root = temporaryFolder();
+  const { gh, world } = approvalWorld(root);
+  world.issues.get(7).body = body('Paths: `tooling/repo-checks/scripts/x.mjs`\u{2028}docs/a.md');
+  factory('next', [], { gh, root });
+  assert.equal(factory('approve', ['7'], { root }).code, 0);
+  assert.equal(factory('next', [], { gh, root }).out, 'next: start #7\n');
+  // The protected paths stay the same: only the hash can ask again.
+  world.issues.get(7).body = body('Paths: `tooling/repo-checks/scripts/x.mjs`\u{2028}docs/b.md');
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.out, 'next: approve #7 (protected paths: tooling/repo-checks)\n');
 });
 
 test('R-43 (#146): after an approved ticket has an open PR, next gives done; later tickets wait for the next run', () => {

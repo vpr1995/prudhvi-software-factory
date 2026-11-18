@@ -7,6 +7,11 @@ const ACCEPTANCE_HEADING = '### Acceptance';
 const CHECKBOX = /^- \[[ xX]\] /;
 const ANY_HEADING = /^#{1,3} /;
 const PATHS_LINE = /^(?:\*\*Paths:\*\*|Paths:)[ \t]*(.*)$/gm;
+// The protected-path check and its hash only (#146): more label forms than `PATHS_LINE`. Optional
+// spaces, list or quote markers (`-`, `*`, `+`, `>`), bold marks, any case of the word.
+const PROTECTED_PATHS_LINE = /^[ \t>*+-]*paths\**:\**[ \t]*(.*)$/gim;
+// A lone CR, U+2028 or U+2029 ends a regex line: it can cut a `Paths:` line in two.
+const LINE_SEPARATOR = /\r(?!\n)|[\u{2028}\u{2029}]/gu;
 const BACKTICKED = /`([^`]+)`/g;
 const SPLIT_WORDS = /[\s,]+/;
 const GLOB_CHARACTER = /[*?[{]/;
@@ -14,7 +19,7 @@ const SCOPE = /'([^']+)'/g;
 const CLOSES = /\bCloses #(\d+)/gi;
 // The protected paths (R-43, #146), in lower case: a file system can ignore the case. A ticket that
 // names one in its `Paths:` line needs the approval of the owner.
-const FORBIDDEN = ['tooling/repo-checks', '.claude/settings.json'];
+const FORBIDDEN = ['tooling/repo-checks', '.claude/settings.json', '.claude/settings.local.json'];
 const MAIN = 'main';
 /** The diff base of a ticket that is not stacked (R-37). */
 export const MAIN_REF = `origin/${MAIN}`;
@@ -82,10 +87,21 @@ const unhide = (line) =>
     .replaceAll(/%2f/gi, '/')
     .replaceAll('\\', '/');
 
-/** @returns {string} A SHA-256 hash of the raw `Paths:` lines of the body. A change asks again. */
+/**
+ * @returns {string[]} The clean `Paths:` lines (label not included) that the protected-path check
+ *   reads. A separator (see `LINE_SEPARATOR`) gives 3 views of the body: separator removed, separator
+ *   as a new line (a label after it is found), separator as a space (the text after it joins the
+ *   line). The result has the lines of each view, in a fixed order. Too many lines only ask once more.
+ */
+function protectedLines(body) {
+  return ['', '\n', ' ']
+    .map((replacement) => body.replaceAll(LINE_SEPARATOR, replacement))
+    .flatMap((view) => [...view.matchAll(PROTECTED_PATHS_LINE)].map((match) => unhide(match[1])));
+}
+
+/** @returns {string} A SHA-256 hash of the lines that `protectedPaths` reads. A change asks again. */
 export function pathsHash(body) {
-  const lines = [...body.matchAll(PATHS_LINE)].map((match) => match[0]).join('\n');
-  return createHash('sha256').update(lines).digest('hex');
+  return createHash('sha256').update(protectedLines(body).join('\n')).digest('hex');
 }
 
 /** @returns {string} The text without the characters of `marks` at its end. Linear. */
@@ -105,7 +121,7 @@ function trimDots(text) {
 
 /** @returns {string} The token as a clean path from the repo root: no `./`, `..`, `//`, or `/` at the ends. */
 function cleanPath(token) {
-  const unpunctuated = trimDots(trimEndOf(trimDots(token.replace(/^\(+/, '')), ',;)'));
+  const unpunctuated = trimDots(trimEndOf(trimDots(token.replace(/^["'(]+/, '')), `,;)"'`));
   const clean = trimEndOf(
     path.posix
       .normalize(unpunctuated.length === 0 ? '.' : unpunctuated)
@@ -131,16 +147,17 @@ function reaches(clean, entry) {
 }
 
 /**
- * R-43 (#146). Only the `Paths:` lines count. Each line is cleaned first (see `unhide`).
+ * R-43 (#146). Only the `Paths:` lines count (see `protectedLines`). Each line is cleaned first
+ * (see `unhide`).
  *
  * @param {string} body - Ticket body.
- * @returns {string[]} The protected paths (tooling/repo-checks, .claude/settings.json) that a token
- *   names, or that a parent folder or a glob of a token can reach. Fixed names, never ticket text.
+ * @returns {string[]} The protected paths (tooling/repo-checks, .claude/settings.json,
+ *   .claude/settings.local.json) that a token names, or that a parent folder or a glob of a token
+ *   can reach. Fixed names, never ticket text.
  */
 export function protectedPaths(body) {
-  // A lone CR, U+2028 or U+2029 ends a regex line: it could cut a `Paths:` line in two.
-  const clean = [...body.replaceAll(/\r(?!\n)|[\u2028\u2029]/g, '').matchAll(PATHS_LINE)]
-    .flatMap((match) => tokensOf(unhide(match[1])))
+  const clean = protectedLines(body)
+    .flatMap((line) => tokensOf(line))
     .map((token) => cleanPath(token));
   return FORBIDDEN.filter((entry) => clean.some((token) => reaches(token, entry)));
 }

@@ -14,7 +14,8 @@
       "Edit(/.github/workflows/**)",
       "Edit(/.github/actions/**)",
       "Edit(/.claude/settings.json)",
-      "Edit(/.claude/settings.local.json)"
+      "Edit(/.claude/settings.local.json)",
+      "Bash(node tooling/repo-checks/scripts/factory.mjs approve:*)"
     ],
     "deny": [
       "Read(**/.env)",

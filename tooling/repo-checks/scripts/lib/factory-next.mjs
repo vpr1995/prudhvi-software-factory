@@ -154,7 +154,8 @@ export function nextCommand(words, context) {
     const run = liveWait(context, stored) ? stored : { ...stored, waiting: null };
     const { step, skipped, asks } = chooseNext(context, run);
     logNewSkips(context, skipped);
-    const known = asks === undefined ? run : { ...run, needsApproval: asks };
+    // A comment step returns before the plan: it has no list, so the stored list stays.
+    const known = { ...run, needsApproval: asks ?? run.needsApproval };
     if (step.kind !== 'done') {
       saveRun(context.root, { ...known, next: step });
       return `next: ${describeNext(step)}\n`;

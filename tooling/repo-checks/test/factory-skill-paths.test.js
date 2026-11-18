@@ -697,3 +697,13 @@ test('the setup block has the rules for the lookup, the ownership check and the 
   }
   assert.ok(!allow.some((rule) => rule.includes('git push')), 'no git push rule');
 });
+
+test('#146: approve has an ask rule, and no allow rule but the broad factory.mjs rule matches it', () => {
+  const { permissions } = JSON.parse(readRepositoryFile(ROOT, '.claude/settings.json'));
+  const approve = 'node tooling/repo-checks/scripts/factory.mjs approve';
+  assert.ok(permissions.ask.includes(`Bash(${approve}:*)`), 'settings.json asks before approve');
+  const matching = [...permissions.allow, ...setupAllow()].filter((rule) =>
+    ruleMatches(rule, `${approve} 7`),
+  );
+  assert.deepEqual(matching, ['Bash(node tooling/repo-checks/scripts/factory.mjs:*)']);
+});
