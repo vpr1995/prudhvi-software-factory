@@ -3,7 +3,9 @@
 // `permissionDecision: "ask"`, so Claude Code asks the owner. The one exception is a simple known
 // read: no chain, `&`, pipe, redirect or substitution (after the removal of `2>&1` and `2>/dev/null`),
 // and the first words are in KNOWN_READS (exact, case-sensitive match). Then it writes nothing.
-// The path check is case-insensitive and ignores `/./` and `//`.
+// The path check is case-insensitive and ignores `/./` and `//`. It does not resolve `..`, so a
+// command with `../` and `tooling/` or `.claude/` always asks, also a known read. A commit range
+// (`main..HEAD`) has no `../`, so it does not ask.
 // Bad input or an error also gives `ask` (fail closed). It always exits 0. In
 // .claude/settings.json, `|| echo` asks when node cannot start. A hook timeout lets the command
 // run (Claude Code behavior).
@@ -13,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 
 const PROTECTED = /tooling\/repo-checks|\.claude\/settings(?:\.local)?\.json/u;
+const DOTS_HINT = /tooling\/|\.claude\//u;
 const NOT_SIMPLE = /[;|&<>`\n\r]|\$\(/u;
 const KNOWN_READS = [
   'cat',
@@ -58,7 +61,7 @@ function ask(reason) {
  * @returns {boolean} True when the command is a simple known read.
  */
 function isSimpleRead(command) {
-  const text = command.replaceAll('2>&1', '').replaceAll('2>/dev/null', '');
+  const text = command.replaceAll(/2>(?:&1|\/dev\/null)/gu, '');
   if (NOT_SIMPLE.test(text)) return false;
   const words = text.trim().split(/\s+/u);
   return KNOWN_READS.some((read) => read.every((word, index) => words[index] === word));
@@ -72,6 +75,11 @@ function check(input) {
   const command = JSON.parse(input).tool_input.command;
   if (typeof command !== 'string') throw new TypeError('tool_input.command is not a string');
   const normal = command.toLowerCase().replaceAll(/\/(?:\.\/|\/)+/gu, '/');
+  if (normal.includes('../') && DOTS_HINT.test(normal)) {
+    return ask(
+      'This Bash command has `../` and a tooling/ or .claude/ path. It may reach a protected path.',
+    );
+  }
   const found = PROTECTED.exec(normal);
   if (found === null || isSimpleRead(command)) return '';
   return ask(`This Bash command names the protected path ${found[0]} and is not a simple read.`);

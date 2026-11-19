@@ -61,7 +61,7 @@ for (const command of [
   'cat tooling/repo-checks/x & rm tooling/repo-checks/x',
   'node tooling/repo-checks/scripts/doc-lint.mjs 2>&1 | tail -5',
 ]) {
-  test(`asks for a write to a protected path: ${command}`, () => {
+  test(`asks for a non-read on a protected path: ${command}`, () => {
     const result = run(hookInput(command));
     assertAsk(result);
     assert.match(
@@ -72,6 +72,42 @@ for (const command of [
 }
 
 for (const command of [
+  'rm tooling/eslint-config/../repo-checks/x',
+  'cp a .claude/x/../settings.json',
+  'cat tooling/x/../repo-checks/y',
+]) {
+  test(`asks for a command with .. and a protected-path hint: ${command}`, () => {
+    assertAsk(run(hookInput(command)));
+  });
+}
+
+for (const command of [
+  'cat ../README.md',
+  'ls ..',
+  'rm ../x',
+  'git diff main..HEAD -- tooling/repo-checks',
+]) {
+  test(`gives no output for .. with no protected-path hint: ${command}`, () => {
+    assertSilent(run(hookInput(command)));
+  });
+}
+
+for (const command of [
+  'head tooling/repo-checks/x',
+  'tail tooling/repo-checks/x',
+  'rg x tooling/repo-checks',
+  'ls tooling/repo-checks',
+  'wc -l tooling/repo-checks/x',
+  'diff tooling/repo-checks/a tooling/repo-checks/b',
+  'stat tooling/repo-checks/x',
+  'file tooling/repo-checks/x',
+  'git show HEAD -- tooling/repo-checks',
+  'git status tooling/repo-checks',
+  'git blame tooling/repo-checks/x',
+  'git commit -m msg tooling/repo-checks/x',
+  'git grep x tooling/repo-checks',
+  'node --test tooling/repo-checks/test/x.test.js',
+  'node tooling/repo-checks/scripts/doc-lint.mjs',
   'cat tooling/repo-checks/scripts/factory.mjs',
   'grep -n x tooling/repo-checks/scripts/a.mjs',
   'grep x tooling/repo-checks/a 2>/dev/null',
@@ -111,31 +147,25 @@ const hookEntry = () => {
   );
   return hooks.find((hook) => hook.command.includes(SCRIPT_NAME));
 };
+const HOOK = hookEntry();
+
+const runSettingsHook = (input, env) =>
+  spawnSync('sh', ['-c', HOOK.command], { input, encoding: 'utf8', env });
 
 test('.claude/settings.json registers the hook on PreToolUse for Bash, not gated by FACTORY_STOP_GATE', () => {
-  const hook = hookEntry();
-  assert.ok(hook, `no PreToolUse Bash hook runs ${SCRIPT_NAME}`);
-  assert.equal(hook.type, 'command');
-  assert.doesNotMatch(hook.command, /FACTORY_STOP_GATE/u);
-  assert.match(hook.command, /\|\| echo '/u);
+  assert.ok(HOOK, `no PreToolUse Bash hook runs ${SCRIPT_NAME}`);
+  assert.equal(HOOK.type, 'command');
+  assert.doesNotMatch(HOOK.command, /FACTORY_STOP_GATE/u);
+  assert.match(HOOK.command, /\|\| echo '/u);
 });
 
 test('the settings hook asks when node cannot run the script', () => {
-  const result = spawnSync('sh', ['-c', hookEntry().command], {
-    input: hookInput('cat docs/x.md'),
-    encoding: 'utf8',
-    env: { ...BASE_ENV, CLAUDE_PROJECT_DIR: '/nonexistent-project-dir' },
-  });
-  assertAsk(result);
+  const env = { ...BASE_ENV, CLAUDE_PROJECT_DIR: '/nonexistent-project-dir' };
+  assertAsk(runSettingsHook(hookInput('cat docs/x.md'), env));
 });
 
 test('FACTORY_STOP_GATE=off does not turn the hook off', () => {
   const env = { ...BASE_ENV, FACTORY_STOP_GATE: 'off', CLAUDE_PROJECT_DIR: ROOT };
   assertAsk(run(hookInput('rm tooling/repo-checks/a.mjs'), env));
-  const result = spawnSync('sh', ['-c', hookEntry().command], {
-    input: hookInput('rm tooling/repo-checks/a.mjs'),
-    encoding: 'utf8',
-    env,
-  });
-  assertAsk(result);
+  assertAsk(runSettingsHook(hookInput('rm tooling/repo-checks/a.mjs'), env));
 });
