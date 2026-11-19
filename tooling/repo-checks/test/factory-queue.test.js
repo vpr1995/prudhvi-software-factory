@@ -1748,6 +1748,20 @@ test('R-43: decline logs "owner declined", next moves on, and no gh write happen
   assert.equal(runLog(root).filter((line) => line.event === 'skip' && line.ticket === 7).length, 1);
 });
 
+test('R-43: a new run asks again after a decline', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { body: PROTECTED }));
+  assert.equal(nextAfterStart(root, gh).next.out, ASK_LINE);
+  assert.equal(factory('decline', ['7'], { gh, root }).code, 0);
+  assert.equal(factory('stop', [], { gh, root }).code, 0);
+  // A later start time gives a new run id, so a new run log.
+  const later = { now: () => new Date('2026-11-17T11:00:00Z') };
+  const started = start([], { gh, root, ...later });
+  assert.equal(started.code, 0, started.errors);
+  assert.equal(factory('next', [], { gh, root, ...later }).out, ASK_LINE);
+});
+
 test('R-43: decline is refused when the stored step is not that flagged ticket', () => {
   const root = temporaryFolder();
   const { gh, add } = makeWorld();
