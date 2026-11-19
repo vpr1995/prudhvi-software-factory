@@ -216,6 +216,9 @@ function bulletOf(step) {
 test('loop: each describeNext line meets its own bullet first', () => {
   const stack = { blocker: 4, pr: 9, branch: 'feat/4-x' };
   assert.match(bulletOf({ kind: 'ticket', ticket: 5, resume: false, stack }), /stack steps/);
+  const ask = { kind: 'ticket', ticket: 5, resume: false, ask: true };
+  assert.match(bulletOf(ask), /AskUserQuestion.*factory\.mjs decline <m>/);
+  assert.match(bulletOf({ ...ask, stack }), /AskUserQuestion/);
   assert.match(bulletOf({ kind: 'ticket', ticket: 5, resume: false }), /work the ticket/i);
   assert.match(
     bulletOf({ kind: 'ticket', ticket: 5, resume: true, stage: 'ci' }),

@@ -35,6 +35,7 @@ Rules for the whole run:
    - Exit 3 with `hard stop: <reason>` is a hard stop (a thread with 3 agent replies, a `gh` call that failed twice). Use the ticket number `#<n>` of the message and the reason "script hard stop". Go to "Hard stop".
 2. Read the line `next: ...` and go to the matching step.
    - `fix owner comments of #<m> (PR #<p>)`: a new owner comment waits on a green ticket. It comes after a ticket in flight resumes, and before any new ticket. Go to "Comment fix round" with ticket `<m>`.
+   - `start #<m> (ask the owner first: protected path)`: the ticket touches `tooling/repo-checks` or `.claude/settings.json`. Check this one first. Ask the owner once with AskUserQuestion: ticket number, title, and why (a protected path). Yes: go on with the `start` bullets below, as normal. No, no answer, or you cannot ask: run `node tooling/repo-checks/scripts/factory.mjs decline <m>`, then `next`.
    - `start #<m>, stacked on #<k>`: the line has `(PR #<p>, branch <base>)` after it. Check this one first, before the plain `start`. Work the ticket (next section) with the stack steps: `<base>` is the blocker branch. Step 2 branches from it, and step 8 opens a draft PR to it. `#<p>` is the blocker PR.
    - `start #<m>`: a new ticket, or an owner restart. Work the ticket (next section).
    - `resume #<m> (stage <s>)`: work the ticket (next section).
