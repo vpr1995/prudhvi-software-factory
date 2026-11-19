@@ -87,7 +87,7 @@ for (const command of [
   'rm ../x',
   'git diff main..HEAD -- tooling/repo-checks',
 ]) {
-  test(`gives no output for .. with no protected-path hint: ${command}`, () => {
+  test(`gives no output for .. that is not a ../ path to tooling/ or .claude/: ${command}`, () => {
     assertSilent(run(hookInput(command)));
   });
 }
