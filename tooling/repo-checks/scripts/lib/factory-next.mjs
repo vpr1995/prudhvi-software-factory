@@ -3,7 +3,8 @@
 // `next` finds the next step and stores it in run.json `next`:
 //   { kind: 'wait', pr }                              a CI wait is stored in run.json `waiting`
 //   { kind: 'comment', ticket, pr }                   a new owner comment to fix (R-30)
-//   { kind: 'ticket', ticket, resume, stage?, stack? }  a ticket to resume (R-43), or to start
+//   { kind: 'ticket', ticket, resume, stage?, stack?, ask? }  a ticket to resume (R-43), or to start
+//                                                     (`ask`: ask the owner first, R-43)
 //   { kind: 'done' }                                  nothing can start (R-5)
 // Order: a ticket in flight resumes first, then owner comments, then a new ticket: the work of the run
 // is not left half done, and only one ticket is in flight. On `done`,
@@ -18,7 +19,7 @@
 // R-41: a hard stop when the blocker PR of a stacked ticket in flight closed with no merge.
 //
 // `status` only reads: it takes no lock and writes no file and makes no `gh` write.
-import { fail, IN_FLIGHT, relative, withLock } from './factory-base.mjs';
+import { fail, IN_FLIGHT, relative, ticketNumber, withLock } from './factory-base.mjs';
 import { peekCaps } from './factory-caps.mjs';
 import { findCommentStep } from './factory-comments.mjs';
 import { buildPlan, localTickets, syncTickets } from './factory-queue.mjs';
@@ -26,6 +27,8 @@ import { currentTicket, readRunLog, STATUS_DONE, writeReport } from './factory-r
 import { clearRun, liveWait, loadRun, onlyOf, saveRun, warnBadOnly } from './factory-run.mjs';
 import { checkStackParent } from './factory-stack.mjs';
 import { loadTicket, writeRunLog } from './factory-state.mjs';
+
+const DECLINED = 'owner declined';
 
 const none = (name, words) => {
   if (words.length > 0) fail(`Usage: ${name}`);
@@ -51,7 +54,8 @@ export function describeNext(next, { withBranch = true } = {}) {
     stack === undefined
       ? ''
       : `, stacked on #${String(stack.blocker)} (PR #${String(stack.pr)}${branch})`;
-  return `start #${String(next.ticket)}${on}`;
+  const ask = next.ask === true ? ' (ask the owner first: protected path)' : '';
+  return `start #${String(next.ticket)}${ask}${on}`;
 }
 
 const entryStep = (entry) =>
@@ -62,6 +66,7 @@ const entryStep = (entry) =>
         ticket: entry.number,
         resume: false,
         ...(entry.stack === undefined ? {} : { stack: entry.stack }),
+        ...(entry.ask === true ? { ask: true } : {}),
       };
 
 // A skip that the run log has already is not logged again.
@@ -103,7 +108,14 @@ function chooseNext(context, run) {
   // ticket is in flight (it gives nothing then). A hard stop (R-31) is thrown here.
   const comment = findCommentStep(context, only);
   if (comment !== undefined) return { step: comment, skipped: [] };
-  const { queue, skipped } = buildPlan(context, only);
+  const { queue: planned, skipped } = buildPlan(context, only);
+  // R-43: the owner declined these tickets in this run: not asked again.
+  const declined = new Set(
+    readRunLog(context.root)
+      .filter((line) => line.event === 'skip' && line.detail === DECLINED)
+      .map((line) => line.ticket),
+  );
+  const queue = planned.filter((candidate) => !declined.has(candidate.number));
   // Only a ticket in flight resumes. A green, done or needs-human ticket does not resume and does
   // not block `done`.
   const startable = queue.filter(
@@ -135,6 +147,25 @@ export function nextCommand(words, context) {
     const file = writeReport(context, { status: STATUS_DONE });
     clearRun(context, step);
     return `next: done\nreport: ${relative(context.root, file)}\n`;
+  });
+}
+
+/**
+ * R-43: the owner said no to the ask. Valid only when the stored step is that ticket with `ask`.
+ * Logs a skip line: `next` then leaves the ticket out for the rest of this run. No label change.
+ *
+ * @returns {string} The text to print.
+ */
+export function declineCommand(words, context) {
+  if (words.length !== 1) fail('Usage: decline <n>');
+  const ticket = Number(ticketNumber(words[0]));
+  return withLock(context, () => {
+    const next = loadRun(context.root)?.next;
+    if (next?.kind !== 'ticket' || next.ask !== true || next.ticket !== ticket) {
+      fail(`decline: the next step is not "ask the owner first" for #${String(ticket)}`);
+    }
+    logNewSkips(context, [{ number: ticket, skip: DECLINED }]);
+    return `declined #${String(ticket)}: skipped for this run\n`;
   });
 }
 

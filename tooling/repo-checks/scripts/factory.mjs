@@ -9,6 +9,9 @@
 // start [<n>] [--dry-run]: build the queue, mark the run active or adopt it, print the plan
 // (lib/factory-queue.mjs, task 2c). `--dry-run` writes nothing. `FACTORY_RUN=off` refuses (R-4).
 //
+// decline <n>: the owner said no to "ask the owner first" for ticket <n>. Logs a skip: `next` leaves
+// it out for this run (R-43). Code: lib/factory-next.mjs.
+//
 // next: find the next step (resume, start, CI wait, or done) and store it in run.json. On `done`
 // it writes the run report and clears the run (R-5). status: print the run state, read only
 // (R-46). stop: clear the run, keep each ticket.json, change no label, write the report (R-47).
@@ -54,7 +57,7 @@ import {
 } from './lib/factory-github.mjs';
 import { hardstopCommand } from './lib/factory-hard-stop.mjs';
 import { metricsCommand } from './lib/factory-metrics.mjs';
-import { nextCommand, statusCommand } from './lib/factory-next.mjs';
+import { declineCommand, nextCommand, statusCommand } from './lib/factory-next.mjs';
 import { pushCommand } from './lib/factory-push.mjs';
 import { baseRef, MAIN_REF } from './lib/factory-queue-rules.mjs';
 import { startCommand } from './lib/factory-queue.mjs';
@@ -80,6 +83,7 @@ const TICKET = /^\d+$/;
 const USAGE = [
   'start [<n>] [--dry-run]',
   'next',
+  'decline <n>',
   'status',
   'stop',
   'report',
@@ -164,6 +168,7 @@ const HANDLERS = new Map([
   ['caps', capsCommand],
   ['comment', commentCommand],
   ['comments', commentsCommand],
+  ['decline', declineCommand],
   ['hardstop', hardstopCommand],
   ['metrics', metricsCommand],
   ['next', nextCommand],

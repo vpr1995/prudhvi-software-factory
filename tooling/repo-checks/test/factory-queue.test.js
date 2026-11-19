@@ -10,6 +10,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { main } from '../scripts/factory.mjs';
+import { describeNext } from '../scripts/lib/factory-next.mjs';
 import { exists, listFilesRecursive, writeAtomic } from '../scripts/lib/fs-io.mjs';
 
 import { pathFromEnv } from './test-env.config.js';
@@ -471,13 +472,40 @@ const SKIPS = [
     { body: '### Acceptance\n\nnone\n\n### Notes\n\n- [ ] not acceptance\n' },
     /Acceptance/,
   ],
+];
+
+// R-43: a protected path does not skip the ticket. It stays queued with an ask flag: `next` asks the
+// owner first. The flag is only for a new ticket, and every skip rule above still wins.
+const ASK_LINE = 'next: start #7 (ask the owner first: protected path)\n';
+// A log with no skip line may not exist.
+const skipLines = (root, ticket) =>
+  exists(stateFile(root, 'runs', `${RUN_ID}.jsonl`))
+    ? runLog(root).filter((line) => line.event === 'skip' && line.ticket === ticket)
+    : [];
+const nextAfterStart = (root, gh) => {
+  const started = start([], { gh, root });
+  assert.equal(started.code, 0, started.errors);
+  return { started, next: factory('next', [], { gh, root }) };
+};
+const ASKS = [
   [
     'Paths names tooling/repo-checks',
     { body: body('Paths: `docs/a.md`, `tooling/repo-checks/scripts/x.mjs`') },
-    /Paths/,
   ],
-  ['Paths names .claude/settings.json', { body: body('Paths: `.claude/settings.json`') }, /Paths/],
+  ['Paths names .claude/settings.json', { body: body('Paths: `.claude/settings.json`') }],
 ];
+
+for (const [name, extra] of ASKS) {
+  test(`R-43: a ticket stays queued with the ask flag when ${name}`, () => {
+    const root = temporaryFolder();
+    const { gh, add } = makeWorld();
+    add(makeIssue(7, extra), makeIssue(8));
+    const { started, next } = nextAfterStart(root, gh);
+    assert.deepEqual(queued(started.out), ['7', '8']);
+    assert.equal(next.out, ASK_LINE);
+    assert.deepEqual(skipLines(root, 7), []);
+  });
+}
 
 // A closed issue, or an issue with no label, is not in the lists that build the board queue. Only
 // `start <n>` reaches the rule. The other reasons also come up in the board queue.
@@ -535,13 +563,13 @@ const FORBIDDEN_PATHS = [
 ];
 
 for (const [name, context] of FORBIDDEN_PATHS) {
-  test(`R-43: a ticket is skipped when Paths has ${name}`, () => {
+  test(`R-43: a ticket is queued with the ask flag when Paths has ${name}`, () => {
     const root = temporaryFolder();
     const { gh, add } = makeWorld();
     add(makeIssue(7, { body: body(context) }));
-    const result = start([], { gh, root });
-    assert.match(result.out, /#7: .*Paths/, context);
-    assert.deepEqual(queued(result.out), [], context);
+    const { started, next } = nextAfterStart(root, gh);
+    assert.deepEqual(queued(started.out), ['7'], context);
+    assert.equal(next.out, ASK_LINE, context);
   });
 }
 
@@ -578,13 +606,13 @@ const BYPASS_PATHS = [
 ];
 
 for (const [name, context] of BYPASS_PATHS) {
-  test(`R-43: a ticket is skipped when the body has ${name}`, () => {
+  test(`R-43: a ticket is queued with the ask flag when the body has ${name}`, () => {
     const root = temporaryFolder();
     const { gh, add } = makeWorld();
     add(makeIssue(7, { body: body(context) }));
-    const result = start([], { gh, root });
-    assert.match(result.out, /#7: .*Paths/, JSON.stringify(context));
-    assert.deepEqual(queued(result.out), [], JSON.stringify(context));
+    const { started, next } = nextAfterStart(root, gh);
+    assert.deepEqual(queued(started.out), ['7'], JSON.stringify(context));
+    assert.equal(next.out, ASK_LINE, JSON.stringify(context));
   });
 }
 
@@ -1672,4 +1700,96 @@ test('R2: a resume step with a ticket that is not a positive integer is ignored'
     assert.equal(factory('stop', [], { root }).code, 0);
     assert.match(readReport(root), /## Current ticket\n+none/);
   }
+});
+
+// R-43: ask the owner, decline
+
+const PROTECTED = body('Paths: `tooling/repo-checks/scripts/x.mjs`');
+
+test('R-43: next shows the ask on the start step, the Stop hook form too, and prints no body text', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { body: PROTECTED }));
+  const { next } = nextAfterStart(root, gh);
+  assert.equal(next.out, ASK_LINE);
+  assert.equal(readJson(root, 'run.json').next.ask, true);
+  assert.equal(
+    describeNext(readJson(root, 'run.json').next, { withBranch: false }),
+    'start #7 (ask the owner first: protected path)',
+  );
+});
+
+test('R-43: a resume ticket with a protected path gets no ask', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { body: PROTECTED, labels: ['agent:ready', 'agent:in-progress'] }));
+  seedTicket(root, 7);
+  const { next } = nextAfterStart(root, gh);
+  assert.match(next.out, /next: resume #7 \(stage building\)\n$/);
+  assert.doesNotMatch(next.out, /ask/);
+});
+
+test('R-43: decline logs "owner declined", next moves on, and no gh write happens', () => {
+  const root = temporaryFolder();
+  const { gh, calls, add } = makeWorld();
+  add(makeIssue(7, { body: PROTECTED }), makeIssue(8));
+  assert.equal(nextAfterStart(root, gh).next.out, ASK_LINE);
+  const declined = factory('decline', ['7'], { gh, root });
+  assert.equal(declined.code, 0, declined.errors);
+  const skips = runLog(root).filter((line) => line.event === 'skip' && line.ticket === 7);
+  assert.deepEqual(
+    skips.map((line) => line.detail),
+    ['owner declined'],
+  );
+  const result = factory('next', [], { gh, root });
+  assert.equal(result.out, 'next: start #8\n');
+  assert.equal(readJson(root, 'run.json').next.ticket, 8);
+  assert.deepEqual(writeCalls(calls), []);
+  assert.equal(runLog(root).filter((line) => line.event === 'skip' && line.ticket === 7).length, 1);
+});
+
+test('R-43: a new run asks again after a decline', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { body: PROTECTED }));
+  assert.equal(nextAfterStart(root, gh).next.out, ASK_LINE);
+  assert.equal(factory('decline', ['7'], { gh, root }).code, 0);
+  assert.equal(factory('stop', [], { gh, root }).code, 0);
+  // A later start time gives a new run id, so a new run log.
+  const later = { now: () => new Date('2026-11-17T11:00:00Z') };
+  const started = start([], { gh, root, ...later });
+  assert.equal(started.code, 0, started.errors);
+  assert.equal(factory('next', [], { gh, root, ...later }).out, ASK_LINE);
+});
+
+test('R-43: decline is refused when the stored step is not that flagged ticket', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { body: PROTECTED }), makeIssue(8, { body: body() }));
+  assert.equal(nextAfterStart(root, gh).next.out, ASK_LINE);
+  const other = factory('decline', ['8'], { gh, root });
+  assert.equal(other.code, 2);
+  assert.match(other.errors, /decline/);
+  assert.deepEqual(skipLines(root, 8), []);
+});
+
+test('R-43: decline is refused for a plain start step and with no run', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(8));
+  assert.equal(factory('decline', ['8'], { gh, root }).code, 2);
+  assert.equal(nextAfterStart(root, gh).next.out, 'next: start #8\n');
+  const plain = factory('decline', ['8'], { gh, root });
+  assert.equal(plain.code, 2);
+  assert.equal(exists(stateFile(root, 'runs', `${RUN_ID}.jsonl`)), false);
+});
+
+test('R-7: a non-owner author with a protected path is skipped, with no ask', () => {
+  const root = temporaryFolder();
+  const { gh, add } = makeWorld();
+  add(makeIssue(7, { author: 'mallory', body: PROTECTED }), makeIssue(8));
+  const result = start([], { gh, root });
+  assert.match(result.out, /#7: .*author/);
+  assert.deepEqual(queued(result.out), ['8']);
+  assert.equal(factory('next', [], { gh, root }).out, 'next: start #8\n');
 });

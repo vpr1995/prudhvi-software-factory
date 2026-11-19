@@ -63,6 +63,10 @@ function addedByOther({ env, number }) {
   return !isOwner(labelActor(Array.isArray(pages) ? pages.flat() : [], READY), env.owner);
 }
 
+// A new ticket that names tooling/repo-checks or .claude/settings.json is not skipped: the entry gets
+// `ask: true`, and `next` asks the owner first. Every rule above and below still wins.
+const asksOwner = (body) => namesForbiddenPath(pathsOf(body)) || bodyNamesForbiddenPath(body);
+
 const CLOSED = ['issue is closed', ({ issue }) => issue.state !== 'OPEN'];
 const NEW_RULES = [
   ['no agent:ready label', ({ labels }) => !labels.has(READY)],
@@ -74,10 +78,6 @@ const NEW_RULES = [
   ],
   ['[owner] in the title', ({ issue }) => issue.title.toLowerCase().includes('[owner]')],
   ['no Acceptance checkbox', ({ issue }) => !hasAcceptance(issue.body)],
-  [
-    'Paths: names tooling/repo-checks or .claude/settings.json',
-    ({ issue }) => namesForbiddenPath(pathsOf(issue.body)) || bodyNamesForbiddenPath(issue.body),
-  ],
   ['parent issue, or sub-issue count not readable', isParent],
   ['agent:ready was not added by the owner (R-7)', addedByOther],
 ];
@@ -122,6 +122,7 @@ function judge(env, number) {
     stage: local?.stage,
     stack: blocked.stack,
     routing: routedPasses(issue.body, blocked.stack),
+    ...(!resume && asksOwner(issue.body) ? { ask: true } : {}),
   };
 }
 
