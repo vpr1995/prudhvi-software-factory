@@ -46,6 +46,20 @@ for (const command of [
   'git apply /tmp/x.patch && cat .claude/settings.json',
   'git checkout -- .claude/settings.json',
   'git restore tooling/repo-checks/test/a.test.js',
+  'sed -Ei s/a/b/ tooling/repo-checks/x',
+  'git checkout HEAD~1 .claude/settings.json',
+  'git -C . apply p tooling/repo-checks',
+  'perl -pi -e s/a/b/ .claude/settings.json',
+  'dd if=/tmp/a of=.claude/settings.json',
+  'ln -sf /tmp/a .claude/settings.json',
+  'rm TOOLING/Repo-Checks/x',
+  'cp a .Claude/Settings.json',
+  'rm tooling//repo-checks/x',
+  'rm tooling/./repo-checks/x',
+  'cat tooling/repo-checks/x | sh',
+  'grep x tooling/repo-checks/a && rm tooling/repo-checks/a',
+  'cat tooling/repo-checks/x & rm tooling/repo-checks/x',
+  'node tooling/repo-checks/scripts/doc-lint.mjs 2>&1 | tail -5',
 ]) {
   test(`asks for a write to a protected path: ${command}`, () => {
     const result = run(hookInput(command));
@@ -66,7 +80,8 @@ for (const command of [
   'node tooling/repo-checks/scripts/factory.mjs next',
   'node tooling/repo-checks/scripts/factory.mjs route 146 2>&1',
   'node common/scripts/install-run-rush.js test --only @vprprudhvi/tooling-repo-checks',
-  'node tooling/repo-checks/scripts/doc-lint.mjs 2>&1 | tail -5',
+  'node tooling/repo-checks/scripts/doc-lint.mjs 2>&1',
+  'git add tooling/repo-checks/scripts/x.mjs',
 ]) {
   test(`gives no output for a read: ${command}`, () => {
     assertSilent(run(hookInput(command)));
@@ -102,6 +117,16 @@ test('.claude/settings.json registers the hook on PreToolUse for Bash, not gated
   assert.ok(hook, `no PreToolUse Bash hook runs ${SCRIPT_NAME}`);
   assert.equal(hook.type, 'command');
   assert.doesNotMatch(hook.command, /FACTORY_STOP_GATE/u);
+  assert.match(hook.command, /\|\| echo '/u);
+});
+
+test('the settings hook asks when node cannot run the script', () => {
+  const result = spawnSync('sh', ['-c', hookEntry().command], {
+    input: hookInput('cat docs/x.md'),
+    encoding: 'utf8',
+    env: { ...BASE_ENV, CLAUDE_PROJECT_DIR: '/nonexistent-project-dir' },
+  });
+  assertAsk(result);
 });
 
 test('FACTORY_STOP_GATE=off does not turn the hook off', () => {

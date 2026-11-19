@@ -125,7 +125,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/protected-write-check.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/tooling/repo-checks/scripts/protected-write-check.mjs || echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"protected-write-check did not run (fail closed).\"}}'",
             "timeout": 5
           }
         ]
